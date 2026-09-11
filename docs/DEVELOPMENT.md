@@ -34,6 +34,8 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 
 ## 接入自己的云环境
 
+当前工作区的 `miniprogram/config/local.ts` 和 `cloudbaserc.json` 已配置环境 `family-todo-d3g28fx1c314f8638`，调用与部署目标均为 `api` 云函数。这两个本地文件不提交到 Git，新检出仓库仍需按下方步骤配置。环境 ID 已填写不代表已验证 AppID 与环境的关联、完成云函数部署或真实云联调。
+
 本步骤供后续联调，本次初始化不自动部署：
 
 1. 在开发者工具配置本项目真实 AppID。如果工具将其写入 project.config.json，保持该改动仅在本地，提交前检查 diff；不假设私有配置可覆盖 AppID。
