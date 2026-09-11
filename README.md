@@ -18,7 +18,7 @@ npm run check
 
 - 小程序入口、占位首页、通用页面状态、样式变量和服务目录。
 - 统一 API、运行时校验、安全错误和 system.health 健康检查。
-- `identity.ensure` 契约、逐请求身份解析、事务用户映射和小程序服务调用；已通过本地模拟测试，云端尚未开放，见 [身份接入](docs/technical/IDENTITY.md)。
+- `identity.ensure` 契约、逐请求身份解析、事务用户映射和小程序会话协调；支持初始化去重、同请求 ID 重试、超时与失效响应隔离。已通过本地模拟测试，云端尚未开放，见 [身份接入](docs/technical/IDENTITY.md)。
 - 已通过 CloudBase CLI 创建 api 云函数并完成真实云健康验证，详见 [发布记录](docs/technical/CLOUD_DEPLOYMENT.md)。
 - 云函数、共享包分层、可注入时钟及 UUID。
 - 严格类型检查、Vitest、esbuild、锁文件和 GitHub Actions 检查。

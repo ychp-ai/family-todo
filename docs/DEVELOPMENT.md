@@ -32,6 +32,8 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 
 首页没有登录、业务请求、订阅弹窗或底部导航。page-state 支持 loading/empty/error/ready；错误态按钮发出 retry 事件，ready 展示 slot。
 
+App 中已装配 `globalData.session`，仅创建协调器，不在启动时调用身份接口。身份版本完成云端接入后，可按 [身份验收](technical/IDENTITY.md) 从开发者工具手动验证；当前远端仍为健康版本，不能把 NOT_FOUND 视为用户未注册。
+
 上传规则排除测试、类型声明、文档和配置示例。local.ts 会编译进客户端，只能包含公开配置。
 
 ## 接入自己的云环境
@@ -58,6 +60,8 @@ SDK 初始化成功不保证函数存在或网络可用。未来密钥只配置�
 提交源码、package-lock.json、配置模板和 project.config.json 的公共默认值。
 
 不提交 node_modules、云函数 index.js/map、共享 contracts.js、local.ts、cloudbaserc.json 和开发者工具私有配置。不需要额外执行小程序“构建 npm”，客户端依赖由共享 bundle 提供。
+
+`miniprogram/shared/package.json` 是须提交的 CommonJS 格式声明，不是依赖安装清单；共享目录内不需要 node_modules。它防止根目录的 `type: module` 将生成的 contracts.js 误识别为 ES Module。
 
 ## 健康请求与业务接入顺序
 

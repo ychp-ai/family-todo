@@ -6,6 +6,8 @@ import { runInNewContext } from "node:vm";
 import { build } from "esbuild";
 import { expect, it, vi } from "vitest";
 
+import type { AppOptions } from "../miniprogram/types/app";
+
 it("云函数 bundle 脱离工作区和 node_modules 后可独立调用", () => {
   const directory = mkdtempSync(join(tmpdir(), "family-todo-function-"));
   try {
@@ -51,15 +53,63 @@ it("默认配置的 App 和首页在无云 SDK 时完成注册和启动", async 
       },
     }],
   });
-  const app = vi.fn((options: { onLaunch(): void }) => options.onLaunch());
+  const app = vi.fn((options: AppOptions & { onLaunch(): void }) => options.onLaunch());
   const page = vi.fn();
   const component = vi.fn();
   for (const file of result.outputFiles) {
     runInNewContext(file.text, { App: app, Page: page, Component: component });
   }
   expect(app).toHaveBeenCalledOnce();
+  expect(app.mock.calls[0]?.[0].globalData).toMatchObject({ cloudStatus: "unconfigured" });
+  expect(app.mock.calls[0]?.[0].globalData.session.state).toEqual({ status: "idle" });
   expect(page).toHaveBeenCalledOnce();
   expect(component).toHaveBeenCalledOnce();
+});
+
+it("客户端独立 bundle 可从 App 会话调用身份服务，并拒绝泄露字段的响应", async () => {
+  const result = await build({
+    entryPoints: ["miniprogram/app.ts"], bundle: true, platform: "neutral", format: "cjs",
+    target: "es2018", write: false,
+    plugins: [{
+      name: "use-test-config",
+      setup(builder) {
+        builder.onResolve({ filter: /^\.\/local$/ }, () => ({ path: "local", namespace: "test-config" }));
+        builder.onLoad({ filter: /.*/, namespace: "test-config" }, () => ({ contents: 'export const localConfig = { cloudbaseEnvId: "test-env", apiFunctionName: "api" };' }));
+      },
+    }],
+  });
+  const user = { id: "95855838-6cb6-48b1-94b4-60e41d96cc44", displayName: "我", version: 1 };
+  const init = vi.fn();
+  const callFunction = vi.fn(async ({ data }: { data: { requestId: string } }) => ({
+    result: { ok: true, requestId: data.requestId, data: { user } },
+  }));
+  const random = vi.fn((options: WechatMiniprogram.GetRandomValuesOption) => {
+    options.success?.({ randomValues: new Uint8Array(16).buffer, errMsg: "ok" });
+  });
+  const app = vi.fn((options: AppOptions & { onLaunch(): void }) => options.onLaunch());
+  for (const file of result.outputFiles) {
+    runInNewContext(file.text, {
+      App: app, getApp: () => app.mock.calls[0]?.[0],
+      wx: { cloud: { init, callFunction }, getRandomValues: random },
+      ArrayBuffer, Uint8Array, setTimeout, clearTimeout,
+    });
+  }
+  const options = app.mock.calls[0]?.[0];
+  if (!options) throw new Error("App did not register");
+  expect(init).toHaveBeenCalledWith({ env: "test-env", traceUser: false });
+  expect(callFunction).not.toHaveBeenCalled();
+  expect(random).not.toHaveBeenCalled();
+  const session = options.globalData.session;
+  expect(await session.ensure()).toEqual(user);
+  expect(callFunction).toHaveBeenCalledWith({ name: "api", data: {
+    apiVersion: 1, action: "identity.ensure", requestId: "00000000-0000-4000-8000-000000000000", payload: {},
+  } });
+  session.invalidate();
+  callFunction.mockImplementationOnce(async ({ data }) => ({ result: {
+    ok: true, requestId: data.requestId, data: { user: { ...user, openId: "private" } },
+  } }));
+  await expect(session.ensure()).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+  expect(session.state).not.toHaveProperty("user");
 });
 
 it("setup 首次生成配置，再次执行保留用户配置", () => {
