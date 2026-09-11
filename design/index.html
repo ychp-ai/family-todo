@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#5860b5">
+  <title>家庭待办 · 界面设计稿</title>
+  <link rel="icon" href="assets/app-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 16h14l-2-3V9a5 5 0 0 0-10 0v4l-2 3ZM10 20h4"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M5 8h13l-3-3M19 16H6l3 3M19 8v3M5 16v-3"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7M5 9v11h14V9M10 20v-6h4v6"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 11h16M8 15h2"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  </svg>
+  <div class="board">
+    <header class="board-header">
+      <a class="brand" href="#"><img src="assets/app-icon.png" alt="家庭待办图标"><span>家庭待办<small>FAMILY TO-DO</small></span></a>
+      <div class="board-meta"><span class="status-dot"></span> 微信小程序 · 交互设计稿 <span class="meta-divider"></span> V1 / 2026.09</div>
+    </header>
+    <section class="intro">
+      <div><p class="eyebrow">把关心，放进每一天</p><h1>小事有着落，<br class="mobile-break">家人有照应。</h1><p class="intro-copy">自己的安排，家人的牵挂，在这里一起记好。</p></div>
+      <div class="intro-note"><span class="note-line"></span><p>一处看见多个家庭<br>每一次完成，都留下真实的记录</p></div>
+    </section>
+    <nav class="preview-nav" aria-label="设计稿页面"><a href="#home-artboard">今日待办</a><a href="#detail-artboard">事项详情</a><a href="#family-artboard">家人进度</a><a href="#identity">品牌图标</a></nav>
+    <main class="artboards">
+      <section class="artboard" id="home-artboard">
+        <div class="artboard-caption"><h2>今日待办</h2><span>把自己和家人的事放在一起</span></div>
+        <div class="phone" id="home-phone">
+          <div class="statusbar"><span>18:30</span><span class="system-icons">▮▮▮ <span>◔</span> ▰</span></div>
+          <div class="appbar"><div class="app-name"><img src="assets/app-icon.png" alt="">家庭待办</div><span class="wechat-capsule" aria-label="微信小程序菜单示意">••• <i></i> ◉</span></div>
+          <div class="phone-scroll home-scroll">
+            <div class="home-greeting"><div><p class="overline">9 月 11 日 · 星期五</p><h3>今天，也要好好过<span class="greeting-dot">。</span></h3></div><button class="family-entry" id="view-family" aria-label="查看家人进度"><svg><use href="#i-people"/></svg></button></div>
+            <button class="reminder-banner" id="reminder-open"><span class="reminder-icon"><svg><use href="#i-bell"/></svg></span><span><strong><b id="reminder-count">2</b> 件事到提醒时间了</strong><small>自己的安排、爸妈的牵挂</small></span><svg class="chevron"><use href="#i-chevron"/></svg></button>
+            <div class="filter-row"><label class="family-filter"><svg><use href="#i-home"/></svg><select id="home-family" aria-label="筛选所属家庭"><option value="all">全部家庭</option><option value="personal">仅个人</option><option value="mine">我的小家</option><option value="parents">爸妈家</option></select><svg class="tiny"><use href="#i-down"/></svg></label><button class="text-button" id="batch-toggle">多选</button></div>
+            <div class="date-tabs" role="group" aria-label="计划日期"><button data-date="today" class="active" aria-pressed="true">今天 <span>11</span></button><button data-date="tomorrow" aria-pressed="false">明天 <span>12</span></button><button data-date="unscheduled" aria-pressed="false">未安排</button><button class="calendar-button" id="date-picker-open" aria-label="选择其他日期"><svg><use href="#i-calendar"/></svg></button></div>
+            <div class="list-summary"><span id="summary-text">已完成 2 / 7 件</span><button class="text-button" id="completed-toggle" aria-pressed="false">隐藏已完成</button></div>
+            <div class="progress-track"><span id="day-progress" style="width:28.57%"></span></div>
+            <div id="task-list"></div>
+            <button class="backlog" id="backlog-open"><svg><use href="#i-clock"/></svg><span>之前还有 1 件未完成</span><svg class="tiny"><use href="#i-chevron"/></svg></button>
+            <p class="end-note">一家人的小事，一件一件来。</p>
+          </div>
+          <div class="phone-bottom"><button class="primary-button add-button" id="quick-add"><svg><use href="#i-plus"/></svg>记一件事</button><span class="home-indicator"></span></div>
+          <div class="phone-toast" id="home-toast" role="status" aria-live="polite"></div>
+        </div>
+        <div class="annotation"><span class="annotation-mark"></span><p>家庭筛选只影响列表；到时提醒始终跨家庭汇总。</p></div>
+      </section>
+      <section class="artboard" id="detail-artboard">
+        <div class="artboard-caption"><h2>事项详情</h2><span>看见完成，也看见家人的付出</span></div>
+        <div class="phone" id="detail-phone">
+          <div class="statusbar"><span>18:30</span><span class="system-icons">▮▮▮ <span>◔</span> ▰</span></div>
+          <div class="appbar"><button class="icon-button" id="detail-back" aria-label="返回待办"><svg><use href="#i-back"/></svg></button><span class="appbar-title">事项详情</span><span class="wechat-capsule" aria-label="微信小程序菜单示意">••• <i></i> ◉</span></div>
+          <div class="phone-scroll detail-scroll" id="detail-content"></div>
+          <div class="phone-bottom detail-bottom" id="detail-actions"></div>
+          <div class="phone-toast" id="detail-toast" role="status" aria-live="polite"></div>
+        </div>
+        <div class="annotation"><span class="annotation-mark"></span><p>执行对象与记录人分开显示，周期按每次独立记录。</p></div>
+      </section>
+      <section class="artboard" id="family-artboard">
+        <div class="artboard-caption"><h2>家人进度</h2><span>关心的每个人，都有自己的位置</span></div>
+        <div class="phone" id="family-phone">
+          <div class="statusbar"><span>18:30</span><span class="system-icons">▮▮▮ <span>◔</span> ▰</span></div>
+          <div class="appbar"><button class="icon-button" id="family-back" aria-label="返回待办"><svg><use href="#i-back"/></svg></button><span class="appbar-title">家人进度</span><span class="wechat-capsule" aria-label="微信小程序菜单示意">••• <i></i> ◉</span></div>
+          <div class="phone-scroll family-scroll">
+            <div class="family-heading"><div><p class="overline">各自忙碌，也彼此照应</p><h3>我的家人</h3></div><button class="text-button" id="manage-family">管理家庭<svg class="tiny"><use href="#i-chevron"/></svg></button></div>
+            <div class="family-switch" role="group" aria-label="选择家庭"><button data-family="mine" class="active" aria-pressed="true"><svg><use href="#i-home"/></svg>我的小家</button><button data-family="parents" aria-pressed="false">爸妈家</button></div>
+            <div class="family-card"><div class="family-card-copy"><p id="family-card-label">在一起的每一天</p><h4 id="family-card-title">小家里的大牵挂</h4><span id="family-card-members">4 位家人 · 1 位无账号成员</span></div><div class="family-portrait" aria-hidden="true"><span class="portrait lavender">妈</span><span class="portrait mint">爸</span><span class="portrait peach">宝</span><span class="portrait rose">奶</span></div><div class="family-card-line"></div></div>
+            <div class="section-title"><h4>今天的安排</h4><span>9 月 11 日 · 周五</span></div>
+            <div id="member-list"></div>
+            <div class="family-footnote"><svg><use href="#i-lock"/></svg><p>这里只展示家人共享给你的事项。<br>没有记录，不代表没有完成。</p></div>
+            <button class="outline-button full-width" id="invite-family"><svg><use href="#i-plus"/></svg>邀请家人一起记</button>
+          </div>
+          <div class="family-phone-bottom"><span class="home-indicator"></span></div>
+        </div>
+        <div class="annotation"><span class="annotation-mark"></span><p>孩子或老人没有账号，也能由家人创建成员、代记完成。</p></div>
+      </section>
+    </main>
+    <section class="identity" id="identity">
+      <div class="identity-title"><p class="eyebrow">同一个家，同一种温度</p><h2>一个安心的「完成」。</h2><p>屋檐承载家人，勾选记录日常。<br>柔和蓝紫贯穿图标、操作和完成进度。</p><a class="download-link" href="assets/app-icon.png" download="family-todo-icon.png">下载图标 PNG <span>↗</span></a></div>
+      <div class="icon-presentation"><img class="main-icon" src="assets/app-icon.png" alt="蓝紫底色、米白房屋与完成勾选的小程序图标"><div class="icon-sizes"><img src="assets/app-icon.png" width="64" height="64" alt="64 像素图标预览"><img src="assets/app-icon.png" width="40" height="40" alt="40 像素图标预览"><img src="assets/app-icon.png" width="24" height="24" alt="24 像素图标预览"></div><span class="icon-caption">应用图标 / 小尺寸预览</span></div>
+      <div class="palette"><div><span style="background:#5860b5"></span><p>牵挂蓝紫<small>#5860B5 · 主要操作</small></p></div><div><span style="background:#f4f5fa"></span><p>云朵灰白<small>#F4F5FA · 页面底色</small></p></div><div><span style="background:#292735"></span><p>墨紫<small>#292735 · 主要文字</small></p></div><div><span style="background:#e8f0eb"></span><p>草木绿<small>#E8F0EB · 完成状态</small></p></div></div>
+    </section>
+    <footer class="board-footer"><p>设计稿可交互：筛选日期与家庭、勾选完成、查看详情、快速新增、切换家人。</p><div><label for="demo-state">列表状态</label><select id="demo-state"><option value="ready">正常</option><option value="loading">加载中</option><option value="empty">空列表</option><option value="error">加载失败</option><option value="partial">部分加载失败</option></select><button id="reset-demo">重置演示</button></div><small>本地示例数据 · 刷新即重置 · 尚未接入小程序业务</small></footer>
+  </div>
+  <dialog id="sheet" aria-labelledby="sheet-title"><div class="sheet-handle"></div><div class="sheet-header"><h2 id="sheet-title"></h2><button class="icon-button" id="sheet-close" aria-label="关闭"><svg><use href="#i-close"/></svg></button></div><div id="sheet-body"></div></dialog>
+  <script type="module" src="prototype.js"></script>
+</body>
+</html>

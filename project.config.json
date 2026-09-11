@@ -1,5 +1,5 @@
 {
-  "appid": "touristappid",
+  "appid": "wxee0f068c2e7cc49c",
   "projectname": "family-todo",
   "compileType": "miniprogram",
   "miniprogramRoot": "miniprogram/",
@@ -10,18 +10,50 @@
     "minified": true,
     "postcss": true,
     "compileHotReLoad": true,
-    "useCompilerPlugins": ["typescript"],
+    "useCompilerPlugins": [
+      "typescript"
+    ],
     "minifyWXSS": true,
-    "minifyWXML": true
+    "minifyWXML": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "condition": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
   "packOptions": {
     "ignore": [
-      { "type": "regexp", "value": "\\.(test|spec)\\.(ts|js)(\\.map)?$" },
-      { "type": "regexp", "value": "\\.d\\.ts$" },
-      { "type": "regexp", "value": "\\.md$" },
-      { "type": "file", "value": "tsconfig.json" },
-      { "type": "file", "value": "config/local.example.ts" }
+      {
+        "value": "\\.(test|spec)\\.(ts|js)(\\.map)?$",
+        "type": "regexp"
+      },
+      {
+        "value": "\\.d\\.ts$",
+        "type": "regexp"
+      },
+      {
+        "value": "\\.md$",
+        "type": "regexp"
+      },
+      {
+        "value": "tsconfig.json",
+        "type": "file"
+      },
+      {
+        "value": "config/local.example.ts",
+        "type": "file"
+      }
     ],
     "include": []
-  }
+  },
+  "simulatorPluginLibVersion": {},
+  "editorSetting": {}
 }
