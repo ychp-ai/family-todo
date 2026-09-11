@@ -28,6 +28,8 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 3. 工具原生编译 TS/WXML/WXSS；终端运行 `npm run dev` 同步共享契约变化。
 4. 如发生样式缓存异常，清除编译缓存后重新编译。
 
+若模拟器提示「app.json: 在项目根目录未找到 app.json」，先确认 `project.config.json` 的 `miniprogramRoot` 为 `miniprogram/`，且 `miniprogram/app.json` 存在。配置正确但重新编译仍报错时，使用菜单「项目 → 重新打开此项目」让工具重新读取目录配置；无需把 app.json 复制到仓库根目录。2026-09-11 在开发者工具 RC 2.02.2608031 中通过重开项目恢复了首页启动。
+
 首页没有登录、业务请求、订阅弹窗或底部导航。page-state 支持 loading/empty/error/ready；错误态按钮发出 retry 事件，ready 展示 slot。
 
 上传规则排除测试、类型声明、文档和配置示例。local.ts 会编译进客户端，只能包含公开配置。
@@ -41,7 +43,7 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 1. 在开发者工具配置本项目真实 AppID。如果工具将其写入 project.config.json，保持该改动仅在本地，提交前检查 diff；不假设私有配置可覆盖 AppID。
 2. 在已忽略的 `miniprogram/config/local.ts` 填写本小程序关联的 cloudbaseEnvId。
 3. 复制 cloudbaserc.example.json 为 cloudbaserc.json，填入相同环境 ID。
-4. 执行 `npm run build`。cloudfunctions/api/index.js 已包含全部运行代码，不需云端安装依赖；当前不使用服务端 SDK。
+4. 执行 `npm run build`。cloudfunctions/api/index.js 已包含全部运行代码和懒加载身份 SDK，不需云端安装依赖。身份写入默认关闭，配置及发布前验证见 [身份接入](technical/IDENTITY.md)。
 5. 在开发者工具选择上传本地文件，或通过 CloudBase CLI 使用本地配置部署 api。示例的 installDependency: false 与自包含构建一致。
 6. 在云函数控制台执行下方健康请求，再从小程序调用 `checkSystemHealth(requestId)` 验证链路。
 
@@ -70,4 +72,4 @@ SDK 初始化成功不保证函数存在或网络可用。未来密钥只配置�
 }
 ```
 
-健康成功只证明入口与协议可用。业务设计从 [技术方案](TECHNICAL_DESIGN.md) 进入，按 [开发交付](business/DELIVERY.md) 完成平台接入验证后逐模块实现。目前尚未安装服务端 SDK 或创建业务集合；未来业务集成必须从小程序获取可信身份，不能通过控制台填写身份字段替代验证。
+健康成功只证明入口与协议可用。业务设计从 [技术方案](TECHNICAL_DESIGN.md) 进入，按 [开发交付](business/DELIVERY.md) 完成平台接入验证后逐模块接入。当前已安装 SDK 并完成身份本地实现，未创建业务集合；真实业务集成必须从小程序获取可信身份，不能通过控制台填写身份字段替代验证。

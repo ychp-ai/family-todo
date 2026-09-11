@@ -1,8 +1,8 @@
 export const API_VERSION = 1 as const;
-export const API_ACTIONS = ["system.health"] as const;
+export const API_ACTIONS = ["system.health", "identity.ensure"] as const;
 export type ApiAction = (typeof API_ACTIONS)[number];
 
-export const ERROR_CODES = ["VALIDATION_ERROR", "NOT_FOUND", "INTERNAL_ERROR"] as const;
+export const ERROR_CODES = ["VALIDATION_ERROR", "NOT_FOUND", "UNAUTHENTICATED", "INTERNAL_ERROR"] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export type ApiRequest<TPayload = unknown, TAction extends string = ApiAction> = {

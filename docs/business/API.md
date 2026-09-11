@@ -1,6 +1,6 @@
 # 业务接口契约
 
-状态：待实现的 API 设计。当前 `packages/contracts` 和云函数仍只支持 `system.health`；以下 action 不能直接调用。正式实现每个 action 时同时添加运行时校验、handler 和行为测试，沿用统一 `api` 云函数。
+状态：API 设计与实现进度。`system.health` 已发布；`identity.ensure` 已完成本地契约、handler、存储适配及行为测试，受发布开关保护，未部署。其余 action 仍待实现。正式实现每个 action 时同时添加运行时校验、handler 和行为测试，沿用统一 `api` 云函数。
 
 ## 协议与校验
 
@@ -11,7 +11,8 @@
 | 云函数 | action 模块 | 本轮交付 |
 | --- | --- | --- |
 | api | system.health | 可运行健康入口，CLI 创建及真实调用结果见 [发布记录](../technical/CLOUD_DEPLOYMENT.md) |
-| api | identity、family、member、virtualMember、invitation | 接口设计；业务 handler、身份及集合待实现 |
+| api | identity.ensure | 本地实现，身份/事务真实验证和集合接入待完成；见 [身份接入](../technical/IDENTITY.md) |
+| api | identity.update、family、member、virtualMember、invitation | 接口设计；业务 handler 及集合待实现 |
 | api | task、occurrence | 接口设计；持久化、周期、幂等及权限待实现 |
 | api | reminder、progress | 接口设计；小程序内查询及用户状态待实现 |
 

@@ -6,6 +6,9 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@family-todo/ports": "0.1.0"
+    "@family-todo/contracts": "0.1.0",
+    "@family-todo/domain": "0.1.0",
+    "@family-todo/ports": "0.1.0",
+    "wx-server-sdk": "4.0.2"
   }
 }

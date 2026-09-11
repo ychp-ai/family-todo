@@ -4,5 +4,8 @@
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
-  "types": "./src/index.ts"
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@family-todo/domain": "0.1.0"
+  }
 }

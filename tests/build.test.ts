@@ -21,6 +21,25 @@ it("云函数 bundle 脱离工作区和 node_modules 后可独立调用", () => 
   }
 });
 
+it("身份 SDK bundle 可脱离根 node_modules 加载，未配置云环境时明确失败", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "family-todo-identity-sdk-"));
+  try {
+    await build({
+      entryPoints: ["packages/infra-cloudbase/src/identity-sdk.ts"], bundle: true,
+      platform: "node", format: "cjs", target: "node20", outfile: join(directory, "identity.cjs"),
+    });
+    const output = execFileSync(process.execPath, ["-e", `
+      delete process.env.SCF_NAMESPACE;
+      const { createCloudBaseIdentityStore } = require('./identity.cjs');
+      try { createCloudBaseIdentityStore({provider:'wechat',appId:'wx0123456789abcdef',subject:'local-test'}); }
+      catch (error) { process.stdout.write(error.message); }
+    `], { cwd: directory, encoding: "utf8" });
+    expect(output).toBe("Cloud function environment is unavailable.");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it("默认配置的 App 和首页在无云 SDK 时完成注册和启动", async () => {
   const result = await build({
     entryPoints: ["miniprogram/app.ts", "miniprogram/pages/home/index.ts", "miniprogram/components/page-state/index.ts"],

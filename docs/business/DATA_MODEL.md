@@ -1,6 +1,6 @@
 # 业务数据模型与一致性设计
 
-状态：首版开发设计，尚未创建业务集合或实现接口。产品规则来自 [需求](../REQUIREMENTS.md)，接口见 [API](API.md)，实现与验收顺序见 [开发交付](DELIVERY.md)。底层实现细节见 [一致性与数据访问](../technical/CONSISTENCY.md) 和 [日程算法](../technical/SCHEDULING.md)。下文数量和时间限制是本次选定的工程默认值，不是已上线能力。
+状态：首版开发设计，尚未创建业务集合。身份初始化已实现本地事务适配，存储映射见 [身份数据](../../database/identity.md)；其余业务接口待实现。产品规则来自 [需求](../REQUIREMENTS.md)，接口见 [API](API.md)，实现与验收顺序见 [开发交付](DELIVERY.md)。底层实现细节见 [一致性与数据访问](../technical/CONSISTENCY.md) 和 [日程算法](../technical/SCHEDULING.md)。下文数量和时间限制是选定的工程默认值，不是已上线能力。
 
 ## 统一约定
 
@@ -142,4 +142,4 @@
 
 实施时新增独立、可重跑的迁移脚本：创建集合/索引 → 校验只允许服务端访问 → 小数据回填 → 对账 → 接入业务 action。以 schemaVersion 标记记录格式，应用至少兼容上一个版本；回滚切回兼容代码，保留数据和审计，不删除集合抵消迁移。正式环境操作仍需当次授权。
 
-2026-09-11 核对依据：CloudBase 的[事务文档](https://docs.cloudbase.net/database/transaction)列出仅服务端、最多 100 个操作、30 秒及事务内不支持 where 的限制；因此本设计使用有界按 ID 事务与归属间接解析。微信身份入口参考[小程序调用云函数](https://docs.cloudbase.net/recipes/add-cloud-function-wechat-miniprogram)，只使用可信上下文的身份；生产接入时再锁定 SDK 版本并做真实环境集成测试。本次不调整既有运行时或安装 SDK。
+2026-09-11 核对依据：CloudBase 的[事务文档](https://docs.cloudbase.net/database/transaction)列出仅服务端、最多 100 个操作、30 秒及事务内不支持 where 的限制；因此本设计使用有界按 ID 事务与归属间接解析。微信身份入口参考[小程序调用云函数](https://docs.cloudbase.net/recipes/add-cloud-function-wechat-miniprogram)，只使用可信上下文的身份；现已锁定 SDK 4.0.2，运行时保持原基线，真实环境集成测试尚待完成。

@@ -5,8 +5,8 @@
 ## 项目与当前范围
 
 - 家庭待办提醒（`family-todo`），原生微信小程序。
-- 当前仅搭建基础架构：占位首页、通用组件、统一 API 和健康检查。
-- 首版业务规则已整理于 [业务需求](docs/REQUIREMENTS.md)，涵盖多家庭、虚拟人、待办协作及小程序内提醒；业务功能尚未实现。
+- 当前已有基础架构和 identity.ensure 本地实现；原生首页仍为占位页，云端仅发布健康检查。
+- 首版业务规则已整理于 [业务需求](docs/REQUIREMENTS.md)，涵盖多家庭、虚拟人、待办协作及小程序内提醒；身份接入待真实验证，其余业务功能尚未实现。
 - 默认时区 `Asia/Shanghai`，瞬时时间使用 UTC RFC3339 毫秒字符串。
 
 ## 阅读顺序
@@ -22,7 +22,7 @@
 
 - 原生 WXML/WXSS + TypeScript，npm workspaces，CloudBase。
 - 严格 TypeScript，官方 `miniprogram-api-typings`，Vitest，esbuild。
-- V1 使用单一 `api` 云函数；当前只有 `system.health`。
+- V1 使用单一 `api` 云函数；本地支持 `system.health` 和受发布开关保护的 `identity.ensure`。
 - 运行时以 `.nvmrc`、package.json 和云配置为准；调整前核对官方文档。
 - 不默认引入跨端框架、大型状态库、微服务或额外付费资源。
 - 暂不添加定时函数、回调函数、业务集合或业务 tabBar。
@@ -82,6 +82,7 @@ tools/ database/ docs/      工程工具、数据约定和持续维护文档
 
 ## 代码与 UI
 
+- 原生页面严格对照 `design/` 已有设计稿实现，不自行调整布局、样式、文案及交互；样稿未覆盖的业务边界仍以确认需求为准。
 - 使用严格类型、类型导入、具名导出，避免 any、非空断言及无说明的错误压制。
 - 相近模块用相对导入；服务端跨包通过 `@family-todo/*` 引用。
 - 文件与文档按功能组织，不按迭代编号命名，不做无关重构。

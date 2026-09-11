@@ -1,6 +1,6 @@
 # 首版技术方案
 
-状态：技术设计，业务代码待实现。以 [已确认需求](REQUIREMENTS.md) 为产品依据；保留原生微信小程序、TypeScript、npm workspaces、CloudBase 和单一 `api` 云函数。本方案细化模块、身份、持久化、并发、时间算法、客户端及实施验收。健康入口已按当前会话授权通过 CLI 创建并验证，见 [发布记录](technical/CLOUD_DEPLOYMENT.md)；业务集合和业务 handler 尚未实现。
+状态：技术设计，身份基础模块已开始实现。以 [已确认需求](REQUIREMENTS.md) 为产品依据；保留原生微信小程序、TypeScript、npm workspaces、CloudBase 和单一 `api` 云函数。本方案细化模块、身份、持久化、并发、时间算法、客户端及实施验收。健康入口已通过 CLI 创建并验证，见 [发布记录](technical/CLOUD_DEPLOYMENT.md)；`identity.ensure` 已完成本地实现，业务集合及真实接入待验证，见 [身份接入](technical/IDENTITY.md)。下表保留设计时基线，身份模块实际状态以接入文档为准。
 
 ## 方案入口
 
@@ -116,9 +116,9 @@ interface TaskRepository {
 
 当前 `.nvmrc=20.19.0`、云配置 `Nodejs20.19`、函数 10 秒/256 MB；本次保留。官方配置仍列该运行时为推荐：[云函数配置](https://docs.cloudbase.net/cli-v1/functions/configs)。本地开发与发布检查使用 `.nvmrc`，根 engines 的较宽范围不表示已在全部版本验证。
 
-平台实现使用 `wx-server-sdk` 作为微信云调用与数据库入口，不同时引入另一套独立 CloudBase 登录。具体版本在平台接入验证时通过 npm 锁定，并审查内置类型/事务方法兼容性；文档示例版本不当作已验证版本。正式代码不能以 any 绕过 SDK 类型缺口。
+平台实现使用 `wx-server-sdk` 作为微信云调用与数据库入口，不同时引入另一套独立 CloudBase 登录。已通过 npm 锁定 4.0.2，检查内置类型和事务实现；SDK 类型缺口在窄适配接口收敛，数据读取仍以 unknown 校验。间接依赖审计及真实事务验收待完成，不能据本地打包通过宣称平台已验证。
 
-保留 esbuild 自包含函数 bundle、`installDependency:false`。SDK 仅从云端装配路径引入；懒初始化业务依赖使 health 可在无云凭据/数据库下执行。SDK 动态依赖如无法打包，先完成独立加载验证并调整打包方式，不直接把 external 留给根 node_modules；变更基线需同步文档。本轮不安装包、不改锁文件。
+保留 esbuild 自包含函数 bundle、`installDependency:false`。SDK 仅从云端装配路径引入；懒初始化业务依赖使 health 可在无云凭据/数据库下执行。已新增身份 SDK 独立加载测试；函数 bundle 约 2.5 MB，共享契约约 3.5 KB。npm 已同步锁文件，真实云内 SDK 初始化和写入仍需单独验证。
 
 小程序运行时代码仍从 `miniprogram/shared/contracts.js` 引用，不从 workspace 源码运行。随着 schema 增长，记录共享 bundle 体积；若确需拆分，构建产物仍全部位于小程序目录，类型检查与构建测试同步修改。
 

@@ -1,0 +1,15 @@
+import * as cloud from "wx-server-sdk";
+
+import { CloudBaseIdentityStore } from "./identity-store";
+import type { WechatIdentity } from "./invocation-identity";
+
+export function createCloudBaseIdentityStore(identity: WechatIdentity): CloudBaseIdentityStore {
+  const env = process.env.SCF_NAMESPACE;
+  if (!env) throw new Error("Cloud function environment is unavailable.");
+  // SDK 的 DYNAMIC_CURRENT_ENV 声明与 init 不一致，使用平台当前环境的显式字符串。
+  cloud.init({ env });
+  // 4.0.2 运行时支持 throwOnNotFound，但声明遗漏；保留额外配置且不使用类型断言。
+  const config = { env, throwOnNotFound: false };
+  const database = cloud.database(config);
+  return new CloudBaseIdentityStore(database, identity);
+}
