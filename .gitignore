@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Dependencies and generated output
+node_modules/
+miniprogram_npm/
+dist/
+coverage/
+*.log
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# WeChat DevTools personal settings
+project.private.config.json
+
+# Editor settings
+.idea/
+.vscode/
