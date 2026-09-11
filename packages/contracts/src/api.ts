@@ -39,6 +39,7 @@ export function isUuid(value: unknown): value is string {
 
 export function isApiRequestEnvelope(value: unknown): value is ApiRequest<unknown, string> {
   return isRecord(value)
+    && Object.keys(value).every((key) => ["apiVersion", "action", "requestId", "payload"].includes(key))
     && value.apiVersion === API_VERSION
     && typeof value.action === "string"
     && value.action.length > 0

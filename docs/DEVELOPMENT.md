@@ -34,23 +34,40 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 
 ## 接入自己的云环境
 
-当前工作区的 `miniprogram/config/local.ts` 和 `cloudbaserc.json` 已配置环境 `family-todo-d3g28fx1c314f8638`，调用与部署目标均为 `api` 云函数。这两个本地文件不提交到 Git，新检出仓库仍需按下方步骤配置。环境 ID 已填写不代表已验证 AppID 与环境的关联、完成云函数部署或真实云联调。
+当前工作区的 `miniprogram/config/local.ts` 和 `cloudbaserc.json` 已配置环境 `family-todo-d3g28fx1c314f8638`，调用与部署目标均为 `api` 云函数。这两个本地文件不提交到 Git，新检出仓库仍需按下方步骤配置。2026-09-11 已通过 CLI 创建 api 并验证真实云端健康调用；AppID 与环境关联及小程序真机调用尚未验证。
 
-本步骤供后续联调，本次初始化不自动部署：
+新环境接入或后续联调步骤（部署须获当前会话授权）：
 
 1. 在开发者工具配置本项目真实 AppID。如果工具将其写入 project.config.json，保持该改动仅在本地，提交前检查 diff；不假设私有配置可覆盖 AppID。
 2. 在已忽略的 `miniprogram/config/local.ts` 填写本小程序关联的 cloudbaseEnvId。
 3. 复制 cloudbaserc.example.json 为 cloudbaserc.json，填入相同环境 ID。
 4. 执行 `npm run build`。cloudfunctions/api/index.js 已包含全部运行代码，不需云端安装依赖；当前不使用服务端 SDK。
 5. 在开发者工具选择上传本地文件，或通过 CloudBase CLI 使用本地配置部署 api。示例的 installDependency: false 与自包含构建一致。
-6. 在云函数控制台执行技术方案中的健康请求，再从小程序调用 `checkSystemHealth(requestId)` 验证链路。
+6. 在云函数控制台执行下方健康请求，再从小程序调用 `checkSystemHealth(requestId)` 验证链路。
 
-云配置固定 Nodejs20.19。2026-09-11 核对的[CloudBase 官方配置文档](https://docs.cloudbase.net/cli-v1/functions/configs)仍列其为推荐运行时；发布前重新确认控制台支持情况。该选择不代表已部署验证。
+云配置固定 Nodejs20.19。2026-09-11 核对的[CloudBase 官方配置文档](https://docs.cloudbase.net/cli-v1/functions/configs)仍列其为推荐运行时；本次远端详情和健康调用已验证该运行时，后续发布前仍应核对配置。
 
 SDK 初始化成功不保证函数存在或网络可用。未来密钥只配置在服务端，禁止写入客户端。
+
+本次按用户要求使用 CLI 创建 `api`，固定 CLI 版本、可复现命令及实际部署状态见 [云函数 CLI 发布记录](technical/CLOUD_DEPLOYMENT.md)。业务 action 的设计与健康函数部署分开验收；不要因健康成功将业务接口标成已实现。
 
 ## 生成文件
 
 提交源码、package-lock.json、配置模板和 project.config.json 的公共默认值。
 
 不提交 node_modules、云函数 index.js/map、共享 contracts.js、local.ts、cloudbaserc.json 和开发者工具私有配置。不需要额外执行小程序“构建 npm”，客户端依赖由共享 bundle 提供。
+
+## 健康请求与业务接入顺序
+
+控制台健康测试事件（无需业务身份或数据库）：
+
+```json
+{
+  "apiVersion": 1,
+  "action": "system.health",
+  "requestId": "6cb53431-c95a-49eb-8c31-3ce8b609b38d",
+  "payload": {}
+}
+```
+
+健康成功只证明入口与协议可用。业务设计从 [技术方案](TECHNICAL_DESIGN.md) 进入，按 [开发交付](business/DELIVERY.md) 完成平台接入验证后逐模块实现。目前尚未安装服务端 SDK 或创建业务集合；未来业务集成必须从小程序获取可信身份，不能通过控制台填写身份字段替代验证。

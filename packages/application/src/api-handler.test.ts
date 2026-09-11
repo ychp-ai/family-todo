@@ -37,6 +37,13 @@ describe("统一 API 入口", () => {
     expect(await createHandler()({ ...request, requestId: "private-user-text" })).toMatchObject({ requestId: "unknown" });
   });
 
+  it.each(["actorId", "userId", "openid", "role", "extra"])("拒绝未声明的顶层字段 %s", async (key) => {
+    expect(await createHandler()({ ...request, [key]: "client-controlled" })).toMatchObject({
+      ok: false, requestId: request.requestId,
+      error: { code: "VALIDATION_ERROR", retryable: false },
+    });
+  });
+
   it.each([null, [], "", { extra: true }])("拒绝健康检查的非空或非法参数 %j", async (payload) => {
     expect(await createHandler()({ ...request, payload })).toMatchObject({ ok: false, error: { code: "VALIDATION_ERROR" } });
   });

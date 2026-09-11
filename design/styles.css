@@ -8,3 +8,5 @@
 
 .home-greeting .family-entry{width:44px;height:44px;border-radius:50%;background:var(--lavender);color:var(--brand);display:flex;align-items:center;justify-content:center;flex:none}.family-entry svg{width:21px;height:21px}
 @media(max-width:360px){.board{padding:0 12px}.phone-scroll{padding-left:13px;padding-right:13px}.home-greeting h3{font-size:21px}.date-tabs button{padding:0 9px}.artboard-caption>span{font-size:8px}.info-row{font-size:11px}.family-card h4{font-size:21px}.icon-presentation{gap:20px}.main-icon{width:106px;height:106px}.icon-sizes{gap:7px}}
+
+.preview-nav{flex-wrap:wrap}

@@ -18,6 +18,7 @@ npm run check
 
 - 小程序入口、占位首页、通用页面状态、样式变量和服务目录。
 - 统一 API、运行时校验、安全错误和 system.health 健康检查。
+- 已通过 CloudBase CLI 创建 api 云函数并完成真实云健康验证，详见 [发布记录](docs/technical/CLOUD_DEPLOYMENT.md)。
 - 云函数、共享包分层、可注入时钟及 UUID。
 - 严格类型检查、Vitest、esbuild、锁文件和 GitHub Actions 检查。
 - [AGENTS.md](AGENTS.md)、环境模板和开发文档。
@@ -25,8 +26,9 @@ npm run check
 ## 文档
 
 - [首版业务需求](docs/REQUIREMENTS.md)
+- [业务开发设计与验收](docs/business/DELIVERY.md)
 - [当前范围](docs/SCOPE.md)
-- [架构与接口](docs/TECHNICAL_DESIGN.md)
+- [首版技术方案](docs/TECHNICAL_DESIGN.md)
 - [开发与云环境接入](docs/DEVELOPMENT.md)
 
 首版业务需求已明确：多家庭成员管理与虚拟人、待办可见性与协作、周期事项和小程序内提醒，以及跨家庭聚合处理。具体规则见需求文档，业务代码尚未实现。
