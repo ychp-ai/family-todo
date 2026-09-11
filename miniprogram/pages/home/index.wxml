@@ -1,0 +1,3 @@
+<view class="page home">
+  <page-state state="empty" title="家庭待办提醒" empty-text="让一家人的日常安排更从容" />
+</view>

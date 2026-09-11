@@ -1,0 +1,8 @@
+<view wx:if="{{state === 'ready'}}"><slot /></view>
+<view wx:else class="state-card" role="status" aria-live="polite">
+  <view class="state-title">{{title}}</view>
+  <view wx:if="{{state === 'loading'}}" class="state-description">正在加载…</view>
+  <view wx:elif="{{state === 'error'}}" class="state-description">{{errorText}}</view>
+  <view wx:else class="state-description">{{emptyText}}</view>
+  <button wx:if="{{state === 'error'}}" class="retry-button" bindtap="handleRetry" aria-label="重新加载">重试</button>
+</view>

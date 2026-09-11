@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "miniprogram-api-typings"]
+  },
+  "include": ["packages/**/*.ts", "cloudfunctions/**/*.ts", "miniprogram/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

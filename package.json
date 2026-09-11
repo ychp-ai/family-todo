@@ -1,0 +1,27 @@
+{
+  "name": "family-todo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "家庭待办提醒微信小程序",
+  "engines": { "node": ">=20.19.0 <27" },
+  "workspaces": ["packages/*", "cloudfunctions/*"],
+  "scripts": {
+    "setup": "node tools/setup.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit --pretty false && tsc -p miniprogram/tsconfig.json --pretty false",
+    "build:miniprogram-shared": "esbuild packages/contracts/src/index.ts --bundle --platform=browser --target=es2018 --format=cjs --outfile=miniprogram/shared/contracts.js",
+    "dev": "npm run setup && npm run build:miniprogram-shared -- --watch",
+    "build:cloudfunctions": "npm run build --workspace @family-todo/api-function",
+    "build": "npm run setup && npm run build:miniprogram-shared && npm run typecheck && npm run build:cloudfunctions",
+    "check": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "esbuild": "^0.25.9",
+    "miniprogram-api-typings": "^5.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.11"
+  }
+}

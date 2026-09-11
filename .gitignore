@@ -7,11 +7,22 @@ miniprogram_npm/
 dist/
 coverage/
 *.log
+*.tsbuildinfo
+.worktrees/
+.superpowers/
+
+# Generated bundles
+cloudfunctions/*/index.js
+cloudfunctions/*/index.js.map
+miniprogram/shared/*.js
+miniprogram/shared/*.js.map
 
 # Local environment and credentials
 .env
 .env.*
 !.env.example
+cloudbaserc.json
+miniprogram/config/local.ts
 
 # WeChat DevTools personal settings
 project.private.config.json

@@ -1,0 +1,14 @@
+{
+  "envId": "replace-with-your-cloudbase-env-id",
+  "functionRoot": "./cloudfunctions",
+  "functions": [
+    {
+      "name": "api",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "installDependency": false
+    }
+  ]
+}

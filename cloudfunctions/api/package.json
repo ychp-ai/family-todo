@@ -1,0 +1,13 @@
+{
+  "name": "@family-todo/api-function",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --sourcemap --outfile=index.js"
+  },
+  "dependencies": {
+    "@family-todo/application": "0.1.0",
+    "@family-todo/infra-cloudbase": "0.1.0"
+  }
+}

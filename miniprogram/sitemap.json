@@ -1,0 +1,4 @@
+{
+  "desc": "基础骨架暂不参与微信搜索索引",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

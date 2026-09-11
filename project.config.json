@@ -1,0 +1,27 @@
+{
+  "appid": "touristappid",
+  "projectname": "family-todo",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "miniprogram/",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "minified": true,
+    "postcss": true,
+    "compileHotReLoad": true,
+    "useCompilerPlugins": ["typescript"],
+    "minifyWXSS": true,
+    "minifyWXML": true
+  },
+  "packOptions": {
+    "ignore": [
+      { "type": "regexp", "value": "\\.(test|spec)\\.(ts|js)(\\.map)?$" },
+      { "type": "regexp", "value": "\\.d\\.ts$" },
+      { "type": "regexp", "value": "\\.md$" },
+      { "type": "file", "value": "tsconfig.json" },
+      { "type": "file", "value": "config/local.example.ts" }
+    ],
+    "include": []
+  }
+}

@@ -1,0 +1,11 @@
+page {
+  --color-brand: #5860b5;
+  --color-page: #f7f5fa;
+  --color-surface: #ffffff;
+  --color-text-primary: #292735;
+  --color-text-secondary: #5e5a69;
+  --color-border: #e5e2eb;
+  --radius-card: 24rpx;
+  --radius-control: 16rpx;
+  --space-page: 32rpx;
+}
