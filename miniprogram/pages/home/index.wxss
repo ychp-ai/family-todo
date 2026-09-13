@@ -1,3 +1,1 @@
-.home {
-  padding-top: 120rpx;
-}
+.recycle-entry{display:flex;margin:4px auto 0}

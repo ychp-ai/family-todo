@@ -1,6 +1,6 @@
 # 开发顺序与验收映射
 
-已完成开发设计与浏览器流程样稿，现已开始身份基础模块：`identity.ensure` 本地实现通过模拟验证，真实平台验收未完成、业务写入默认关闭。详情见 [身份接入](../technical/IDENTITY.md)。业务规则以最新确认的需求为准，工程默认见 [数据模型](DATA_MODEL.md)，接口蓝图见 [API](API.md)，页面状态见 [交互规范](INTERACTIONS.md)。原生页面须严格还原 `design/` 设计稿，不自行调整。
+状态：身份、个人一次性待办和家庭协作已实现，服务端已部署，六个原生页面已接入；双真实账号与真机验收尚待完成。实际 action、存储和验证边界见 [个人待办实现](../technical/PERSONAL.md)、[家庭协作实现](../technical/FAMILY.md) 和 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文保留首版完整设计，周期、批量及订阅提醒尚未实现。
 
 ## 开发顺序
 
@@ -52,7 +52,7 @@
 
 ## 当前交付与边界
 
-本次提供 [技术总览](../TECHNICAL_DESIGN.md)、[一致性与访问算法](../technical/CONSISTENCY.md)、[日程算法](../technical/SCHEDULING.md)、[小程序实现](../technical/CLIENT.md)，并同步字段模型、索引提案、action 输入输出和验收条件。已有流程演示继续作为产品交互参考。浏览器 demo 仅用于交互验收，不是完整周期引擎、真实授权或持久化实现。所有正式业务 action 仍标记待实现。
+本次提供 [技术总览](../TECHNICAL_DESIGN.md)、[一致性与访问算法](../technical/CONSISTENCY.md)、[日程算法](../technical/SCHEDULING.md)、[小程序实现](../technical/CLIENT.md)，并同步字段模型、索引提案、action 输入输出和验收条件。已有流程演示继续作为产品交互参考。浏览器 demo 仅用于交互验收，不是完整周期引擎、真实授权或持久化实现。健康、身份、个人及家庭一次性业务 action 已落地；周期和批量 action 仍属后续范围。
 
 ## 每个步骤的交付门槛
 

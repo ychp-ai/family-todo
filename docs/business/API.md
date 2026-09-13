@@ -1,6 +1,6 @@
 # 业务接口契约
 
-状态：API 设计与实现进度。`system.health` 已发布；`identity.ensure` 已完成本地契约、handler、存储适配及行为测试，受发布开关保护，未部署。其余 action 仍待实现。正式实现每个 action 时同时添加运行时校验、handler 和行为测试，沿用统一 `api` 云函数。
+状态：身份、个人与家庭一次性待办已实现，服务端已部署；家庭协作实现与验收见 [家庭协作实现](../technical/FAMILY.md) 和 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文保留首版完整设计；周期、批量及订阅提醒仍未实现。
 
 ## 协议与校验
 
@@ -11,10 +11,11 @@
 | 云函数 | action 模块 | 本轮交付 |
 | --- | --- | --- |
 | api | system.health | 可运行健康入口，CLI 创建及真实调用结果见 [发布记录](../technical/CLOUD_DEPLOYMENT.md) |
-| api | identity.ensure | 本地实现，身份/事务真实验证和集合接入待完成；见 [身份接入](../technical/IDENTITY.md) |
-| api | identity.update、family、member、virtualMember、invitation | 接口设计；业务 handler 及集合待实现 |
-| api | task、occurrence | 接口设计；持久化、周期、幂等及权限待实现 |
-| api | reminder、progress | 接口设计；小程序内查询及用户状态待实现 |
+| api | identity.ensure | 已部署并通过真实身份/事务验证，见 [身份接入](../technical/IDENTITY.md) |
+| api | family、member、virtualMember、invitation | 19 个 action 已部署，见 [家庭协作实现](../technical/FAMILY.md) |
+| api | identity.update | 接口设计，尚未实现 |
+| api | task、occurrence | 个人和家庭一次性事项已部署，持久化、幂等及权限已实现；周期/批量尚未实现 |
+| api | reminder、progress | 一次性事项小程序内提醒查询、本人开关及已读/收起已部署；周期进度尚未实现 |
 
 未实现 action 当前返回 `NOT_FOUND`，不返回模拟业务成功。完整请求示例见 [接口调用示例](API_EXAMPLES.md)。
 
@@ -47,7 +48,7 @@ task.list 增加 `overdue?:boolean`：true 时查询上海今天之前仍 pendin
 | occurrence.record / undo.expectedVersion | OccurrenceDTO.version；未落库投影为0 |
 | reminder.setMine.expectedVersion | 当前用户 ReminderPreferenceDTO.version；无存储偏好为0 |
 
-实体已有版本为正整数，0 只用于明确允许的单次和偏好。新建、邀请接受、markRead、dismiss 无 expectedVersion，分别依靠唯一成员关系、持久化回执或单调状态处理。所有业务写均以可信 actor + requestId 幂等，action 或规范化 payload 改变则 IDEMPOTENCY_CONFLICT；读取和预览不具有业务写幂等语义。首次 identity.ensure 按可信身份唯一键建用户。成功重放仍须执行当前权限检查，退出/转交只重放最小确认的例外沿用下文规则。
+实体已有版本为正整数，0 只用于明确允许的单次和偏好。新建、邀请接受、markRead、dismiss 无 expectedVersion，分别依靠唯一成员关系、持久化回执或单调状态处理。所有业务写均以可信 actor + requestId 幂等，action 或规范化 payload 改变则 IDEMPOTENCY_CONFLICT；读取和预览不具有业务写幂等语义。首次 identity.ensure 按可信身份唯一键建用户。成功重放仍须执行当前权限检查，退出/转交及已提交 task.update 导致操作者失权后只重放最小确认的例外沿用下文规则。
 
 当前已实现的 system.health 请求 payload 必须是 `{}`，返回 `{status:'ok',service:'api',apiVersion:1,now:Instant}`；不访问身份和数据库。非法 envelope 返回 VALIDATION_ERROR；合法 UUID 原样回传，非法或缺失 UUID 的错误响应 requestId 为固定字符串 `unknown`。所有顶层未知字段（包括 userId、role）均拒绝。
 
@@ -102,6 +103,7 @@ type ParticipantDTO = {
   membershipId: UUID; name: string; canView: boolean;
   canHelp: boolean; receivesReminder?: boolean; reminderSelfDisabled?: boolean;
   requiredViewer: boolean;
+  isCreatorManager?: boolean; // fresh DTO总有；旧写回执可缺省。服务端解析承接后的当前创建管理者
 };
 type ReminderPreferenceDTO = { enabled: boolean; selfDisabled: boolean; version: number };
 type OccurrenceRef = {
@@ -123,6 +125,8 @@ self 仅为输入简写：个人事项保存为提交者的 userId，家庭事�
 个人 draft 只能 subject=self，所有 membership 数组为空；新建或变更执行人时，家庭 member/virtual 必须属于该家庭且有效。既有已失效执行对象在只改标题/备注且原 ID 未变时可保留历史安排，不能重新选用、授予权限或开启其提醒。helper/reminder 是有效可见真实成员子集（含必要可见人）；虚拟人不能成为提醒接收人。remindMe 与 reminderMembershipIds 中重复出现的自己合并。已归属家庭的事项 update 不能换家庭；个人归属家庭时必须完整重新校验。
 
 给真实成员安排无需接受步骤；保存前明确展示必要可见与本人记录权限，提醒另设。task.update 对已完成 once 禁止 schedule/subject 变更；已跳过需先撤销；有应做或操作历史的周期不能转 once。周期换人沿用未来片段切分，历史记录与进度按 OccurrenceDTO.subject 展示。以上均由服务端校验，违反返回 INVALID_STATE。
+
+仅归属家庭且执行人/日期/时刻不变，不重建单次；已完成或跳过的记录和本人提醒已读/收起保留。虚拟事项改为真实执行人后归属回有效创建管理者，若操作者失去查看权，task.update 返回最小确认。原请求可在失权后重放确认，客户端清理详情并回列表。
 
 TaskDTO 的 participants 对管理者返回完整权限矩阵；普通可见者只返回可见成员的必要展示信息，receivesReminder 和 reminderSelfDisabled 仅本人或管理者可见（普通可见者省略他人的这两个字段）。客户端不能用 capabilities 代替服务端鉴权。个人不返回任何其他家庭成员信息。
 
@@ -171,7 +175,7 @@ ExitPreview：`previewToken,expiresAt,familyVersion,targetName,successorName,own
 | task.create | `{draft:TaskDraft}` | `{task:TaskDTO,nextOccurrences:OccurrenceDTO[]}` | 默认仅自己提醒；下一次数预览最多 3 个 |
 | task.get | `{id,occurrence?:OccurrenceRef}` | `{task,occurrence:OccurrenceDTO|null}` | 校验次记录属于该 Task；失权统一 NOT_FOUND |
 | task.list | `{familyId?:UUID|null,dateFrom?,dateTo?,unscheduled?,overdue?,status?:pending|completed|skipped,limit?,cursor?}` | `Page<TaskListItem> + 聚合扩展` | familyId 省略=全部；null=个人；未安排、过去未完成与日期条件互斥 |
-| task.update | `{id,expectedVersion,draft:TaskDraft}` | `{task,nextOccurrences}` | 完整提交字段；保留草稿处理冲突；周期日程/执行人更新仅影响未来；校验一次性状态及周期转一次性的限制 |
+| task.update | `{id,expectedVersion,draft:TaskDraft}` | `{task,nextOccurrences}` 或 `{id,version,updated:true,accessLost:true}` | 完整提交字段；保留草稿处理冲突；周期日程/执行人更新仅影响未来；校验一次性状态及周期转一次性的限制 |
 | task.previewSchedule | `{schedule,taskId?}` | `{now,nextOccurrences,excludedPastSlots,explanation}` | 纯预览不创建记录；已有任务先鉴权；保存时再次计算 |
 | task.setAccess | `{id,expectedVersion,access:AccessInput}` | `{task}` | 单项原子调整名单；必要可见人不能取消；移除可见立即撤销对应代记/提醒 |
 | task.pause | `WriteRef` | `{task}` | active 周期 → paused |

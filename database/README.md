@@ -1,11 +1,5 @@
 # 数据库
 
-当前未创建业务集合、索引或初始化数据。已完成 [身份存储适配与接入说明](identity.md)，真实迁移及平台验证尚未执行。
+现有环境共15个集合，均为 ADMINONLY，仅服务端读写。身份数据、个人事项和回执见 [身份数据](identity.md)、[个人待办数据](personal.md)；新增家庭、成员、邀请、协作提醒等8个集合及索引见 [家庭协作存储](family.md)。实际迁移操作与核验结果保存在对应 provision-result.json。
 
-后续新增存储时在此维护集合和索引说明，迁移脚本放 tools/migration；按实际 schema 创建目录。规则位于 domain/application，数据库实现在 infra-cloudbase，通过 ports 访问。
-
-公开 DTO 使用应用 ID、普通 JSON 字段和 UTC 时间字符串，不携带 CloudBase 专有类型。schema 变更同步记录迁移及回滚方式。
-
-拟建集合、字段、查询索引、迁移及回滚边界已整理在 [业务数据模型](../docs/business/DATA_MODEL.md)。该文档是实施方案，尚未创建任何业务资源。
-
-事务预算、用户/家庭写栅栏、幂等回执和查询会话见 [一致性与数据访问](../docs/technical/CONSISTENCY.md)。正式迁移须同时建立业务与技术集合、服务端权限规则及 migration journal；过期查询会话可由运维工具清理，审计和幂等结果不在该清理范围。
+[首版完整数据模型](../docs/business/DATA_MODEL.md) 中的周期片段仍为后续设计，不按蓝图一次创建全部集合。迁移脚本默认只展示计划，`--apply` 才变更；运行前核对环境与数据库。重复执行保留已有数据。

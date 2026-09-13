@@ -1,0 +1,235 @@
+{
+  "envId": "family-todo-d3g28fx1c314f8638",
+  "databaseName": "tnt-5up4jdfvg",
+  "startedAt": "2026-09-11T10:10:36.839Z",
+  "operations": [
+    {
+      "action": "ListTables",
+      "requestId": "dc30f996-b300-43bb-905e-f27e81523e27",
+      "at": "2026-09-11T10:10:37.773Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "users",
+      "requestId": "08208cf6-a4e3-4004-9d6e-02f9e65d1daf",
+      "at": "2026-09-11T10:10:38.686Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "users",
+      "requestId": "60f83c62-7ade-4d4f-a962-f0e1de431a69",
+      "at": "2026-09-11T10:10:39.565Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "users",
+      "requestId": "486e48cc-79c9-404b-864d-4bd60a084920",
+      "at": "2026-09-11T10:10:40.445Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "users",
+      "requestId": "170c8a31-6113-4ab7-b615-1d686280ec8f",
+      "at": "2026-09-11T10:10:41.194Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "users",
+      "requestId": "f04bfd55-fc62-4abb-8fde-c668d40a1484",
+      "at": "2026-09-11T10:10:42.102Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "identities",
+      "requestId": "3b8d3809-ae6b-427e-9f07-e72cb527eaa0",
+      "at": "2026-09-11T10:10:43.006Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "identities",
+      "requestId": "607ca443-e0e9-48a0-bd79-c201e67d11b1",
+      "at": "2026-09-11T10:10:43.954Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "identities",
+      "requestId": "07460e33-4781-46c6-823f-7e462313443c",
+      "at": "2026-09-11T10:10:44.800Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "identities",
+      "requestId": "919296fb-7d57-4a59-8bd9-381c768a15d5",
+      "at": "2026-09-11T10:10:45.707Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "identities",
+      "requestId": "918cc490-2d77-4bc0-936d-3712cc295593",
+      "at": "2026-09-11T10:10:46.526Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "user_scopes",
+      "requestId": "a89b9681-b2e6-4151-9842-dc891e52494a",
+      "at": "2026-09-11T10:10:47.385Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "user_scopes",
+      "requestId": "287161f2-d9b7-44b8-98c7-1481ab300b85",
+      "at": "2026-09-11T10:10:48.337Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "user_scopes",
+      "requestId": "51492895-f4d6-41e2-a6ab-275aa5618914",
+      "at": "2026-09-11T10:10:49.298Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "user_scopes",
+      "requestId": "2d3da0f0-6e80-47ad-b5bc-1ba7f2d4481d",
+      "at": "2026-09-11T10:10:50.120Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "user_scopes",
+      "requestId": "c6434034-7a3f-498d-a069-f99219091c05",
+      "at": "2026-09-11T10:10:51.085Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "tasks",
+      "requestId": "fe019ea7-5e8b-4a67-a758-f0dc6f3b1cbf",
+      "at": "2026-09-11T10:10:51.923Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "tasks",
+      "requestId": "b52df47e-73f6-4d26-b53f-45fbd2e422c9",
+      "at": "2026-09-11T10:10:52.818Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "tasks",
+      "requestId": "b66aee57-745c-4e3a-beb9-3d78b36ab5c2",
+      "at": "2026-09-11T10:10:53.701Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "tasks",
+      "requestId": "bc8dac3b-247f-44a8-ba59-7b52df75e514",
+      "at": "2026-09-11T10:10:54.585Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "tasks",
+      "requestId": "744764f3-2a6e-43dc-909d-eae77d178274",
+      "at": "2026-09-11T10:10:55.598Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "tasks",
+      "requestId": "2bc28939-3f6b-4839-a951-28d4f8831003",
+      "at": "2026-09-11T10:10:56.477Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "task_events",
+      "requestId": "ce8c3ffe-1880-42a7-b2c0-38beaf494444",
+      "at": "2026-09-11T10:10:57.454Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "task_events",
+      "requestId": "2f4eee35-78b2-414d-ab40-708280d5d3c3",
+      "at": "2026-09-11T10:10:58.796Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "task_events",
+      "requestId": "fac856b2-a66c-4af2-b95f-9f4fc314f830",
+      "at": "2026-09-11T10:10:59.877Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "task_events",
+      "requestId": "8cfb61a8-515b-4fe7-adfd-bd18b407cc85",
+      "at": "2026-09-11T10:11:00.833Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "task_events",
+      "requestId": "68d74fb1-c6f0-44cf-b24e-eeb2f34492b8",
+      "at": "2026-09-11T10:11:01.805Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "task_events",
+      "requestId": "0a1c38f2-8660-4d54-916a-d5392085ef0c",
+      "at": "2026-09-11T10:11:02.811Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "idempotency_receipts",
+      "requestId": "9f432d5d-fa0b-49cb-bd88-78fde52f10e0",
+      "at": "2026-09-11T10:11:03.784Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "idempotency_receipts",
+      "requestId": "64a35ada-30f0-41ca-b6e2-4f82e1f12a09",
+      "at": "2026-09-11T10:11:04.851Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "idempotency_receipts",
+      "requestId": "28c6cfb2-ed85-4512-9fdf-6d71c898fdc8",
+      "at": "2026-09-11T10:11:05.866Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "idempotency_receipts",
+      "requestId": "24de0c78-3ce6-4164-8a2d-52f460bc0630",
+      "at": "2026-09-11T10:11:06.772Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "idempotency_receipts",
+      "requestId": "8eae7e4d-3d16-4feb-b556-f5710abd918e",
+      "at": "2026-09-11T10:11:07.545Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "query_sessions",
+      "requestId": "ab3ad9a3-0ef3-4295-ae21-27c29d81938f",
+      "at": "2026-09-11T10:11:08.437Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "query_sessions",
+      "requestId": "ce05340f-18b0-478c-82ef-f998fa4d2e22",
+      "at": "2026-09-11T10:11:09.299Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "query_sessions",
+      "requestId": "752e101b-9172-4991-a4b1-ac7ebd3d77db",
+      "at": "2026-09-11T10:11:10.138Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "query_sessions",
+      "requestId": "a7e5af11-ed2f-4a61-8ac3-c9f17b90229a",
+      "at": "2026-09-11T10:11:10.990Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "query_sessions",
+      "requestId": "574c65cb-43fd-43ca-8723-7b44d27619d5",
+      "at": "2026-09-11T10:11:12.030Z"
+    }
+  ],
+  "completedAt": "2026-09-11T10:11:12.030Z"
+}

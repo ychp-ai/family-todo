@@ -5,8 +5,8 @@
 ## 项目与当前范围
 
 - 家庭待办提醒（`family-todo`），原生微信小程序。
-- 当前已有基础架构和 identity.ensure 本地实现；原生首页仍为占位页，云端仅发布健康检查。
-- 首版业务规则已整理于 [业务需求](docs/REQUIREMENTS.md)，涵盖多家庭、虚拟人、待办协作及小程序内提醒；身份接入待真实验证，其余业务功能尚未实现。
+- 当前已实现身份接入、个人与家庭一次性待办、协作权限、回收站和小程序内提醒，API 已部署到现有云环境。
+- 首版业务规则已整理于 [业务需求](docs/REQUIREMENTS.md)，涵盖多家庭、虚拟人、待办协作及小程序内提醒；家庭协作与虚拟人已实现；周期、批量及订阅提醒尚未实现，真实验证范围见发布记录。
 - 默认时区 `Asia/Shanghai`，瞬时时间使用 UTC RFC3339 毫秒字符串。
 
 ## 阅读顺序
@@ -22,10 +22,10 @@
 
 - 原生 WXML/WXSS + TypeScript，npm workspaces，CloudBase。
 - 严格 TypeScript，官方 `miniprogram-api-typings`，Vitest，esbuild。
-- V1 使用单一 `api` 云函数；本地支持 `system.health` 和受发布开关保护的 `identity.ensure`。
+- V1 使用单一 `api` 云函数；支持健康、身份、19 个家庭 action 和15个事项/提醒 action，具体见 contracts 和当前范围。
 - 运行时以 `.nvmrc`、package.json 和云配置为准；调整前核对官方文档。
 - 不默认引入跨端框架、大型状态库、微服务或额外付费资源。
-- 暂不添加定时函数、回调函数、业务集合或业务 tabBar。
+- 暂不添加定时函数、回调函数或业务 tabBar；现有15个集合与迁移见 database/。
 
 ## 目录与依赖方向
 
@@ -59,18 +59,18 @@ tools/ database/ docs/      工程工具、数据约定和持续维护文档
 - 请求：`{ apiVersion: 1, action, requestId, payload }`；action 采用 `domain.verb`。
 - 成功：`{ ok: true, requestId, data }`。
 - 失败：`{ ok: false, requestId, error: { code, message, retryable } }`。
-- requestId 使用 UUID，调用方重试时保留原 ID；当前尚无持久化幂等。
+- requestId 使用 UUID，调用方重试时保留原 ID；个人与家庭业务写入已有事务内持久化回执；客户端未决请求目前仅在进程内保留。
 - 输入以 unknown 接收，经过运行时校验；不以类型断言替代校验。
 - 新增 action 同步修改 contracts、handler、测试和技术文档。
 - 内部异常映射稳定错误码，不返回 SDK 原文、堆栈、密钥、OpenID 或环境细节。
-- 后续业务身份必须来自可信服务端上下文，不能信任客户端的 userId 或角色声明。
+- 业务身份必须来自可信服务端上下文，不能信任客户端的 userId 或角色声明。
 - OpenID 不作为业务实体 ID，实体使用应用 UUID。
 - 公开 DTO 不携带 `_openid`、`fileID` 或数据库专有类型。
 - 所有客户端配置均视为公开信息，密钥只放服务端。
 
 ## 后续业务扩展
 
-以下是扩展约束，不是当前已实现的能力：
+以下约束适用于已实现能力及后续扩展：
 
 - 依据已确认的首版需求设计业务模型、角色权限、页面导航与提醒规则；新增未明确的业务需求先澄清再实现。
 - 按契约、领域规则、应用用例、适配器、页面顺序实现。

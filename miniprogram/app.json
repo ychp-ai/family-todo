@@ -1,10 +1,17 @@
 {
-  "pages": ["pages/home/index"],
+  "pages": [
+    "pages/home/index",
+    "pages/detail/index",
+    "pages/editor/index",
+    "pages/recycle/index",
+    "pages/families/index",
+    "pages/invitation/index"
+  ],
   "window": {
     "navigationBarTitleText": "家庭待办提醒",
-    "navigationBarBackgroundColor": "#F7F5FA",
+    "navigationBarBackgroundColor": "#F4F5FA",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#F7F5FA"
+    "backgroundColor": "#F4F5FA"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",

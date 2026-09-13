@@ -1,3 +1,5 @@
+import { runInNewContext } from "node:vm";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { isUuid } from "@family-todo/contracts";
@@ -13,6 +15,15 @@ describe("小程序请求 UUID", () => {
     expect(id).toBe("00010203-0405-4607-8809-0a0b0c0d0e0f");
     expect(isUuid(id)).toBe(true);
     expect(getRandomValues).toHaveBeenCalledWith(expect.objectContaining({ length: 16 }));
+  });
+
+  it("接受开发者工具桥接返回的跨 realm ArrayBuffer", async () => {
+    const buffer: ArrayBuffer = runInNewContext("new Uint8Array([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]).buffer");
+    expect(buffer instanceof ArrayBuffer).toBe(false);
+    vi.stubGlobal("wx", { getRandomValues: (options: WechatMiniprogram.GetRandomValuesOption) => {
+      options.success?.({ randomValues: buffer, errMsg: "ok" });
+    } });
+    await expect(createRequestId()).resolves.toBe("00010203-0405-4607-8809-0a0b0c0d0e0f");
   });
 
   it.each([undefined, {}])("缺少平台能力时拒绝且不降级随机来源", async (wx) => {

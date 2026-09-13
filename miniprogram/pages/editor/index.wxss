@@ -1,0 +1,3 @@
+.time-row{display:flex;gap:6px}.time-row picker{flex:1;min-width:0}
+
+.permission-row{display:grid;grid-template-columns:minmax(60px,1fr) repeat(3,44px);align-items:center;gap:4px;font-size:12px;padding:8px 0;border-bottom:1px solid var(--line)}.permission-row label{display:flex;min-height:44px;align-items:center;justify-content:center}.permission-row.header{color:var(--muted)}

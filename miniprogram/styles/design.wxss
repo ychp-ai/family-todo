@@ -1,0 +1,154 @@
+/* 从 design/styles.css 与 flows.css 的对应页面规则移植。 */
+.appbar{min-height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 17px;gap:2px}
+.app-name{display:flex;gap:7px;align-items:center;font-size:14px;font-weight:600}
+.app-name image{width:24px;height:24px;border-radius:7px}
+.appbar-title{font-size:14px;font-weight:600;flex:1;text-align:left;padding-left:2px}
+button.icon-button{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none}
+.appbar button.icon-button{width:44px;margin-left:-8px}
+.home-greeting{display:flex;align-items:center;justify-content:space-between;margin-bottom:23px;gap:8px}
+.overline{font-size:11px;color:var(--muted);letter-spacing:.5px;line-height:1.5;margin-bottom:8px}
+.home-greeting .h3{font:600 24px/1.2 var(--display);letter-spacing:-1px;white-space:nowrap}
+.greeting-dot{color:var(--brand);margin-left:-3px}
+.avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:37px;height:37px;font:600 14px var(--display);flex:none;color:var(--brand-dark)}
+.lavender{background:#e4e4f4;color:#5860a2}
+button.reminder-banner{display:flex;align-items:center;gap:11px;padding:15px 13px;background:#eaeaf7;width:100%;text-align:left;border-radius:16px;margin-bottom:17px;min-height:73px}
+.reminder-icon{width:34px;height:38px;display:flex;align-items:center;justify-content:center;color:var(--brand)}
+button.reminder-banner .strong{font-size:13px;display:block;font-weight:600;line-height:1.5}
+button.reminder-banner .small{display:block;font-size:10px;color:#777491;line-height:1.5;margin-top:4px}
+button.reminder-banner b{font-family:var(--utility);font-weight:600}
+.chevron{margin-left:auto;width:16px;height:16px;color:var(--muted)}
+.tiny{width:14px;height:14px}
+.filter-row{display:flex;align-items:center;justify-content:space-between;margin:0 0 5px}
+.family-filter{display:flex;align-items:center;position:relative;min-height:44px;gap:7px;font-size:12px}
+.family-filter>.icon:first-child{width:17px;height:17px;color:var(--brand)}
+.family-filter select{border:0;background:transparent;color:var(--ink);font-weight:500;appearance:none;cursor:pointer;padding:12px 22px 12px 0;outline-offset:1px;max-width:160px}
+.family-filter .tiny{position:absolute;right:1px;pointer-events:none}
+button.text-button{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--muted);padding:0 4px}
+.date-tabs{display:flex;align-items:center;gap:4px;min-height:44px;margin-bottom:13px}
+.date-tabs button{min-height:44px;border-radius:12px;font-size:13px;padding:0 12px;white-space:nowrap;color:var(--muted)}
+.date-tabs button.active{color:var(--brand);background:#e6e7f3;font-weight:600}
+.date-tabs button text{font:11px var(--utility);margin-left:3px;opacity:.8}
+.date-tabs button.calendar-button{margin-left:auto;padding:0;width:44px;display:flex;align-items:center;justify-content:center;flex:none}
+button.calendar-button .icon{width:19px;height:19px}
+.list-summary{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);height:29px}
+.list-summary button.text-button{font-size:10px}
+.progress-track{height:3px;background:#e4e4ee;border-radius:4px;overflow:hidden;margin:2px 0 21px}
+.progress-track>text{display:block;background:var(--brand);height:100%;border-radius:4px;transition:width .25s ease}
+.task-group{margin-bottom:17px}
+.group-label{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:500;margin-bottom:9px;color:var(--muted)}
+.group-label>text{font:10px var(--utility);color:#94929f}
+.task-card{background:var(--paper);border-radius:16px;padding:5px 7px;margin-bottom:7px;display:flex;align-items:flex-start;border:1px solid transparent;min-height:82px}
+button.check-button{display:flex;justify-content:center;align-items:center;width:44px;height:58px;flex:none;padding:0}
+.check-circle{width:21px;height:21px;border:1.5px solid #d5d6e4;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.check-circle .icon{width:14px;height:14px;stroke-width:2.3}
+.is-done .check-circle{background:var(--green-light);border-color:var(--green-light);color:var(--green)}
+button.task-main{flex:1;text-align:left;padding:13px 5px 10px 1px;min-width:0;min-height:68px}
+button.task-main .strong{font-size:15px;line-height:1.6;font-weight:500;display:block}
+.task-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:5px;line-height:1.5}
+.house-tag{font-size:10px;background:#f0f0f8;border-radius:4px;padding:1px 4px;color:#777594}
+.house-tag.personal{background:#f5f5f7;color:#85828d}
+.task-meta .icon{width:11px;height:11px}
+.is-done button.task-main .strong{color:#85818c}
+.is-done .task-meta{color:#888590}
+.record-note{display:block;color:var(--green);font-size:10px;line-height:1.5;margin-top:4px}
+.task-card.selected{border-color:var(--brand);background:#f8f8ff}
+button.backlog{display:flex;align-items:center;gap:8px;width:100%;min-height:49px;font-size:11px;color:var(--muted);margin-top:6px}
+button.backlog>.icon:first-child{width:15px;height:15px}
+button.backlog>.icon:last-child{margin-left:auto}
+.end-note{text-align:center;font:12px var(--display);color:#9895a3;margin:18px 0 6px}
+button.primary-button{min-height:48px;border-radius:13px;background:var(--brand);color:#fff;font-size:13px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 20px}
+button.add-button{width:100%}
+button.add-button .icon{width:18px;height:18px}
+.detail-family{display:flex;gap:6px;align-items:center;color:var(--brand);font-size:11px;margin-bottom:16px}
+.detail-family .icon{width:15px;height:15px}
+.detail-title{font-size:25px;line-height:1.4;font-weight:600;letter-spacing:-.8px}
+.detail-subtitle{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-top:11px}
+.detail-subtitle .icon{width:14px;height:14px}
+.completion-card{background:var(--green-light);border-radius:18px;padding:21px 16px;display:flex;gap:13px;margin-top:25px;align-items:center}
+.completion-card.pending{background:var(--lavender)}
+.completion-badge{width:44px;height:44px;border:1px solid #a9c1ae;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--green);flex:none}
+.completion-card.pending .completion-badge{color:var(--brand);border-color:#bdbfdf}
+.completion-copy .strong{display:block;font-size:14px;line-height:1.5;color:var(--green)}
+.completion-card.pending .strong{color:var(--brand)}
+.completion-copy .paragraph{font-size:10px;color:#69836e;margin-top:6px;line-height:1.6}
+.completion-card.pending .paragraph{color:#797598}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px}
+.section-title .h4{font-size:12px;font-weight:600}
+.section-title>text{font-size:10px;color:var(--muted)}
+.detail-info{background:#fff;border-radius:17px;padding:4px 15px}
+.info-row{display:flex;align-items:center;justify-content:space-between;min-height:53px;gap:10px;font-size:12px;border-bottom:1px solid #f0eff4}
+.info-row:last-child{border:0}
+.info-label{color:var(--muted);flex:none}
+.info-value{display:flex;align-items:center;justify-content:flex-end;gap:6px;text-align:right;line-height:1.6}
+.info-value .avatar{width:25px;height:25px;font-size:10px}
+.detail-note{font-size:11px;color:var(--muted);line-height:1.8;background:white;padding:14px 15px;border-radius:14px;margin-top:12px}
+.history-list{border-left:1px solid #dcdfe5;margin:18px 0 0 7px;padding:0 0 0 19px}
+.history-item{position:relative;padding-bottom:21px}
+.history-item:before{position:absolute;content:"";left:-23px;top:5px;width:7px;height:7px;background:#b9cdbd;border-radius:50%;box-shadow:0 0 0 4px var(--canvas)}
+.history-item .strong{font-size:12px;font-weight:500;display:block}
+.history-item .paragraph{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6}
+.history-item .time{float:right;color:var(--muted);font:10px var(--utility)}
+.detail-buttons{display:flex;gap:8px}
+button.outline-button{border:1px solid #dadae8;border-radius:12px;min-height:46px;padding:0 16px;font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button.outline-button .icon{width:17px;height:17px}
+.detail-buttons button.outline-button{flex:1}
+.detail-buttons button.primary-button{flex:1}
+.detail-buttons button.quiet-button{background:#e8e9f4;color:var(--brand);border:none}
+.full-width{width:100%}
+.state-box{padding:38px 10px;text-align:center;border:1px dashed #d8daE8;border-radius:17px;margin-top:15px}
+.state-box .h4{font-size:14px;margin:14px 0 8px}
+.state-box .paragraph{font-size:11px;line-height:1.9;color:var(--muted)}
+.state-box .icon{color:var(--brand);width:28px;height:28px}
+.state-box button{margin-top:15px}
+.skeleton{background:#e7e8ef;height:75px;border-radius:14px;margin-bottom:10px;animation:pulse 1.5s ease infinite}
+.sheet-handle{width:32px;height:4px;border-radius:5px;background:#d6d5e0;margin:0 auto 10px}
+.sheet-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sheet-header .h2{font-size:18px}
+.sheet-header button.icon-button{margin-right:-10px}
+.field-label{font-size:12px;display:block;margin:19px 0 8px;color:var(--muted)}
+.title-input{width:100%;border:0;background:transparent;border-bottom:1px solid #dcdce7;padding:10px 0 15px;font-size:21px;line-height:1.5;color:var(--ink)}
+.form-pills{display:flex;gap:7px}
+.form-pills button{min-height:44px;padding:0 15px;border:1px solid #dadae8;border-radius:11px;font-size:12px}
+.form-pills button.active{border-color:var(--brand);color:var(--brand);background:var(--lavender)}
+.privacy-note{display:flex;align-items:flex-start;gap:7px;font-size:11px;color:var(--muted);line-height:1.8;margin:19px 0}
+.privacy-note .icon{width:14px;height:14px;margin-top:3px}
+button.sheet-secondary{margin:5px 0 20px;min-height:44px;color:var(--brand);font-size:12px;display:flex;align-items:center;gap:6px}
+button.sheet-secondary .icon{width:15px;height:15px}
+.sheet-actions{display:flex;gap:10px;margin-top:22px}
+.sheet-actions>button{flex:1}
+.form-select,.form-input{width:100%;min-height:44px;padding:10px 12px;background:#fff;border:1px solid #dfdfe8;border-radius:10px;color:var(--ink);font-size:13px}
+.form-helper{font-size:10px;color:var(--muted);line-height:1.9;margin-top:9px}
+.form-error{font-size:11px;color:#9e4c4c;margin-top:10px;line-height:1.8}
+.checkbox-label{display:flex;align-items:center;gap:8px;min-height:44px;font-size:12px}
+.checkbox-label input{accent-color:var(--brand);width:17px;height:17px}
+.sheet-message{font-size:12px;color:var(--muted);line-height:1.9}
+.sheet-message+button{margin-top:15px}
+.reminder-item{background:#fff;border-radius:14px;padding:15px;margin:12px 0}
+.reminder-item .h3{font-size:14px}
+.reminder-item .paragraph{font-size:10px;color:var(--muted);margin-top:8px;line-height:1.9}
+.reminder-item>div{display:flex;gap:8px;margin-top:15px}
+.reminder-item button{flex:1}
+.sheet-success{font-size:12px;color:var(--green);padding:12px 0;line-height:1.7}
+.two-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.flow-card{background:var(--paper);padding:17px;border-radius:16px;margin:0 0 12px}
+.flow-card .h3{font-size:16px;line-height:1.6;margin-bottom:7px}
+.flow-card .paragraph{font-size:12px;color:var(--muted);line-height:1.9}
+.flow-card button.outline-button{width:100%;margin-top:12px}
+.flow-notice{padding:12px 14px;border-radius:12px;background:var(--lavender);font-size:11px;line-height:1.9;color:var(--brand);margin:14px 0}
+.flow-error{color:#9e4c4c;font-size:12px;line-height:1.8;margin:12px 0}
+.flow-success{color:var(--green);font-size:12px;line-height:1.8;margin:12px 0}
+.flow-inline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.flow-inline-actions button{flex:1;min-width:90px}
+.flow-danger{color:#9e4c4c;border-color:#dbc6cb}
+.flow-event{border-left:2px solid #c9cde6;padding:0 0 18px 14px;margin-left:6px;font-size:12px;line-height:1.8}
+.flow-event .small{display:block;color:var(--muted);font-size:10px}
+.flow-quiet{font-size:11px;color:var(--muted);line-height:1.9}
+.flow-choice{width:100%;display:flex;align-items:center;gap:8px;min-height:44px;font-size:12px}
+
+.screen{height:100vh;display:flex;flex-direction:column;overflow:hidden}.status-space{flex:none}.appbar{flex:none}.phone-scroll{flex:1;min-height:0;box-sizing:border-box}.scroll-inner{padding:20px 19px 24px}.detail-scroll .scroll-inner{padding-top:23px}.phone-bottom{padding:12px 19px calc(12px + env(safe-area-inset-bottom));background:var(--canvas);flex:none}.icon{width:22px;height:22px;flex:none;display:inline-block}.tiny{width:14px;height:14px}.chevron{width:16px;height:16px}.strong,.small,.paragraph,.h3,.h4{display:block}.h3,.h4{margin:0}.app-name image{width:24px;height:24px;border-radius:7px}.family-filter{min-height:44px}.family-filter .icon{width:17px;height:17px}.family-filter .tiny{position:static;width:14px;height:14px}.home-greeting button.family-entry{width:44px;height:44px;border-radius:50%;background:var(--lavender);display:flex;align-items:center;justify-content:center;flex:none}button.family-entry .icon{width:21px;height:21px}.progress-track>view{height:100%;background:var(--brand);border-radius:4px}button.task-main .strong{font-size:15px;line-height:1.6;font-weight:500}.is-done button.task-main .strong{color:#85818c}.check-circle .icon{width:14px;height:14px}.date-tabs picker{margin-left:auto}button.reminder-banner .strong{font-size:13px;line-height:1.5}button.reminder-banner .small{font-size:10px;line-height:1.5;margin-top:4px;color:#777491}.home-greeting .h3{font:600 24px/1.2 var(--display);letter-spacing:-1px;white-space:nowrap}.state-box .h4{font-size:14px;margin:14px 0 8px}.state-box .paragraph{font-size:11px;line-height:1.9;color:var(--muted)}.state-box button.outline-button{margin-top:15px}button.backlog .tiny{margin-left:auto}.mask{position:fixed;inset:0;background:#29273566;z-index:50;display:flex;align-items:flex-end;padding:12px}.sheet{width:100%;max-height:90vh;background:var(--canvas);border-radius:24px 24px 19px 19px;padding:12px 24px calc(27px + env(safe-area-inset-bottom));box-sizing:border-box}.sheet-scroll{max-height:73vh}.sheet-header .h2{font-size:18px;font-weight:600}.title-input{height:58px;box-sizing:border-box}.checkbox-label checkbox,.flow-choice checkbox{transform:scale(.78);transform-origin:left center;width:20px}.form-select,.form-input{box-sizing:border-box}.form-input textarea,textarea.form-input{min-height:92px}.two-fields{display:flex}.two-fields>view{flex:1;min-width:0}.sheet-error{font-size:11px;color:#9e4c4c;line-height:1.8;margin-top:10px}.loading-note{font-size:11px;color:var(--muted);text-align:center;padding:12px}.flow-card .field-label:first-child{margin-top:0}.flow-card .h3{font-size:16px;line-height:1.6;margin-bottom:7px}.flow-card .paragraph{font-size:12px;line-height:1.9;color:var(--muted)}.reminder-item .h3{font-size:14px}.reminder-item .paragraph{font-size:10px;line-height:1.9;color:var(--muted);margin-top:8px}.reminder-item .item-actions{display:flex;gap:8px;margin-top:15px}.item-actions button{flex:1}.completion-copy .strong{font-size:14px;line-height:1.5;color:var(--green)}.completion-card.pending .strong{color:var(--brand)}.completion-copy .paragraph{font-size:10px;line-height:1.6;margin-top:6px;color:#69836e}.section-title .h4{font-size:12px;font-weight:600}.history-item .strong{font-size:12px;font-weight:500}.history-item .paragraph{font-size:11px;line-height:1.6;color:var(--muted);margin-top:6px}.history-item .time{font-size:10px;color:var(--muted)}button.quiet-button{background:#e8e9f4;color:var(--brand)}.flow-danger{color:#9e4c4c;border-color:#dbc6cb}
+
+button.primary-button[disabled]{background:var(--brand);color:#fff}
+/* 原生 button 不具备浏览器按钮的默认垂直居中。 */
+.date-tabs button,.form-pills button{display:flex;align-items:center;justify-content:center}
+button.primary-button.full-width,button.outline-button.full-width{width:100%}
+textarea.form-input{height:92px}

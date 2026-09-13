@@ -17,6 +17,14 @@ describe("云入口身份发布边界", () => {
     expect(await main({ ...request, action: "system.health" })).toMatchObject({ ok: true, data: { status: "ok" } });
   });
 
+  it("接受微信附加 userInfo/tcbContext，但绝不据此认证或放宽其他字段", async () => {
+    const userInfo = { appId: "wx0123456789abcdef", openId: "forged" };
+    const tcbContext = { WX_APPID: "wx0123456789abcdef", WX_OPENID: "forged", TCB_SOURCE: "wx_client" };
+    expect(await main({ ...request, userInfo, tcbContext, action: "system.health" })).toMatchObject({ ok: true });
+    expect(await main({ ...request, userInfo, tcbContext })).toMatchObject({ ok: false, error: { code: "UNAUTHENTICATED" } });
+    expect(await main({ ...request, userInfo, tcbContext, role: "owner" })).toMatchObject({ ok: false, error: { code: "VALIDATION_ERROR" } });
+  });
+
   it("客户端不能将 context 放进 event 冒充平台身份", async () => {
     expect(await main({ ...request, context: { environment: "{}" } })).toMatchObject({ ok: false, error: { code: "VALIDATION_ERROR" } });
   });
@@ -26,7 +34,7 @@ describe("云入口身份发布边界", () => {
     vi.stubEnv("FAMILY_TODO_IDENTITY_ENABLED", "false");
     const context = { environment: JSON.stringify({ WX_APPID: "wx0123456789abcdef", WX_OPENID: "user-a", TCB_SOURCE: "wx_client" }) };
     expect(await main(request, context)).toMatchObject({ ok: false, error: { code: "INTERNAL_ERROR", retryable: true } });
-    expect(await main({ ...request, action: "family.list" }, context)).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+    expect(await main({ ...request, action: "family.list" }, context)).toMatchObject({ ok: false, error: { code: "TEMPORARILY_UNAVAILABLE", retryable: true } });
     expect(loadIdentityStore).not.toHaveBeenCalled();
   });
 

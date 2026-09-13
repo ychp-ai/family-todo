@@ -1,4 +1,3 @@
-import type { User } from "@family-todo/domain";
 import type { IdentityDatabase, IdentityTransaction } from "../../packages/infra-cloudbase/src/identity-store";
 
 /** 本地事务模拟：快照、原子提交、冲突重试；不代表 CloudBase 真实隔离验证。 */
@@ -8,7 +7,7 @@ export class MemoryIdentityDatabase implements IdentityDatabase {
   public conflicts = 0;
   private revision = 0;
 
-  public async runTransaction(work: (transaction: IdentityTransaction) => Promise<User>, retries: number): Promise<unknown> {
+  public async runTransaction<T>(work: (transaction: IdentityTransaction) => Promise<T>, retries: number): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       const revision = this.revision;
       const snapshot = structuredClone(this.documents);
@@ -27,7 +26,7 @@ export class MemoryIdentityDatabase implements IdentityDatabase {
       const result = await work(transaction);
       if (revision !== this.revision) {
         this.conflicts += 1;
-        if (attempt >= retries) throw new Error("Transaction conflict.");
+        if (attempt >= retries) throw Object.assign(new Error("Transaction conflict."), {code:"DATABASE_TRANSACTION_CONFLICT"});
         continue;
       }
       if (changed) {

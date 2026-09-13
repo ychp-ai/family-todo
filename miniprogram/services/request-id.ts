@@ -16,11 +16,18 @@ export function createRequestId(): Promise<string> {
       wx.getRandomValues({
         length: 16,
         success(result) {
-          if (!(result.randomValues instanceof ArrayBuffer) || result.randomValues.byteLength !== 16) {
+          // 平台桥接的 ArrayBuffer 来自另一 JS realm，不能用 instanceof 判定。
+          let bytes: Uint8Array;
+          try {
+            bytes = new Uint8Array(ArrayBuffer.prototype.slice.call(result.randomValues, 0));
+          } catch {
             reject(new RequestIdUnavailableError());
             return;
           }
-          const bytes = new Uint8Array(result.randomValues);
+          if (bytes.byteLength !== 16) {
+            reject(new RequestIdUnavailableError());
+            return;
+          }
           const hex = Array.from(bytes, (byte, index) => {
             const value = index === 6 ? (byte & 0x0f) | 0x40 : index === 8 ? (byte & 0x3f) | 0x80 : byte;
             return value.toString(16).padStart(2, "0");

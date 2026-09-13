@@ -1,5 +1,8 @@
 import * as cloud from "wx-server-sdk";
 
+import { CloudBasePersonalStore } from "./personal-store";
+import { CloudBaseFamilyStore, invitationKeyringFromEnvironment } from "./family-store";
+
 import { CloudBaseIdentityStore } from "./identity-store";
 import type { WechatIdentity } from "./invocation-identity";
 
@@ -12,4 +15,20 @@ export function createCloudBaseIdentityStore(identity: WechatIdentity): CloudBas
   const config = { env, throwOnNotFound: false };
   const database = cloud.database(config);
   return new CloudBaseIdentityStore(database, identity);
+}
+
+export function createCloudBasePersonalStore(identity: WechatIdentity): CloudBasePersonalStore {
+  const env = process.env.SCF_NAMESPACE;
+  if (!env) throw new Error("Cloud function environment is unavailable.");
+  cloud.init({env});
+  const config = {env,throwOnNotFound:false};
+  return new CloudBasePersonalStore(cloud.database(config),identity,process.env.FAMILY_TODO_CURSOR_SECRET ?? "");
+}
+
+export function createCloudBaseFamilyStore(identity: WechatIdentity): CloudBaseFamilyStore {
+  const env = process.env.SCF_NAMESPACE;
+  if (!env) throw new Error("Cloud function environment is unavailable.");
+  cloud.init({ env });
+  const config = { env, throwOnNotFound: false };
+  return new CloudBaseFamilyStore(cloud.database(config), identity, process.env.FAMILY_TODO_CURSOR_SECRET ?? "", invitationKeyringFromEnvironment(process.env.FAMILY_TODO_INVITATION_KEYRING));
 }

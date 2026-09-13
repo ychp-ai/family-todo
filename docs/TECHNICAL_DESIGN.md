@@ -1,6 +1,6 @@
 # 首版技术方案
 
-状态：技术设计，身份基础模块已开始实现。以 [已确认需求](REQUIREMENTS.md) 为产品依据；保留原生微信小程序、TypeScript、npm workspaces、CloudBase 和单一 `api` 云函数。本方案细化模块、身份、持久化、并发、时间算法、客户端及实施验收。健康入口已通过 CLI 创建并验证，见 [发布记录](technical/CLOUD_DEPLOYMENT.md)；`identity.ensure` 已完成本地实现，业务集合及真实接入待验证，见 [身份接入](technical/IDENTITY.md)。下表保留设计时基线，身份模块实际状态以接入文档为准。
+状态：身份、个人与家庭一次性待办已实现，服务端已部署；家庭协作实现与验收见 [家庭协作实现](technical/FAMILY.md) 和 [发布记录](technical/CLOUD_DEPLOYMENT.md)。下文保留首版完整设计；周期、批量及订阅提醒仍未实现。
 
 ## 方案入口
 
@@ -14,7 +14,7 @@
 | 产品交互与路由 | [页面流程](business/INTERACTIONS.md) |
 | 开发拆分、验证门槛 | [开发交付](business/DELIVERY.md) |
 
-## 仓库现状与改造点
+## 实施起点与改造方向（历史设计）
 
 | 现有位置 | 现状 | 业务实现时的改造 |
 | --- | --- | --- |
@@ -28,6 +28,8 @@
 | `tests/architecture.test.ts` / `build.test.ts` | 依赖方向和独立 bundle 校验 | 扩展业务模块边界；保留无 SDK 环境健康调用、客户端无 Node 依赖验证 |
 
 现有 `system.health` 的输入 `{}`、输出 `apiVersion/service/status/now` 保持兼容，无需业务身份或数据库。它只说明入口和协议可用，不表示业务存储已就绪。
+
+上述为接入业务前的起点。当前已实现身份、个人和家庭协作分层，实际文件与验证见 [家庭协作实现](technical/FAMILY.md)。
 
 ## 总体结构与依赖
 
@@ -116,9 +118,9 @@ interface TaskRepository {
 
 当前 `.nvmrc=20.19.0`、云配置 `Nodejs20.19`、函数 10 秒/256 MB；本次保留。官方配置仍列该运行时为推荐：[云函数配置](https://docs.cloudbase.net/cli-v1/functions/configs)。本地开发与发布检查使用 `.nvmrc`，根 engines 的较宽范围不表示已在全部版本验证。
 
-平台实现使用 `wx-server-sdk` 作为微信云调用与数据库入口，不同时引入另一套独立 CloudBase 登录。已通过 npm 锁定 4.0.2，检查内置类型和事务实现；SDK 类型缺口在窄适配接口收敛，数据读取仍以 unknown 校验。间接依赖审计及真实事务验收待完成，不能据本地打包通过宣称平台已验证。
+平台实现使用 `wx-server-sdk` 作为微信云调用与数据库入口，不同时引入另一套独立 CloudBase 登录。已通过 npm 锁定 4.0.2，检查内置类型和事务实现；SDK 类型缺口在窄适配接口收敛，数据读取仍以 unknown 校验。已验证真实单账号事务、幂等和业务流程；间接依赖告警与多账号验证边界见发布记录。
 
-保留 esbuild 自包含函数 bundle、`installDependency:false`。SDK 仅从云端装配路径引入；懒初始化业务依赖使 health 可在无云凭据/数据库下执行。已新增身份 SDK 独立加载测试；函数 bundle 约 2.5 MB，共享契约约 3.5 KB。npm 已同步锁文件，真实云内 SDK 初始化和写入仍需单独验证。
+保留 esbuild 自包含函数 bundle、`installDependency:false`。SDK 仅从云端装配路径引入；懒初始化业务依赖使 health 可在无云凭据/数据库下执行。已新增身份 SDK 独立加载测试；当前函数 bundle 约 2.6 MB，共享契约约 27.5 KB。npm 已同步锁文件，真实云内 SDK 初始化和单账号业务写入已通过，详见发布记录。
 
 小程序运行时代码仍从 `miniprogram/shared/contracts.js` 引用，不从 workspace 源码运行。随着 schema 增长，记录共享 bundle 体积；若确需拆分，构建产物仍全部位于小程序目录，类型检查与构建测试同步修改。
 
@@ -126,6 +128,6 @@ interface TaskRepository {
 
 先完成平台接入验证：逐请求身份隔离、选定 SDK 的文档事务和冲突、打包独立加载、数据库仅服务端读写。官方事务文档给出单事务最多100操作、30秒、仅 doc 操作；项目使用更小的操作/时间预算，见 [一致性设计](technical/CONSISTENCY.md)。依据：[事务文档](https://docs.cloudbase.net/database/transaction)。
 
-每个业务模块按契约 → 领域 → 用例 → 适配器 → 页面交付。正式契约/构建/业务代码变更运行 `npm run check`，另补真实 CloudBase 与多账号真机验收。单元 fake 不能替代事务/来源校验；所有 action 尚待实现，技术目标不能标记成已通过。
+每个业务模块按契约 → 领域 → 用例 → 适配器 → 页面交付。正式契约/构建/业务代码变更运行 `npm run check`，另补真实 CloudBase 与多账号真机验收。单元 fake 不能替代事务/来源校验；已落地的36个 action 与真实验证边界见 API 和发布记录，尚未执行的技术目标不标记为已通过。
 
 迁移在独立工具中执行；集合、索引与规则先验证，再上线相关 action。单个开发步骤不代表可以将缺少退出或撤权的家庭模型对外上线。生产提交、推送、部署与资源操作按当前会话另行授权。
