@@ -19,6 +19,74 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const last = { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z", scopes: [], summary: null };
 
+async function cachedHome() {
+  await import("./home/index");
+  const now = new Date().toISOString();
+  const lists = await import("../services/personal-lists");
+  const tasks = vi.spyOn(lists, "listTasks").mockResolvedValue({ items: [], last: { ...last, asOf: now } });
+  vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last: { ...last, asOf: now } });
+  vi.spyOn(await import("../services/family-api"), "listFamilies").mockResolvedValue({ items: [], last: { ...last, asOf: now } });
+  page().schedule = vi.fn();
+  await invoke("onShow");
+  return tasks;
+}
+
+it("首页切回复用缓存，下拉刷新读取最新列表并结束动画", async () => {
+  const tasks = await cachedHome();
+  expect(tasks).toHaveBeenCalledTimes(2);
+  await invoke("onHide");
+  await invoke("onShow");
+  expect(tasks).toHaveBeenCalledTimes(2);
+  await invoke("pullRefresh");
+  expect(tasks).toHaveBeenCalledTimes(4);
+  expect(page().data.refreshing).toBe(false);
+});
+
+it("首页缓存到期或账号上下文失效后重新加载", async () => {
+  const tasks = await cachedHome();
+  page().cacheAt = Date.now() - 30001;
+  await invoke("onHide");await invoke("onShow");
+  expect(tasks).toHaveBeenCalledTimes(4);
+  (await import("../services/personal-api")).personalApi.unbindRecovery();
+  await invoke("onHide");await invoke("onShow");
+  expect(tasks).toHaveBeenCalledTimes(6);
+});
+
+it("首页跨天及切换账号不会复用旧缓存", async () => {
+  const tasks = await cachedHome();
+  page().setData({ today: "2000-01-01" });
+  await invoke("onHide");await invoke("onShow");
+  expect(tasks).toHaveBeenCalledTimes(4);
+  vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ id: "another", displayName: "家人" }) } } }));
+  await invoke("onHide");await invoke("onShow");
+  expect(tasks).toHaveBeenCalledTimes(6);
+  expect(page().cacheUserId).toBe("another");
+});
+
+it("首页隐藏保留卡片，下拉失败也结束动画", async () => {
+  await cachedHome();
+  const item = { id: "one", selected: true, group: "我来做" };
+  page().setData({ items: [item], visibleItems: [item], backlog: [item] });
+  await invoke("onHide");
+  expect(page().data.items).toEqual([{ ...item, selected: false }]);
+  page().visible = true;
+  page().refresh = vi.fn().mockRejectedValue(new Error("offline"));
+  await expect(invoke("pullRefresh")).rejects.toThrow("offline");
+  expect(page().data.refreshing).toBe(false);
+});
+
+it("首页默认隐藏已完成并支持切换查看", async () => {
+  await import("./home/index");
+  expect(page().data.hideCompleted).toBe(true);
+  const pending = { id: "pending", group: "我", occurrence: { status: "pending" } };
+  const completed = { id: "completed", group: "我", occurrence: { status: "completed" } };
+  page().setData({ items: [pending, completed] });
+  await invoke("toggleCompleted");
+  expect(page().data.visibleItems).toEqual([pending, completed]);
+  await invoke("toggleCompleted");
+  expect(page().data.visibleItems).toEqual([pending]);
+});
+
 it("reminder refresh leaves task cards and their loading status untouched", async () => {
   await import("./home/index");
   const lists = await import("../services/personal-lists");

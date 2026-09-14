@@ -20,18 +20,47 @@ async function invoke(name: string, ...args: unknown[]): Promise<void> {
 }
 
 describe("原生协作页面的授权边界", () => {
+  it("家庭页切换复用头像昵称，保存后保留新资料，换账号重新读取", async () => {
+    await import("./families/index");
+    let user = { id: "one", displayName: "默认昵称" };
+    vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => user } } }));
+    const profile = await import("../services/local-profile");
+    const read = vi.spyOn(profile, "readLocalProfile").mockReturnValue({ displayName: "小明", avatarPath: "wxfile://usr/one" });
+    vi.spyOn(await import("../services/family-api"), "listFamilies").mockResolvedValue({ items: [], last: { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } });
+    page().visible = true;
+    await invoke("load");
+    await invoke("onHide");
+    page().visible = true;
+    await invoke("load");
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(page().data).toMatchObject({ displayName: "小明", avatarPath: "wxfile://usr/one" });
+    vi.spyOn(profile, "saveLocalProfile").mockReturnValue({ displayName: "新昵称", avatarPath: "wxfile://usr/new" });
+    await invoke("openProfile");
+    await invoke("saveProfile", { detail: { value: { nickname: "新昵称" } } });
+    await invoke("load");
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(page().data).toMatchObject({ displayName: "新昵称", avatarPath: "wxfile://usr/new" });
+    user = { id: "two", displayName: "另一个账号" };
+    read.mockReturnValue(null);
+    await invoke("load");
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(read).toHaveBeenLastCalledWith("two");
+    expect(page().data).toMatchObject({ displayName: "另一个账号", avatarPath: "" });
+  });
+
   it("家庭 tab 展示会话昵称，丢弃已不属于本人的目标家庭", async () => {
     await import("./families/index");
     vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ displayName: "小明" }) } } }));
     const families = await import("../services/family-api");
     vi.spyOn(families, "listFamilies").mockResolvedValue({ items: [], last: { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } });
-    const read = vi.spyOn(families.familyApi, "read");
+    const { PersonalApiError } = await import("../services/personal-api");
+    const read = vi.spyOn(families.familyApi, "read").mockRejectedValue(new PersonalApiError("NOT_FOUND", "无权查看", false));
     const navigation = await import("../services/family-navigation");
     navigation.openFamilyTab("inaccessible-family");
     await invoke("onShow");
-    await vi.waitFor(() => expect(page().data.status).toBe("empty"));
+    await vi.waitFor(() => expect(page().data.status).toBe("error"));
     expect(page().data).toMatchObject({ displayName: "小明", avatarInitial: "小", id: "", family: null });
-    expect(read).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledWith("family.get", { id: "inaccessible-family" });
     expect(navigation.consumeFamilyDestination()).toBeNull();
   });
 
@@ -250,13 +279,13 @@ describe("家庭成员删除", () => {
     vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ displayName: "我" }) } } }));
     const families = await import("../services/family-api");
     const family = { id: "family", name: "家", ownerName: "我", myMembershipId: "me", ownerMembershipId: "me", authEpoch: 1, myRole: "owner" as const, version: 1 };
-    vi.spyOn(families, "listFamilies").mockResolvedValue({ items: [family], last: { items: [family], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } });
-    vi.spyOn(families.familyApi, "read").mockResolvedValue({ family, members: [], virtualMembers: [] });
-    vi.spyOn(families, "listManagedVirtualMembers").mockResolvedValue([
-      { id: "active", familyId: "family", name: "小宝", status: "active", version: 1 },
-      { id: "deleted", familyId: "family", name: "旧成员", status: "inactive", version: 2 },
-    ]);
+    const list = vi.spyOn(families, "listFamilies");
+    const read = vi.spyOn(families.familyApi, "read").mockImplementation(async action => action === "progress.get"
+      ? { members: [], complete: true, nextCursor: null, asOf: "2026-09-14T00:00:00.000Z" }
+      : { family, members: [], virtualMembers: [{ id: "active", familyId: "family", name: "小宝", status: "active", version: 1 }] });
     await invoke("load");
     expect(page().data.virtualMembers).toEqual([expect.objectContaining({ id: "active" })]);
+    expect(list).not.toHaveBeenCalled();
+    expect(read.mock.calls.map(([action]) => action).sort()).toEqual(["family.get", "progress.get"]);
   });
 });

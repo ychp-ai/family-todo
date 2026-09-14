@@ -23,6 +23,10 @@ function timeout<T>(promise: Promise<T>): Promise<T> {
 }
 /** One identity-bound intent; persist its original request before any network write. */
 export class PersonalApi {
+  private revision = 0;
+  public get readRevision(): number { return this.revision; }
+  private invalidateReads(): void { this.revision++; this.reads.clear(); }
+  private readonly reads = new Map<string, Promise<unknown>>();
   private batchState: {payload: PersonalActionMap["task.batchAddViewers"]["payload"]; result: PersonalActionMap["task.batchAddViewers"]["data"] | null} | null = null;
   private context: string | null = null;
   private generation = 0;
@@ -38,6 +42,7 @@ export class PersonalApi {
   public bindRecovery(environment: string, userId: string): void {
     const context = recoveryContextKey(environment, userId);
     if (context === this.context) { if (this.recoveryFailure && !this.pending) this.loadRecovery(); return; }
+    this.invalidateReads();
     this.generation++;
     this.context = context;
     this.pending = null;
@@ -46,6 +51,7 @@ export class PersonalApi {
     this.loadRecovery();
   }
   public unbindRecovery(): void {
+    this.invalidateReads();
     this.generation++;
     this.context = null;
     this.pending = null;
@@ -91,7 +97,22 @@ export class PersonalApi {
     if (this.recoveryFailure) throw this.recoveryFailure;
     await this.pending?.run();
   }
-  public async read<A extends BusinessAction>(action: A,payload: BusinessMap[A]["payload"]): Promise<BusinessMap[A]["data"]> { return this.call(action,payload,await timeout(this.ids())); }
+  public async read<A extends BusinessAction>(action: A,payload: BusinessMap[A]["payload"]): Promise<BusinessMap[A]["data"]> {
+    const key = JSON.stringify({ action, payload }, (_key, value: unknown) => {
+      if (value && typeof value === "object" && !Array.isArray(value)) return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+      return value;
+    });
+    let request = this.reads.get(key);
+    if (!request) {
+      request = timeout(this.ids()).then(id => this.call(action, payload, id));
+      this.reads.set(key, request);
+    }
+    try {
+      const result = await request;
+      if (!guard(action, result)) throw new PersonalApiError("INVALID_RESPONSE", "服务返回无效，请重试。", true);
+      return result;
+    } finally { if (this.reads.get(key) === request) this.reads.delete(key); }
+  }
   public async write<A extends BusinessAction>(action: A, payload: BusinessMap[A]["payload"], options: {draftId?: string} = {}): Promise<BusinessMap[A]["data"]> {
     if (!isDurableWriteAction(action) && action !== "invitation.accept") throw new PersonalApiError("INVALID_ARGUMENT", "此操作不支持写入重试。", false);
     if ((isDurableWriteAction(action) && !isDurablePayload(action, payload)) || (options.draftId !== undefined && !isUuid(options.draftId))) throw new PersonalApiError("INVALID_ARGUMENT", "操作内容无效，请检查后重试。", false);
@@ -129,6 +150,7 @@ export class PersonalApi {
     };
     const execute = async (): Promise<unknown> => {
       assertCurrent();
+      this.invalidateReads();
       if (confirmedState) { finalize(); return confirmedData; }
       let requestId: string;
       try { requestId = await id; } catch (error) { if (current()) this.pending = null; throw error; }
@@ -156,7 +178,7 @@ export class PersonalApi {
       return data;
     };
     let inFlight: Promise<unknown> | undefined;
-    const operation = {key, run: (): Promise<unknown> => { inFlight ??= execute().finally(() => { inFlight = undefined; }); return inFlight; }};
+    const operation = {key, run: (): Promise<unknown> => { inFlight ??= execute().finally(() => { inFlight = undefined; this.invalidateReads(); }); return inFlight; }};
     this.pending = operation;
     return operation;
   }

@@ -15,7 +15,24 @@ async function complete(actor: BatchActor, input: Input) {
   return page;
 }
 
+async function deferredProgress(actor: BatchActor, input: Input) {
+  const store = actor.store(); const original = OccurrenceLists.prototype.execute;
+  const scan = vi.spyOn(OccurrenceLists.prototype, "execute").mockImplementation(async function (this: OccurrenceLists, ...args) {
+    const page = await original.apply(this, args);
+    vi.spyOn(store, "remainingBudgetMs").mockReturnValue(3500);
+    return page;
+  });
+  try { return await call(actor, "progress.get", input, randomUUID(), store); }
+  finally { scan.mockRestore(); }
+}
+
 describe("visible subject progress", () => {
+  it("returns small complete progress in one request", async () => {
+    const f = await progressBatchFixture();
+    await call(f.creator, "task.create", { draft: taskDraft(f.family.id) });
+    const result = await call(f.creator, "progress.get", { familyId: f.family.id, date: "2026-09-11" });
+    expect(result).toMatchObject({ complete: true, nextCursor: null, members: [{ pending: 1, denominator: 1 }] });
+  });
   it("returns honest empty progress and excludes private arrangements even for the family owner", async () => {
     const f = await progressBatchFixture(); const input = { familyId: f.family.id, date: "2026-09-11" };
     expect(await complete(f.owner, input)).toMatchObject({ members: [], complete: true, nextCursor: null });
@@ -88,7 +105,7 @@ describe("visible subject progress", () => {
     const store = f.creator.store(); vi.spyOn(store, "context").mockRejectedValue(new Error("Unavailable context"));
     await expect(call(f.creator, "progress.get", input, randomUUID(), store)).rejects.toMatchObject({ code: "TEMPORARILY_UNAVAILABLE" });
     const d = taskDraft(f.family.id); d.access.viewerMembershipIds = [f.viewer.member.id]; await call(f.creator, "task.create", { draft: d });
-    const ready = await call(f.viewer, "progress.get", input); if (!ready.nextCursor) throw new Error("No final cursor");
+    const ready = await deferredProgress(f.viewer, input); if (!ready.nextCursor) throw new Error("No final cursor");
     const replayStore = f.viewer.store(), read = replayStore.readSession.bind(replayStore); let changed = false;
     vi.spyOn(replayStore, "readSession").mockImplementation(async token => {
       const value = await read(token);
@@ -104,7 +121,7 @@ describe("visible subject progress", () => {
     const first = await call(f.creator, "progress.get", input, randomUUID(), store);
     expect(first).toMatchObject({ complete: false, members: null }); if (!first.nextCursor) throw new Error("Missing cursor");
     const result = await complete(f.creator, { ...input, cursor: first.nextCursor }); expect(result.members?.[0]?.pending).toBe(1);
-    const ready = await call(f.creator, "progress.get", input); if (!ready.nextCursor) throw new Error("Missing ready cursor");
+    const ready = await deferredProgress(f.creator, input); if (!ready.nextCursor) throw new Error("Missing ready cursor");
     const limited = f.creator.store(); vi.spyOn(limited, "remainingBudgetMs").mockReturnValue(2500);
     await expect(call(f.creator, "progress.get", { ...input, cursor: ready.nextCursor }, randomUUID(), limited)).rejects.toMatchObject({ code: "TEMPORARILY_UNAVAILABLE" });
     expect((await complete(f.creator, { ...input, cursor: ready.nextCursor })).members).toEqual(result.members);

@@ -1,7 +1,7 @@
 <view class="screen">
   <view class="status-space" style="height:{{statusHeight}}px"></view>
   <view class="appbar" style="height:{{navHeight}}px;padding-right:{{capsuleWidth}}px"><view class="app-name"><image src="/assets/app-icon.png"/>家庭待办</view></view>
-  <scroll-view class="phone-scroll home-scroll" scroll-y><view class="scroll-inner">
+  <scroll-view class="phone-scroll home-scroll" scroll-y refresher-enabled="{{!writing && !saving && !batchBusy && !batchMode && !uncertain}}" refresher-triggered="{{refreshing}}" bindrefresherrefresh="pullRefresh"><view class="scroll-inner">
     <view class="home-greeting"><view><text class="overline">{{greeting || ' '}}</text><text class="h3">今天，也要好好过<text class="greeting-dot">。</text></text></view></view>
     <home-reminder-banner reminder-count="{{reminderCount}}" reminder-error="{{reminderError}}" bind:action="onComponentAction"/>
     <home-filters batch-mode="{{batchMode}}" family-options="{{familyOptions}}" family-index="{{familyIndex}}" bind:action="onComponentAction"/>

@@ -107,6 +107,17 @@ export class ProgressService {
     if (state.listCursor && page.asOf !== state.asOf) expired();
     state.asOf = page.asOf;
     const changes: MemberProgress[] = page.items.map(({ occurrence }) => ({ subject: occurrence.subject, name: occurrence.subjectName, completed: occurrence.status === "completed" ? 1 : 0, pending: occurrence.status === "pending" ? 1 : 0, skipped: occurrence.status === "skipped" ? 1 : 0, denominator: occurrence.status === "skipped" ? 0 : 1 }));
+    // A complete first page is bounded by PAGE_SIZE; no persisted tree is needed.
+    if (!payload.cursor && page.complete && this.store.remainingBudgetMs() > 4000) {
+      const totals = new Map<string, MemberProgress>();
+      for (const value of changes) {
+        const previous = totals.get(key(value.subject));
+        if (previous) { previous.completed += value.completed; previous.pending += value.pending; previous.skipped += value.skipped; previous.denominator += value.denominator; }
+        else totals.set(key(value.subject), { ...value });
+      }
+      await this.fence(payload, state);
+      return { members: [...totals.values()].sort((a, b) => key(a.subject).localeCompare(key(b.subject))), complete: true, nextCursor: null, asOf: state.asOf };
+    }
     state.root = await new Accumulator(this.store, state).add(state.root, changes);
     state.listCursor = page.nextCursor; state.ready = page.complete;
     await this.fence(payload, state);

@@ -55,3 +55,50 @@ describe("个人事项客户端写入重试", () => {
     expect(requests[1]?.requestId).not.toBe(requests[0]?.requestId);
   });
 });
+
+it("shares only in-flight reads and separates account generations", async () => {
+  const requests: ApiRequest[] = []; let release: (() => void) | undefined;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const api = new PersonalApi(new AppApiClient({ send: async request => {
+    requests.push(request); await gate;
+    return { ok: true, requestId: request.requestId, data: { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } };
+  } }), async () => randomUUID());
+  api.bindRecovery("env", randomUUID());
+  const a = api.read("family.list", { limit: 50 }); const b = api.read("family.list", { limit: 50 });
+  await vi.waitFor(() => expect(requests).toHaveLength(1));
+  api.bindRecovery("env", randomUUID());
+  const c = api.read("family.list", { limit: 50 });
+  await vi.waitFor(() => expect(requests).toHaveLength(2));
+  release?.(); await Promise.all([a,b,c]);
+  await api.read("family.list", { limit: 50 }); expect(requests).toHaveLength(3);
+});
+
+it("does not reuse failed reads", async () => {
+  const send = vi.fn(async (request: ApiRequest) => ({ ok: false, requestId: request.requestId, error: { code: "TEMPORARILY_UNAVAILABLE", message: "稍后重试", retryable: true } }));
+  const api = new PersonalApi(new AppApiClient({ send }), async () => randomUUID());
+  const results = await Promise.allSettled([api.read("family.list", {}), api.read("family.list", {})]);
+  expect(results.every(result => result.status === "rejected")).toBe(true);
+  expect(send).toHaveBeenCalledTimes(1);
+  await expect(api.read("family.list", {})).rejects.toMatchObject({ retryable: true });
+  expect(send).toHaveBeenCalledTimes(2);
+});
+
+it("separates read parameters and refreshes reads after a write", async () => {
+  const requests: ApiRequest[] = []; let release: (() => void) | undefined;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const api = new PersonalApi(new AppApiClient({ send: async request => {
+    requests.push(request);
+    if (request.action === "task.delete") return success(request);
+    await gate;
+    return { ok: true, requestId: request.requestId, data: { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } };
+  } }), async () => randomUUID());
+  const first = api.read("family.list", { limit: 10 });
+  const different = api.read("family.list", { limit: 20 });
+  await vi.waitFor(() => expect(requests).toHaveLength(2));
+  const revision = api.readRevision;
+  await api.write("task.delete", payload);
+  expect(api.readRevision).toBeGreaterThan(revision);
+  const refreshed = api.read("family.list", { limit: 10 });
+  await vi.waitFor(() => expect(requests).toHaveLength(4));
+  release?.(); await Promise.all([first, different, refreshed]);
+});
