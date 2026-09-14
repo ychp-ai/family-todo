@@ -1,6 +1,12 @@
 # 日程与记录算法
 
-以 [需求](../REQUIREMENTS.md) 为准。所有算法在 domain 中实现，显式传入 Clock 的服务端时间；不依赖客户端时钟、不启动定时函数。本文件是待实现算法和测试输入，未将浏览器 demo 当正式引擎。
+以 [需求](../REQUIREMENTS.md) 为准。纯日程规则在 domain 中实现，应用层编排持久化、权限和查询预算，显式使用 Clock 的服务端时间；不依赖客户端时钟、不启动定时函数。周期、进度和批处理服务端代码已实现，真实部署与验证范围以 [发布记录](CLOUD_DEPLOYMENT.md) 为准。
+
+## 实现位置与存储
+
+`packages/domain/src/scheduling.ts` 实现上海日历、有限窗口投影、片段边界和记录时间校验；`recurrence-persistence.ts` 定义持久化日程结构。应用层 `recurrence.ts` 处理预览、创建、编辑、生命周期与单次写入，`recurrence-projection.ts` 装配持久化片段和稀疏状态，`occurrence-lists.ts` 提供日期、积压、提醒与单项次数查询。`progress.ts` 和 `batch-viewers.ts` 分别处理可见执行人进度与批量追加可见人。
+
+未触及的旧一次性事项保留原有 task、segment、occurrence UUID 和回执。新周期采用 4 个附加集合；查询检查点复用 `query_sessions`，批量父子回执复用 `idempotency_receipts`。实际字段、索引和可重跑迁移见 [周期存储](../../database/recurrence.md)，不按下文概念名称额外创建集合。
 
 ## 值对象与时间边界
 
@@ -10,7 +16,7 @@
 - 有时刻的 `scheduledAt = localDate + localTime` 转UTC；date-only 的 scheduledAt=null，但 eligibilityBoundary 是本地当日开始。无日期一次性没有日历边界。
 - 系列开始、结束日期两端包含；有时刻周期以 `effectiveFrom < scheduledAt <= effectiveUntil` 归属片段（until=null 表示无上界），使切分时刻已到时的旧次数保留；date-only 使用下文当天特例，once 使用有效片段指针。服务端 now 等于一个周期时刻时，已到时旧次数保留，新建/恢复的该时刻不生成。
 
-建议纯函数：`parseLocalDate`、`addDays`、`isoWeekday`、`toInstant`、`enumerateSlots`、`projectOccurrences`、`splitSchedule`、`transitionLifecycle`、`canRecordOccurrence`。domain 不依赖 crypto 或 contracts；UUIDv5 由端口实现，传入规范化身份元组后返回ID。
+domain 不依赖 crypto 或 contracts；UUIDv5 由端口实现，传入规范化身份元组后返回ID。具体导出以 `packages/domain/src/scheduling.ts` 为准。
 
 ## 数据分工与身份
 
@@ -82,6 +88,14 @@ completed 的实际时间不得晚于服务端now。周期补记不得早于该�
 提醒满足：当前可见有效真实接收人、enabled=true且selfDisabled=false、有时刻且到时、pending、未删除。已读/收起只读当前用户receipt；撤销完成重新判断到时条件，但不重置本人的既有已读/收起选择。下一次ref不同，自带新receipt状态。
 
 进度按所选日期、家庭、各次subject及当前可见范围聚合。denominator=completed+pending，skipped单列。未来周期次数在选定日期的安排总量中计入pending，但 canRecord=false；首页提醒仅含已到时。未完整扫描不返回最终计数。
+
+累计进度使用不可变分片树，单叶最多 256 个执行人、目录最多 64 个子引用、单会话文档不超过 128 KiB。历史执行人按稳定身份聚合，不截断为当前有效成员名单。源扫描完成后先返回 ready 游标，下一次请求用完整预算组装最终成员数组，并再次检查权限和范围版本。若最终数组无法在单次预算内完整读取，返回可重试的 `TEMPORARILY_UNAVAILABLE`，可保留游标重试或改为指定执行人；不返回部分统计或没有进展的续页。尚未以无限历史身份规模证明容量或延迟。
+
+## 批处理续跑
+
+每批最多 20 个不同事项。父请求保留原始完整 payload 指纹，单项事务同时完成个人归属家庭、追加可见人和子回执；不新增代记或提醒，不清除本人关闭设置。剩余预算不足 2 秒时不开始下一项，所有事务共用一次调用的 8 秒应用预算。
+
+续跑先处理尚无持久化终态的项，再为已成功项重新鉴权，最后按原 payload 顺序返回结果。因预算不足无法重新鉴权的旧成功项可暂时返回 `pending`，不带旧 version，其成功回执仍保留，不会重复修改。调用方必须用原 requestId 和完整 payload 继续；全部结果终态后，只给明确失败项读取最新版本并用新 requestId 重试。
 
 ## 必测边界
 

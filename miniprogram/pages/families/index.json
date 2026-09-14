@@ -1,0 +1,11 @@
+{
+  "navigationStyle": "custom",
+  "disableScroll": true,
+  "usingComponents": {
+    "family-row": "/components/family-row/index",
+    "family-member": "/components/family-member/index",
+    "family-virtual-member": "/components/family-virtual-member/index",
+    "family-management": "/components/family-management/index",
+    "family-profile": "/components/family-profile/index"
+  }
+}

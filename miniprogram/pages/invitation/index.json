@@ -1,0 +1,11 @@
+{
+  "navigationStyle": "custom",
+  "disableScroll": true,
+  "usingComponents": {
+    "invitation-create": "/components/invitation-create/index",
+    "invitation-token": "/components/invitation-token/index",
+    "invitation-card": "/components/invitation-card/index",
+    "invitation-input": "/components/invitation-input/index",
+    "invitation-preview": "/components/invitation-preview/index"
+  }
+}

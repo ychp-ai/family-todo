@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FamilyBudgetExceededError } from "@family-todo/ports";
 
 import { createApiHandler } from "./api-handler";
 import { ActionRouter } from "./router";
@@ -70,5 +71,14 @@ describe("统一 API 入口", () => {
       error: { code: "INTERNAL_ERROR", message: "服务暂时不可用，请稍后重试。", retryable: true },
     });
     expect(JSON.stringify(response)).not.toContain("SECRET");
+  });
+
+  it("预算耗尽返回可重试的稳定错误并保留原请求 ID", async () => {
+    const router = new ActionRouter();
+    router.register(new SystemHealthHandler({ now: () => { throw new FamilyBudgetExceededError(); } }));
+    expect(await createApiHandler(router)(request)).toEqual({
+      ok: false, requestId: request.requestId,
+      error: { code: "TEMPORARILY_UNAVAILABLE", message: "本次处理尚未完成，请重试。", retryable: true },
+    });
   });
 });

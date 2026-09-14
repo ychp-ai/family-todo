@@ -1,0 +1,1 @@
+<view class="flow-card"><text class="field-label">邀请口令</text><input class="form-input" value="{{token}}" maxlength="22" bindinput="tokenInput" disabled="{{writing || uncertain}}" placeholder="填写家人分享的口令"/><button class="outline-button full-width" bindtap="previewInvitation" disabled="{{writing || uncertain}}">查看邀请</button></view>

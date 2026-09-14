@@ -1,0 +1,1 @@
+<view class="history-item"><text class="strong">{{item.label}} · {{item.actorName}}</text><text class="paragraph">记录于 {{item.recordedLabel}}{{item.actualLabel ? ' · 实际 ' + item.actualLabel : ''}}</text><text wx:if="{{item.note}}" class="paragraph">{{item.note}}</text></view>

@@ -1,0 +1,1435 @@
+{
+  "envId": "family-todo-d3g28fx1c314f8638",
+  "databaseName": "tnt-5up4jdfvg",
+  "collections": [
+    "families",
+    "memberships",
+    "membership_slots",
+    "virtual_members",
+    "invitations",
+    "family_events",
+    "reminder_preferences",
+    "reminder_receipts",
+    "tasks",
+    "task_events",
+    "query_sessions",
+    "idempotency_receipts"
+  ],
+  "indexes": {
+    "memberships": [
+      [
+        "family_members",
+        "familyId",
+        "listOrder"
+      ],
+      [
+        "active_family_members",
+        "familyId",
+        "status",
+        "listOrder"
+      ]
+    ],
+    "membership_slots": [
+      [
+        "user_active_families",
+        "userId",
+        "active"
+      ]
+    ],
+    "virtual_members": [
+      [
+        "family_virtual",
+        "familyId",
+        "listOrder"
+      ],
+      [
+        "active_family_virtual",
+        "familyId",
+        "status",
+        "listOrder"
+      ]
+    ],
+    "invitations": [
+      [
+        "family_invitations",
+        "familyId",
+        "listOrder"
+      ],
+      [
+        "invitation_hash_lookup",
+        "tokenHash",
+        "listOrder"
+      ]
+    ],
+    "tasks": [
+      [
+        "family_schedule",
+        "familyId",
+        "lifecycle",
+        "scheduleOrder"
+      ],
+      [
+        "family_created",
+        "familyId",
+        "lifecycle",
+        "createdOrder"
+      ],
+      [
+        "family_status_schedule",
+        "familyId",
+        "lifecycle",
+        "status",
+        "scheduleOrder"
+      ],
+      [
+        "family_recent",
+        "familyId",
+        "lifecycle",
+        "status",
+        "recentOrder"
+      ]
+    ]
+  },
+  "uniqueIndexes": {
+    "invitations": [
+      [
+        "unique_invitation_hash",
+        "tokenHash"
+      ]
+    ]
+  },
+  "startedAt": "2026-09-11T16:11:04.387Z",
+  "operations": [
+    {
+      "action": "ListTables",
+      "requestId": "1d72c357-b705-422d-a8f8-aea72176776f",
+      "at": "2026-09-11T16:11:05.319Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "families",
+      "requestId": "2ce199e9-ecd2-41c7-9c3d-afc5720ada16",
+      "at": "2026-09-11T16:11:06.246Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "families",
+      "requestId": "d40be407-8547-49e6-9c87-f9cd7d6b1eae",
+      "at": "2026-09-11T16:11:07.176Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "families",
+      "requestId": "56ad17da-f07a-4e48-9146-1bba78410647",
+      "at": "2026-09-11T16:11:08.057Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "families",
+      "requestId": "44a8d5b1-4831-4949-ae88-572166156319",
+      "at": "2026-09-11T16:11:08.863Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "families",
+      "requestId": "e5d9854b-8ee3-4685-ae1d-2acc3028d2cd",
+      "at": "2026-09-11T16:11:09.690Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "memberships",
+      "requestId": "2ffbaf63-7e18-4cac-8610-13718bcb6a3e",
+      "at": "2026-09-11T16:11:10.567Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "memberships",
+      "requestId": "b2074be5-041f-46ac-be15-053143d01d8a",
+      "at": "2026-09-11T16:11:11.415Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "memberships",
+      "requestId": "4e3281db-8dc6-4f34-9c46-a4ec26c6042e",
+      "at": "2026-09-11T16:11:12.252Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "memberships",
+      "requestId": "9f015b1f-d361-4a37-ad9d-085db1cecfd3",
+      "at": "2026-09-11T16:11:13.077Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "memberships",
+      "requestId": "2e4a042d-c36c-4f1d-89eb-0da6899c3a12",
+      "at": "2026-09-11T16:11:14.087Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "memberships",
+      "requestId": "9c3bd096-ec68-4190-b36e-8789854f2456",
+      "at": "2026-09-11T16:11:14.950Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "membership_slots",
+      "requestId": "59bc6d7a-5ff8-437c-984e-3047f562749e",
+      "at": "2026-09-11T16:11:15.759Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "membership_slots",
+      "requestId": "7988bf04-7a05-4ff7-85e7-cd9eccff8fe4",
+      "at": "2026-09-11T16:11:16.626Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "membership_slots",
+      "requestId": "6c192041-d4cd-4716-9a1f-70d32f19207c",
+      "at": "2026-09-11T16:11:17.451Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "membership_slots",
+      "requestId": "c51b8173-5ef8-47bb-98ad-51cca4b79efa",
+      "at": "2026-09-11T16:11:18.260Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "membership_slots",
+      "requestId": "1f231c49-8272-4bc2-94ac-afb6c877c5f1",
+      "at": "2026-09-11T16:11:19.085Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "membership_slots",
+      "requestId": "6af1b892-7334-4e0b-9062-9cdf4f464bf5",
+      "at": "2026-09-11T16:11:19.932Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "virtual_members",
+      "requestId": "297b02ff-38b5-4005-b8f8-cd3139bb5eef",
+      "at": "2026-09-11T16:11:20.917Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "virtual_members",
+      "requestId": "42b7faef-bcc7-4991-8d73-fc518bd4dd68",
+      "at": "2026-09-11T16:11:21.752Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "virtual_members",
+      "requestId": "5b3d3f73-32fa-4edb-8f91-81a343642858",
+      "at": "2026-09-11T16:11:22.529Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "virtual_members",
+      "requestId": "ce396052-57df-4a5c-8d8a-7edcd8d0269a",
+      "at": "2026-09-11T16:11:23.317Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "virtual_members",
+      "requestId": "a799efd9-e6fd-4dbc-bc09-32ffc748ad6b",
+      "at": "2026-09-11T16:11:24.089Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "virtual_members",
+      "requestId": "21fcb435-0209-4b8e-ae50-4f9c86d53b55",
+      "at": "2026-09-11T16:11:24.882Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "invitations",
+      "requestId": "6a38a608-81d1-4901-8684-80f5b52f240b",
+      "at": "2026-09-11T16:11:25.792Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "invitations",
+      "requestId": "9e8b0a41-ba79-46d9-bd76-342eb7699c12",
+      "at": "2026-09-11T16:11:26.693Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "invitations",
+      "requestId": "de50912d-c8c1-4daa-b338-2b525d73e0cf",
+      "at": "2026-09-11T16:11:27.640Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "invitations",
+      "requestId": "0711a58b-31a3-4e35-bc49-0d569e316dba",
+      "at": "2026-09-11T16:11:28.428Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "invitations",
+      "requestId": "0d4af62a-0d92-49d4-a2fe-90c2ee127d28",
+      "at": "2026-09-11T16:11:29.515Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "invitations",
+      "requestId": "e32d6e3c-3908-473e-a54a-43b130d1777f",
+      "at": "2026-09-11T16:11:30.504Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "family_events",
+      "requestId": "0d85f5cd-8f31-491e-b640-d817282af64e",
+      "at": "2026-09-11T16:11:31.283Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "family_events",
+      "requestId": "3b30d50f-fd50-4395-b5ad-9f735d53bb91",
+      "at": "2026-09-11T16:11:32.127Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "family_events",
+      "requestId": "0aa194a8-e990-4b25-84fe-be4ec9c3e349",
+      "at": "2026-09-11T16:11:32.910Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "family_events",
+      "requestId": "d80c70ca-c1e4-4baa-97fc-b45253811a98",
+      "at": "2026-09-11T16:11:33.687Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "family_events",
+      "requestId": "3a55f9e0-8ac9-4481-ba19-b8437ca6cf58",
+      "at": "2026-09-11T16:11:34.562Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "reminder_preferences",
+      "requestId": "e1579395-251c-4349-a4cb-f3e590d77a71",
+      "at": "2026-09-11T16:11:35.311Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "reminder_preferences",
+      "requestId": "9e958fbe-9725-4450-b711-a7cf2abdaf3d",
+      "at": "2026-09-11T16:11:36.082Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "reminder_preferences",
+      "requestId": "5f710c3c-1823-48fe-951f-a874a3805537",
+      "at": "2026-09-11T16:11:37.109Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "reminder_preferences",
+      "requestId": "3e1bf49e-ea89-48a1-8071-3bbc453a7ba9",
+      "at": "2026-09-11T16:11:37.939Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "reminder_preferences",
+      "requestId": "50f7402d-9c29-4468-b2e8-808a0a19fea7",
+      "at": "2026-09-11T16:11:38.684Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "reminder_receipts",
+      "requestId": "978eb731-de1a-47f9-b331-0b875f185275",
+      "at": "2026-09-11T16:11:39.557Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "reminder_receipts",
+      "requestId": "bef4d086-3b92-4a9d-8ef8-17178e0c8d50",
+      "at": "2026-09-11T16:11:40.406Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "reminder_receipts",
+      "requestId": "3a7b042b-f3a0-4b82-b387-a8414eb5f5be",
+      "at": "2026-09-11T16:11:41.162Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "reminder_receipts",
+      "requestId": "7441c2f1-3806-44bf-9d27-3535675c62f3",
+      "at": "2026-09-11T16:11:41.870Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "reminder_receipts",
+      "requestId": "deff395c-50aa-4527-acf3-359cf5311c59",
+      "at": "2026-09-11T16:11:42.810Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "tasks",
+      "requestId": "d989776a-967f-4830-813a-cf45aad4ccc0",
+      "at": "2026-09-11T16:11:43.641Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "tasks",
+      "requestId": "057454af-ec4d-4ba8-a3ea-ce7a5f1faa83",
+      "at": "2026-09-11T16:11:44.618Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "tasks",
+      "requestId": "8cc45bcd-88f0-4b24-a67a-b3b561bd83e1",
+      "at": "2026-09-11T16:11:45.546Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "tasks",
+      "requestId": "fda14bd6-14fb-43d1-b609-3a0826dbfce2",
+      "at": "2026-09-11T16:11:46.363Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "tasks",
+      "requestId": "3226873e-2967-4139-b3c7-67614ed07730",
+      "at": "2026-09-11T16:11:47.128Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "task_events",
+      "requestId": "bf587f1e-9057-4d32-bd5b-0e7465407ec2",
+      "at": "2026-09-11T16:11:48.091Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "task_events",
+      "requestId": "23f603d5-d439-42a4-8039-00f66a41128a",
+      "at": "2026-09-11T16:11:48.919Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "task_events",
+      "requestId": "401c649e-afaf-4ebb-b445-26a1b4a8587b",
+      "at": "2026-09-11T16:11:49.652Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "task_events",
+      "requestId": "9a351568-7a99-4922-ad9a-81c5c56e1905",
+      "at": "2026-09-11T16:11:50.610Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "query_sessions",
+      "requestId": "dc7ef01b-cd43-47bb-81aa-50fdf3c9b1df",
+      "at": "2026-09-11T16:11:51.455Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "query_sessions",
+      "requestId": "417dd320-d1c4-4aeb-a1bf-7fc8925aac7f",
+      "at": "2026-09-11T16:11:52.319Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "query_sessions",
+      "requestId": "bd31d21f-2132-4b27-a69a-a0568c7f3a74",
+      "at": "2026-09-11T16:11:53.298Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "query_sessions",
+      "requestId": "41eb3bc6-2217-424e-9619-94658d555ce8",
+      "at": "2026-09-11T16:11:54.062Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "idempotency_receipts",
+      "requestId": "a38abec8-234e-4310-bed8-e423b62db9e2",
+      "at": "2026-09-11T16:11:55.026Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "idempotency_receipts",
+      "requestId": "2cd01453-fd19-419d-bf97-1211a3bbbc97",
+      "at": "2026-09-11T16:11:55.935Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "idempotency_receipts",
+      "requestId": "54cf41bb-ec10-4d4b-9f7e-a0d3f096ed3a",
+      "at": "2026-09-11T16:11:56.912Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "idempotency_receipts",
+      "requestId": "62fb97f8-6098-4d55-a927-77b6231fc3cc",
+      "at": "2026-09-11T16:11:57.655Z"
+    }
+  ],
+  "completedAt": "2026-09-11T16:11:57.655Z",
+  "verified": [
+    {
+      "collection": "families",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "memberships",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "family_members",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "listOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "active_family_members",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "listOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "membership_slots",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "user_active_families",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "userId",
+              "Direction": "1"
+            },
+            {
+              "Name": "active",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "virtual_members",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "active_family_virtual",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "listOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_virtual",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "listOrder",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "invitations",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "invitation_hash_lookup",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "tokenHash",
+              "Direction": "1"
+            },
+            {
+              "Name": "listOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "unique_invitation_hash",
+          "unique": true,
+          "keys": [
+            {
+              "Name": "tokenHash",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_invitations",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "listOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "family_events",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "reminder_preferences",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "reminder_receipts",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "tasks",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_created",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "createdOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_all_reminders",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "reminderEnabled",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_reminders",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "reminderEnabled",
+              "Direction": "1"
+            },
+            {
+              "Name": "dismissedAt",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_recent",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_recent",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_status_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_status_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_created",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "createdOrder",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "task_events",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "task_history",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "taskId",
+              "Direction": "1"
+            },
+            {
+              "Name": "eventOrder",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "query_sessions",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "idempotency_receipts",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "recheck": {
+    "startedAt": "2026-09-11T16:16:52.791Z",
+    "completedAt": "2026-09-11T16:17:32.836Z",
+    "operations": [
+      {
+        "action": "ListTables",
+        "requestId": "eaba797f-8498-46ae-8c8e-34ef50bcc6fe",
+        "at": "2026-09-11T16:16:53.731Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "families",
+        "requestId": "47852efe-f9b3-429e-894e-8a42a5d1ebbe",
+        "at": "2026-09-11T16:16:54.543Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "families",
+        "requestId": "e46b3a82-69aa-4719-8edc-554793291455",
+        "at": "2026-09-11T16:16:55.360Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "families",
+        "requestId": "ad13bae2-5e48-4d11-ae95-dc69f33d09e3",
+        "at": "2026-09-11T16:16:56.103Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "families",
+        "requestId": "13df7eb5-c7cc-4eee-bced-62b4baf83db0",
+        "at": "2026-09-11T16:16:56.919Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "memberships",
+        "requestId": "26eafa4a-110f-481b-8888-3416d29d4609",
+        "at": "2026-09-11T16:16:57.901Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "memberships",
+        "requestId": "986b0029-66e4-4b85-81a1-3373fda5407b",
+        "at": "2026-09-11T16:16:58.696Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "memberships",
+        "requestId": "fb6b059c-95da-4ba3-a585-a973e8541064",
+        "at": "2026-09-11T16:16:59.523Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "memberships",
+        "requestId": "65424115-19e9-43e8-8a1c-75ee17b52ab0",
+        "at": "2026-09-11T16:17:00.258Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "membership_slots",
+        "requestId": "d14ec348-89cd-4d97-ae03-7a4d0bcaaa93",
+        "at": "2026-09-11T16:17:01.059Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "membership_slots",
+        "requestId": "c8c048aa-bb6d-4d0a-9565-a33988212102",
+        "at": "2026-09-11T16:17:01.852Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "membership_slots",
+        "requestId": "5f67654b-0c41-44b5-84ee-91ca5c9e15e0",
+        "at": "2026-09-11T16:17:02.665Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "membership_slots",
+        "requestId": "94d75132-dd05-4381-8060-b00eaf9e659d",
+        "at": "2026-09-11T16:17:03.420Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "virtual_members",
+        "requestId": "7dea5a90-84e8-4851-baec-98137a72f704",
+        "at": "2026-09-11T16:17:04.201Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "virtual_members",
+        "requestId": "d00c2c59-5405-4145-bba7-4550f2a0161b",
+        "at": "2026-09-11T16:17:05.185Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "virtual_members",
+        "requestId": "f1805bdc-7d46-429d-afc0-864773648f1c",
+        "at": "2026-09-11T16:17:05.987Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "virtual_members",
+        "requestId": "afa0b762-aae8-414d-b67a-a37ccd83bb11",
+        "at": "2026-09-11T16:17:06.728Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "invitations",
+        "requestId": "1856b957-0672-4bed-aa90-50146a3d3c2e",
+        "at": "2026-09-11T16:17:07.509Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "invitations",
+        "requestId": "bcc10da5-154e-4b60-8bfe-607eeaef02fc",
+        "at": "2026-09-11T16:17:08.389Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "invitations",
+        "requestId": "20d76607-1b9d-4d9e-89ac-74c53bcefc4b",
+        "at": "2026-09-11T16:17:09.169Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "invitations",
+        "requestId": "09e45dae-f660-4c80-bceb-cd86f3d43b74",
+        "at": "2026-09-11T16:17:09.949Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "family_events",
+        "requestId": "79172402-63fa-4fe8-a275-b65ae257797b",
+        "at": "2026-09-11T16:17:10.727Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "family_events",
+        "requestId": "912ade42-df77-4ba0-9833-a91dab6d8a6f",
+        "at": "2026-09-11T16:17:11.515Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "family_events",
+        "requestId": "b82ed1fa-2168-4825-8479-76b03965b992",
+        "at": "2026-09-11T16:17:12.299Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "family_events",
+        "requestId": "e1b1c42f-e6f1-4b2f-a987-b7ccecf92d43",
+        "at": "2026-09-11T16:17:13.072Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "reminder_preferences",
+        "requestId": "54c284d5-21c0-46b1-99a7-21bad0ee7e08",
+        "at": "2026-09-11T16:17:13.850Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "reminder_preferences",
+        "requestId": "78897f3b-b5fc-4315-95e6-8a0d6929d1a7",
+        "at": "2026-09-11T16:17:14.585Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "reminder_preferences",
+        "requestId": "c9fc5200-6325-4b29-8343-77282f1eff17",
+        "at": "2026-09-11T16:17:15.366Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "reminder_preferences",
+        "requestId": "ff81c352-82da-422e-8c3d-a08846f0b0c6",
+        "at": "2026-09-11T16:17:16.281Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "reminder_receipts",
+        "requestId": "cbaa2613-ba78-42e4-bd44-b73f3108b748",
+        "at": "2026-09-11T16:17:17.098Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "reminder_receipts",
+        "requestId": "0772d420-ee43-4bda-8c1f-dc777158ab19",
+        "at": "2026-09-11T16:17:17.852Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "reminder_receipts",
+        "requestId": "68fc3b90-1ca7-45be-8f8a-4d1a74cb05a9",
+        "at": "2026-09-11T16:17:18.810Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "reminder_receipts",
+        "requestId": "5551bd22-8998-41be-99d1-2e9fb957e698",
+        "at": "2026-09-11T16:17:19.587Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "tasks",
+        "requestId": "0042c859-c7a2-41df-b5b0-d04337d37982",
+        "at": "2026-09-11T16:17:20.404Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "tasks",
+        "requestId": "be827d2f-0111-4bd9-acee-4d2e5a56cccb",
+        "at": "2026-09-11T16:17:21.209Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "tasks",
+        "requestId": "819aa6d4-fe7c-4061-979b-2b967b726581",
+        "at": "2026-09-11T16:17:21.984Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "tasks",
+        "requestId": "9db11fd6-ac47-41bb-8720-da55084ef7c1",
+        "at": "2026-09-11T16:17:22.832Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "task_events",
+        "requestId": "784600e9-ff72-4138-8abd-d945b6a659e9",
+        "at": "2026-09-11T16:17:23.694Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "task_events",
+        "requestId": "7f714169-27a1-48e8-9adc-dd501a1fbd97",
+        "at": "2026-09-11T16:17:24.504Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "task_events",
+        "requestId": "94908b48-c0a4-4a39-ba82-cc76a0b44c5b",
+        "at": "2026-09-11T16:17:25.437Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "task_events",
+        "requestId": "c2393131-84d2-45ee-ab80-d75a67853c20",
+        "at": "2026-09-11T16:17:26.238Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "query_sessions",
+        "requestId": "4343a38e-967f-4cce-990f-366ab5c7a8d7",
+        "at": "2026-09-11T16:17:27.130Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "query_sessions",
+        "requestId": "48e2ac08-e1ce-4477-acb2-79d82047eedc",
+        "at": "2026-09-11T16:17:28.069Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "query_sessions",
+        "requestId": "b040a8b7-75b3-4ee0-8464-a95099f8595e",
+        "at": "2026-09-11T16:17:28.855Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "query_sessions",
+        "requestId": "e487c602-bcd9-4a5c-acde-aa43d6275ebc",
+        "at": "2026-09-11T16:17:29.626Z"
+      },
+      {
+        "action": "ModifyDatabaseACL",
+        "collection": "idempotency_receipts",
+        "requestId": "e71a9e5e-3ebd-4839-8f44-884a7db44660",
+        "at": "2026-09-11T16:17:30.461Z"
+      },
+      {
+        "action": "DescribeDatabaseACL",
+        "collection": "idempotency_receipts",
+        "requestId": "bfe00ee0-03f0-4cd2-8eb3-0c329d66b200",
+        "at": "2026-09-11T16:17:31.247Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "idempotency_receipts",
+        "requestId": "50808e7a-4bf4-4cf5-9008-2561c3e424ab",
+        "at": "2026-09-11T16:17:32.052Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "idempotency_receipts",
+        "requestId": "037af23b-dca0-41a3-a689-4f724a59493e",
+        "at": "2026-09-11T16:17:32.836Z"
+      }
+    ]
+  }
+}

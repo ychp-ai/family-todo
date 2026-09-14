@@ -1,0 +1,1 @@
+<picker class="recycle-filter" range="{{familyOptions}}" value="{{familyIndex}}" bindchange="familyChange" disabled="{{writing}}"><view class="form-select">{{familyOptions[familyIndex]}}</view></picker>

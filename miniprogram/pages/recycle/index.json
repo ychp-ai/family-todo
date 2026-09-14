@@ -1,0 +1,7 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "recycle-filter": "/components/recycle-filter/index",
+    "recycle-card": "/components/recycle-card/index"
+  }
+}

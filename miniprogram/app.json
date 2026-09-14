@@ -1,12 +1,40 @@
 {
-  "pages": ["pages/home/index"],
+  "pages": [
+    "pages/home/index",
+    "pages/detail/index",
+    "pages/editor/index",
+    "pages/recycle/index",
+    "pages/families/index",
+    "pages/invitation/index",
+    "pages/progress/index"
+  ],
   "window": {
     "navigationBarTitleText": "家庭待办提醒",
-    "navigationBarBackgroundColor": "#F7F5FA",
+    "navigationBarBackgroundColor": "#F4F5FA",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#F7F5FA"
+    "backgroundColor": "#F4F5FA"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents"
+  "lazyCodeLoading": "requiredComponents",
+  "tabBar": {
+    "color": "#72717f",
+    "selectedColor": "#5860b5",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "assets/tab-home.png",
+        "selectedIconPath": "assets/tab-home-active.png"
+      },
+      {
+        "pagePath": "pages/families/index",
+        "text": "家庭",
+        "iconPath": "assets/tab-family.png",
+        "selectedIconPath": "assets/tab-family-active.png"
+      }
+    ]
+  }
 }

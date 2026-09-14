@@ -1,3 +1,4 @@
-.home {
-  padding-top: 120rpx;
-}
+.recycle-entry{display:flex;margin:4px auto 0}
+
+/* 原生 tabBar 已占用底部安全区。 */
+.phone-bottom{padding-bottom:12px}

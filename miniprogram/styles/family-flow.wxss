@@ -1,0 +1,49 @@
+/* 家庭页面及其子流程：卡片 12px，段落 8px，分区 24px。 */
+.family-flow .flow-card{padding:16px;margin-bottom:12px}
+.family-flow .flow-card .h3{margin-bottom:8px}
+.family-flow .flow-card .paragraph+.paragraph{margin-top:8px}
+.family-flow .flow-card>.primary-button,.family-flow .flow-card>button.outline-button{margin-top:16px}
+.family-flow .flow-card>.flow-notice:last-child{margin-bottom:0}
+.family-flow .flow-notice{display:block;margin:12px 0;overflow-wrap:anywhere}
+.family-flow .flow-section-title{display:block;font-size:16px;margin:24px 0 12px}
+.family-flow .flow-inline-actions{gap:8px;margin-top:16px;align-items:stretch}
+.family-flow .flow-inline-actions button{flex:1 1 120px;min-width:0;white-space:normal;padding:10px 12px}
+.family-flow .flow-inline-actions button.outline-button{width:auto;margin-top:0}
+.family-flow .flow-inline-actions+.full-width{margin-top:16px}
+.family-flow .flow-card .paragraph,.family-flow .sheet-message{overflow-wrap:anywhere}
+.family-flow .field-label{margin-top:20px;margin-bottom:8px}
+.family-flow .flow-card>.field-label:first-child,.family-flow .sheet-scroll>.field-label:first-child{margin-top:0}
+.family-flow .sheet-header{margin-bottom:16px;gap:12px;min-height:44px}
+.family-flow .sheet-header .h2{min-width:0;overflow-wrap:anywhere}
+.family-flow .sheet-scroll>.primary-button,.family-flow .sheet-scroll form>.primary-button{margin-top:20px}
+.family-flow .sheet-scroll>.form-select{margin-bottom:16px}
+.family-flow .state-box{padding:32px 16px;margin-top:16px}
+.family-flow .state-box .h4:first-child{margin-top:0}
+.family-flow .flow-error{display:block}
+.family-flow .flow-error:empty{margin:0}
+.family-flow .form-select{line-height:1.6;padding-right:36px;position:relative}
+.family-flow .form-select::after{content:"";position:absolute;right:16px;top:17px;width:6px;height:6px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg)}
+.family-flow .scroll-inner{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+/* 家庭 tab 的底部安全区由原生导航承担。 */
+.family-tab .scroll-inner{padding-bottom:24px}
+
+.loading-layout{margin-top:0}
+.loading-card{padding:16px;border-radius:16px;background:var(--paper);margin-bottom:12px}
+.loading-card-row{display:flex;align-items:center;gap:12px;min-height:88px}
+.loading-copy{flex:1;min-width:0}
+.loading-layout .skeleton{margin:0;border-radius:6px;animation:family-loading-pulse 1.5s ease-in-out infinite}
+.loading-layout .loading-title{width:56%;height:20px;margin-bottom:12px}
+.loading-layout .loading-line{width:88%;height:12px;margin-top:8px}
+.loading-layout .loading-line-short{width:60%}
+.loading-layout .loading-avatar{width:40px;height:44px;border-radius:14px;flex:none}
+.loading-layout .loading-meter{width:34px;height:34px;border-radius:50%;flex:none}
+.loading-layout .loading-input{height:44px;margin:16px 0}
+.loading-layout .loading-action{height:46px;margin-top:16px;border-radius:12px}
+.loading-layout .loading-section{width:100px;height:20px;margin:24px 0 12px}
+.loading-preview{padding:4px 0 16px}
+.loading-preview .form-helper{margin-top:16px}
+@keyframes family-loading-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+@media(prefers-reduced-motion:reduce){.loading-layout .skeleton{animation:none}}
+
+.loading-layout .loading-cover{height:167px;margin:0 0 24px;border-radius:24px}
+.loading-layout .loading-edit{width:20px;height:20px;flex:none}

@@ -1,0 +1,1 @@
+<button class="reminder-banner" bindtap="openReminders"><view class="reminder-icon"><image class="icon" src="/assets/bell-brand.svg"/></view><view><text class="strong">{{reminderError || reminderCount + ' 件事到提醒时间了'}}</text><text class="small">自己的安排、爸妈的牵挂</text></view><image class="icon chevron" src="/assets/chevron.svg"/></button>

@@ -1,6 +1,6 @@
 # 业务数据模型与一致性设计
 
-状态：首版开发设计，尚未创建业务集合。身份初始化已实现本地事务适配，存储映射见 [身份数据](../../database/identity.md)；其余业务接口待实现。产品规则来自 [需求](../REQUIREMENTS.md)，接口见 [API](API.md)，实现与验收顺序见 [开发交付](DELIVERY.md)。底层实现细节见 [一致性与数据访问](../technical/CONSISTENCY.md) 和 [日程算法](../technical/SCHEDULING.md)。下文数量和时间限制是选定的工程默认值，不是已上线能力。
+状态：身份、个人与家庭待办、周期、进度和批处理的服务端代码已实现。真实部署与验收见 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文的概念模型保留设计语义，实际集合、字段和索引以 [家庭存储](../../database/family.md) 与 [周期存储](../../database/recurrence.md) 为准；订阅消息尚未实现。
 
 ## 统一约定
 
@@ -12,7 +12,7 @@
 
 ## 实体与存储映射
 
-下表是拟建集合。集合名、索引和访问路径随正式迁移实现；本次不创建资源。
+下表是概念模型，不能直接作为建库清单。实际实现保留旧一次性聚合字段，周期扩展保存在 Task.recurrence；新增 `schedule_segments`、`schedule_controls`、`occurrence_states`、`historical_subject_access`。幂等集合实际为 `idempotency_receipts`；查询检查点复用 `query_sessions`，没有独立 `query_checkpoints` 集合；迁移记录保存在仓库的脱敏 JSON，不创建 `migration_journal` 集合。
 
 | 实体 / 拟建集合 | 核心字段 | 不变量与访问路径 |
 | --- | --- | --- |
@@ -106,7 +106,7 @@
 ## 持久化与并发
 
 - 写操作携带 expectedVersion；新建由 requestId 保证幂等。事务内验证权限、版本、生命周期，写业务状态、审计和幂等结果；没有状态变化的重复命令也必须明确结果。
-- 先检查同 actor/requestId 的记录。action 或 canonical payload 散列不同返回 IDEMPOTENCY_CONFLICT；相同返回原结果（重新检查现有读取权限，权限已撤销返回 NOT_FOUND 而不重放旧 DTO；退出/转交仅允许按原 actor、requestId、hash 重放无敏感详情的最小成功确认）。JSON 对象键规范排序，数组保持语义顺序。
+- 先检查同 actor/requestId 的记录。action 或 canonical payload 散列不同返回 IDEMPOTENCY_CONFLICT；相同返回原结果（重新检查现有读取权限，权限已撤销返回 NOT_FOUND 而不重放旧 DTO；退出/转交，以及虚拟事项改为真实执行人导致操作者失权的 task.update，仅允许按原 actor、requestId、hash 重放无敏感详情的最小成功确认）。JSON 对象键规范排序，数组保持语义顺序。
 - 同一用户重试保留 requestId 和 payload；修改输入/冲突后重新提交使用新 requestId。业务版本冲突不自动覆写；前端保留草稿、拉取最新并让用户合并。
 - 所有家庭写事务读取并更新 family 写栅栏版本；权限调整同时递增 authEpoch。候选查询在事务外进行，事务里只按文档 ID 重读必要对象并验证。归属/创建管理的长链在事务外基于 family.version 快照解析；事务内重读 family 版本必须与解析快照一致，否则整次重算，不能无界读取链上的每个文档。所有链结构变更也必须递增同一 family.version。不在事务中使用 where 扫描或发起外部请求。
 - 普通写控制在 80 次文档操作以内；人数上限与批量拆项使事务有界。家庭变更以 family 文档串行化，先保证正确性；未来有吞吐证据再优化锁粒度。

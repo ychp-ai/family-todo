@@ -1,0 +1,48 @@
+.family-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:5px}
+.family-heading .h3{font:600 28px var(--display)}
+.family-heading .overline{font-size:10px}
+.family-switch{display:flex;gap:8px;margin-bottom:18px}
+.family-switch button{min-height:44px;font-size:12px;padding:0 14px;display:flex;align-items:center;justify-content:center;gap:5px;color:var(--muted);border-radius:12px}
+.family-switch button.active{color:var(--brand);background:#e6e7f3;font-weight:500}
+.family-switch svg{width:15px;height:15px}
+.family-card{border-radius:18px;background:#e8e9f4;padding:20px 19px;min-height:167px;position:relative;overflow:hidden}
+.family-card-copy{position:relative;z-index:1}
+.family-card .paragraph{font-size:10px;color:#807b9a;margin-bottom:9px}
+.family-card .h3{font:600 23px/1.3 var(--display);letter-spacing:-.7px}
+.family-card-copy>.small{display:block;font-size:9px;color:#7b7790;margin-top:14px}
+.family-portrait{display:flex;position:relative;justify-content:flex-end;margin-top:18px;z-index:1}
+.family-card-line{position:absolute;border:1px solid #c8cce7;width:180px;height:105px;border-radius:50%;right:-20px;bottom:-35px;transform:rotate(-15deg)}
+.member-card{display:flex;align-items:center;background:#fff;border-radius:16px;padding:16px 13px;gap:11px;margin-bottom:9px;width:100%;text-align:left;min-height:85px}
+.member-copy{flex:1;min-width:0}
+.member-copy .paragraph{font-size:11px;color:var(--muted);margin-top:7px;line-height:1.5}
+.member-meter{width:34px;height:34px;position:relative;display:grid;place-items:center;font:10px var(--utility);flex:none}
+.member-meter svg{width:34px;height:34px;position:absolute;inset:0;transform:rotate(-90deg);stroke-width:2.5}
+.member-meter .meter-track{stroke:#eeedf4}
+.member-meter .meter-fill{stroke:var(--brand);stroke-dasharray:var(--meter) 100;path-length:100}
+.member-meter span{font-size:9px}
+.member-card .chevron{width:13px;height:13px;margin:0}
+.family-footnote{display:flex;gap:8px;font-size:10px;line-height:1.9;color:#87828e;margin:20px 2px}
+.family-footnote svg{width:13px;height:13px;margin-top:3px}
+.family-card{padding:18px 14px}
+.family-card .h3{font-size:21px}
+
+.member-card{padding:14px 10px;gap:8px}
+.member-card .avatar{width:32px;height:32px}
+.family-card .h3{font-size:21px}
+.family-heading{display:flex;justify-content:space-between;align-items:center}.family-switch{flex-wrap:wrap}.family-card-copy .h3{display:block;margin:8px 0}.family-portrait{display:flex;gap:4px}.member-meter{display:flex;align-items:center;justify-content:center;width:34px;height:34px}.member-meter .meter-image{position:absolute;inset:0;width:34px;height:34px}.member-meter text{font-size:9px}.member-copy .progress-track{margin:8px 0 0}.family-footnote .icon{flex:none}
+
+.family-card-copy .h3,.member-copy .strong{overflow-wrap:anywhere}
+.family-switch button{max-width:100%;overflow-wrap:anywhere;white-space:normal;padding:10px 14px}
+.family-heading>view{min-width:0}
+.family-heading>button{flex:none}
+
+.progress-filter{display:block;margin-bottom:16px}
+.family-flow .section-title{margin-top:24px;margin-bottom:8px;min-height:44px;gap:12px}
+.family-flow .member-card{padding:16px;gap:12px;margin-bottom:12px}
+.family-flow .member-copy .paragraph{margin-top:8px}
+.family-flow .family-card{min-height:167px;padding:20px 16px}
+.family-flow .family-card-copy .h3{margin:8px 0;line-height:1.4}
+.family-flow .family-portrait{min-height:37px;margin-top:16px}
+.family-flow .family-footnote{margin:24px 0 16px;align-items:flex-start}
+.family-footnote .icon{width:16px;height:16px;margin-top:3px}
+.family-heading{gap:12px}

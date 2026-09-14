@@ -1,0 +1,94 @@
+{
+  "steps": [
+    {
+      "name": "详情完成与撤销"
+    },
+    {
+      "name": "进度跳过计数",
+      "data": {
+        "name": "我",
+        "completed": 0,
+        "pending": 0,
+        "skipped": 1,
+        "denominator": 0,
+        "percent": 0
+      }
+    },
+    {
+      "name": "补记实际时间和备注、审计记录"
+    },
+    {
+      "name": "有数据进度与跳过不计分母",
+      "data": {
+        "before": {
+          "name": "我",
+          "completed": 0,
+          "pending": 0,
+          "skipped": 1,
+          "denominator": 0,
+          "percent": 0
+        },
+        "after": {
+          "name": "我",
+          "completed": 1,
+          "pending": 0,
+          "skipped": 0,
+          "denominator": 1,
+          "percent": 100
+        }
+      }
+    },
+    {
+      "name": "进度执行对象筛选"
+    },
+    {
+      "name": "周期pause"
+    },
+    {
+      "name": "周期resume"
+    },
+    {
+      "name": "原生删除回收恢复：暂停且保留历史"
+    },
+    {
+      "name": "停止周期不可继续"
+    },
+    {
+      "name": "混合批量追加：个人转家庭成功、并发版本项失败",
+      "data": [
+        {
+          "taskId": "eb765d96-f5d3-4826-8d36-311604328c67",
+          "status": "succeeded",
+          "version": 2,
+          "label": "已增加可见人"
+        },
+        {
+          "taskId": "5eda1be8-de95-4ace-af7e-32fab921e704",
+          "status": "failed",
+          "error": {
+            "code": "VERSION_CONFLICT",
+            "message": "家人刚刚更新了这件事，请刷新后重试。草稿会为你保留。",
+            "retryable": false
+          },
+          "label": "家人刚刚更新了这件事，请刷新后重试。草稿会为你保留。"
+        }
+      ]
+    },
+    {
+      "name": "仅失败项重试，成功项版本不变",
+      "data": [
+        {
+          "taskId": "5eda1be8-de95-4ace-af7e-32fab921e704",
+          "status": "succeeded",
+          "version": 3,
+          "label": "已增加可见人"
+        }
+      ]
+    },
+    {
+      "name": "无账号成员新增、改名、停用"
+    }
+  ],
+  "startedAt": "2026-09-14T03:33:06.188Z",
+  "completedAt": "2026-09-14T03:36:41.767Z"
+}

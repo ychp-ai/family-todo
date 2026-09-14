@@ -4,6 +4,8 @@ import { isIdentityEnsureData, isRecord, isUuid } from "@family-todo/contracts";
 import type { User } from "@family-todo/domain";
 import type { IdentityStore } from "@family-todo/ports";
 
+import { retryTransaction } from "./transaction-retry";
+
 import type { WechatIdentity } from "./invocation-identity";
 
 // wx-server-sdk 4.0.2 的事务声明为 any；将缺失类型收敛到实际使用的方法，读取仍按 unknown 校验。
@@ -18,7 +20,7 @@ export interface IdentityDatabase {
   runTransaction(work: (transaction: IdentityTransaction) => Promise<User>, retries: number): Promise<unknown>;
 }
 
-function readDocument(result: unknown): Record<string, unknown> | null {
+export function readDocument(result: unknown): Record<string, unknown> | null {
   if (!isRecord(result) || !Object.prototype.hasOwnProperty.call(result, "data")) throw new Error("Invalid document response.");
   if (result.data === null) return null;
   if (!isRecord(result.data)) throw new Error("Invalid document data.");
@@ -31,7 +33,7 @@ function isInstant(value: unknown): value is string {
   return Number.isFinite(date.getTime()) && date.toISOString() === value;
 }
 
-function readUser(value: unknown): User {
+export function readUser(value: unknown): User {
   if (!isRecord(value) || !isIdentityEnsureData({ user: { id: value.id, displayName: value.displayName, version: value.version } })
     || !isInstant(value.createdAt) || !isInstant(value.updatedAt)) throw new Error("Invalid user record.");
   // 单独校验以保留 unknown 的类型收窄，不使用断言代替读取校验。
@@ -48,7 +50,7 @@ export class CloudBaseIdentityStore implements IdentityStore {
 
   public async ensureUser(candidate: User): Promise<User> {
     const key = identityDocumentKey(this.identity);
-    const result = await this.database.runTransaction(async (transaction) => {
+    const result = await retryTransaction(() => this.database.runTransaction(async (transaction) => {
       const identityRef = transaction.collection("identities").doc(key);
       const existing = readDocument(await identityRef.get());
       if (existing) {
@@ -77,7 +79,7 @@ export class CloudBaseIdentityStore implements IdentityStore {
       await scopeRef.set({ data: { ...metadata, userId: user.id, revision: 1, activeFamilyCount: 0, personalTaskCount: 0 } });
       await identityRef.set({ data: { ...metadata, ...this.identity, userId: user.id } });
       return user;
-    }, 2);
+    }, 0));
     // SDK 返回事务回调结果；如版本升级改变形状，应明确失败而非伪造成功。
     return readUser(result);
   }

@@ -1,10 +1,10 @@
 # 项目文档
 
-- [首版业务需求](REQUIREMENTS.md)：已确定的产品规则、四个使用场景和验收要求，业务尚未实现。
+- [首版业务需求](REQUIREMENTS.md)：已确定的产品规则、四个使用场景和验收要求，个人与家庭一次性待办已实现，实际验收见发布记录，周期待开发。
 - [界面设计稿与图标](../design/README.md)：可在浏览器中预览的交互设计稿、视觉规范和图标资源，使用本地示例数据。
 - [开发交付与验收映射](business/DELIVERY.md)：开发顺序、模块验收与真实环境联调边界。
 - [业务数据模型](business/DATA_MODEL.md)：字段、归属交接、周期投影、索引和事务方案。
-- [业务接口契约](business/API.md)：待实现的 action、DTO、权限、分页、错误和请求示例。
+- [业务接口契约](business/API.md)：首版 action 蓝图、DTO、权限、分页、错误和请求示例。
 - [接口调用示例](business/API_EXAMPLES.md)：健康调用、初始化、分页、记录、邀请交接与重试。
 - [云函数 CLI 发布记录](technical/CLOUD_DEPLOYMENT.md)：目标环境、单函数映射、创建命令与真实云验证状态。
 - [页面流程与状态](business/INTERACTIONS.md)：完整编辑、家庭邀请和交接、记录与回收、冲突恢复。
@@ -17,3 +17,7 @@
 - [AGENTS.md](../AGENTS.md)：全仓库协作约定。
 
 业务开发设计已补齐；正式实现时同步维护契约和技术文档，实现状态以当前范围为准。
+
+- [个人待办实现](technical/PERSONAL.md)：当前 API、存储、页面和验证边界。
+
+- [家庭协作实现](technical/FAMILY.md)：当前家庭、邀请、成员交接、权限与多家庭查询。

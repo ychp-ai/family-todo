@@ -1,0 +1,1 @@
+<view class="flow-card"><text class="h3">{{item.state}}</text><text class="paragraph">有效至 {{item.expiresLabel}}</text><button wx:if="{{!item.revokedAt && owner}}" class="outline-button" data-id="{{item.id}}" bindtap="revoke" disabled="{{writing || uncertain}}">撤销邀请</button></view>

@@ -36,13 +36,14 @@ export class IdentitySession {
   public constructor(
     private readonly ensureUser: EnsureIdentity = ensureIdentity,
     private readonly generateRequestId: () => Promise<string> = createRequestId,
+    private readonly recovery?: { verified(user: Readonly<UserDTO>): void; invalidated(): void },
   ) {}
 
   public get state(): IdentitySessionState { return this.current; }
 
   public ensure(): Promise<Readonly<UserDTO>> {
     if (this.inFlight) return this.inFlight;
-    if (this.current.status === "ready") return Promise.resolve(this.current.user);
+    if (this.current.status === "ready") { this.recovery?.verified(this.current.user); return Promise.resolve(this.current.user); }
     const generation = this.generation;
     this.current = Object.freeze({ status: "loading" });
     const operation = this.initialize(generation).finally(() => {
@@ -60,6 +61,7 @@ export class IdentitySession {
 
   /** 清除用户及未决身份请求；旧响应不得恢复已经失效的会话。 */
   public invalidate(): void {
+    this.recovery?.invalidated();
     this.generation += 1;
     this.inFlight = null;
     this.requestId = null;
@@ -80,6 +82,7 @@ export class IdentitySession {
       if (!result.ok) throw new IdentitySessionError(result.error.code, result.error.message, result.error.retryable);
       const user = Object.freeze({ ...result.data.user });
       this.requestId = null;
+      this.recovery?.verified(user);
       this.current = Object.freeze({ status: "ready", user });
       return user;
     } catch (cause) {

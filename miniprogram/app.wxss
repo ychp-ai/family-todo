@@ -1,16 +1,4 @@
 @import "./styles/tokens.wxss";
-
-page {
-  min-height: 100%;
-  background: var(--color-page);
-  color: var(--color-text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 28rpx;
-  line-height: 1.5;
-}
-
-.page {
-  box-sizing: border-box;
-  padding: var(--space-page);
-  padding-bottom: calc(var(--space-page) + env(safe-area-inset-bottom));
-}
+@import "./styles/native-reset.wxss";
+@import "./styles/design.wxss";
+@import "./styles/family-flow.wxss";

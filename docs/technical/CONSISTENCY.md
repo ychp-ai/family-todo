@@ -1,6 +1,6 @@
 # 一致性与数据访问
 
-本文件补充 [技术方案](../TECHNICAL_DESIGN.md) 的实现算法；字段与 action 分别以 [数据模型](../business/DATA_MODEL.md)、[API](../business/API.md) 为准。全部为待实现设计。
+本文件补充 [技术方案](../TECHNICAL_DESIGN.md) 的实现算法；字段与 action 分别以 [数据模型](../business/DATA_MODEL.md)、[API](../business/API.md) 为准。个人与家庭一次性协作的一致性实现已落地；周期、批量相关章节仍为设计，真实验证边界见 [发布记录](CLOUD_DEPLOYMENT.md)。
 
 ## 存储键与版本
 
@@ -45,7 +45,7 @@ sequenceDiagram
 执行顺序：
 
 1. 完成结构校验、规范化和 canonical payload hash。预算从入口开始计算，不从事务开始重置。
-2. 先按可信 Actor/requestId 查询已有回执，匹配 action/hash；退出/转交的最小回执可直接返回，不能先要求当前家庭访问权。普通结果仍走当前鉴权，查询的回执不可变且不得在此重复执行业务。未命中时根据 Actor 取得个人或家庭 scope。可能很长的归属/管理链、片段候选在事务外分页读取，前后 scope revision 一致才组成快照。
+2. 先按可信 Actor/requestId 查询已有回执，匹配 action/hash；退出/转交，以及已提交 task.update 导致操作者失权后的最小回执可直接返回，不能先要求当前家庭访问权。普通结果仍走当前鉴权，查询的回执不可变且不得在此重复执行业务。未命中时根据 Actor 取得个人或家庭 scope。可能很长的归属/管理链、片段候选在事务外分页读取，前后 scope revision 一致才组成快照。
 3. 开始事务；按确定顺序读取回执、scope guard、Task、当前成员、操作所需状态，验证预读快照 revision 与事务内一致。
 4. 有同 ID 回执且 action/hash 不同则 IDEMPOTENCY_CONFLICT；相同则返回结果，不重新执行业务。
 5. 校验当前权限、expectedVersion、生命周期、容量和提醒 selfDisabled。业务冲突不自动改版本重试。

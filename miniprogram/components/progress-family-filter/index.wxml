@@ -1,0 +1,1 @@
+<view class="family-switch"><button wx:for="{{families}}" wx:key="id" class="{{familyId === item.id ? 'active' : ''}}" data-id="{{item.id}}" bindtap="familyChange">{{item.name}}</button></view>

@@ -1,0 +1,5 @@
+.member-progress-ring{position:relative;display:flex;align-items:center;justify-content:center;width:60px;height:60px;flex:none}
+.member-progress-ring-image{position:absolute;inset:0;width:60px;height:60px}
+.member-progress-ring-count{position:relative;display:flex;align-items:baseline;font-variant-numeric:tabular-nums;white-space:nowrap}
+.member-progress-ring-completed{font-size:15px;font-weight:600;color:var(--ink,#292735)}
+.member-progress-ring-total{font-size:11px;color:var(--muted,#72717f)}
