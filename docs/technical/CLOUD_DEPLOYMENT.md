@@ -192,3 +192,31 @@ TCB_CLI=/Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/
 修复详情页内联 `import` 泛型造成的微信编译器 `Expected ident`，改用顶部类型别名。重新编译后完成详情记录、跳过与撤销、实际时间与备注补记、有数据进度和执行对象筛选、暂停/继续/停止、删除回收恢复、混合批量确认与版本冲突失败项重试、虚拟成员创建/改名/停用。页面事件由 automator 驱动，使用真实云 API，截图已检查；不等于双账号或 iOS/Android 真机验收。
 
 修复后 `npm run check` 于 11:34:32 通过（33 文件、417 测试）。本轮未重新部署、提交或上传体验版，新增验收事项已回收、虚拟成员已停用。条件、限制与持久证据见 [原生验收报告](../verification/native-acceptance/README.md)。
+
+## 2026-09-14 服务端批量扫描与请求内复用部署
+
+用户明确要求使用 CLI 部署线上。部署前通过 `env list --json` 确认环境 `family-todo-d3g28fx1c314f8638` 为 NORMAL，`fn detail` 确认同名 `api` 为既有 `lam-d4wj80fb`。本地完整 `npm run check` 已通过：39 个测试文件、459 项测试，包含服务端/小程序严格类型检查及构建。
+
+实际执行命令：
+
+```sh
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn deploy api -e family-todo-d3g28fx1c314f8638 --force --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn invoke api -e family-todo-d3g28fx1c314f8638 -d @docs/examples/system-health.json --json
+```
+
+部署通过 COS 上传，退出码 0，返回 `Cloud function deployed successfully!`。部署后详情与真实健康调用结果：
+
+| 项目 | 结果 |
+| --- | --- |
+| 函数 / ID | api / lam-d4wj80fb |
+| 更新时间（上海） / 状态 | 2026-09-14 16:07:15 / Active |
+| 运行配置 | Nodejs20.19 / index.main / 10 秒 / 256 MB / InstallDependency FALSE |
+| 云端代码包大小 | 1,699,125 字节 |
+| 详情 RequestId | 8020cc4a-15bd-47e8-bc3d-ebf9ed308e73 |
+| 健康结果 | ok=true，status=ok，2026-09-14T08:07:36.566Z |
+| 健康云调用 RequestId | 07ac6efb-933a-4d26-ad25-a3214408e1b2 |
+
+本地上传 bundle SHA-256：`78b861a3e5243cbe8c495df57edc9245c49a946a5461636194f64fa6c0047bbb`。
+
+本次部署包含事项/周期片段每批 20 条扫描、未消费批次续读、单次列表请求内的事项及家庭上下文复用。未变更数据库或发布小程序；健康检查证明函数可调用，业务性能仍需同一账号和数据集复测，不能据此宣称线上提速比例。实现与优化前基线见 [性能诊断](PERFORMANCE_DIAGNOSIS.md)。
