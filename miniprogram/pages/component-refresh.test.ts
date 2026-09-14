@@ -306,3 +306,56 @@ it("parallel progress merges roster and historical subjects after both resolve",
   expect(page().data.filterNames).toEqual(["全部执行对象", "原成员"]);
   expect(page().data.members).toEqual([expect.objectContaining({ percent: 100 })]);
 });
+
+it("完成事项的蒙层持续到列表刷新结束，并阻止重复操作", async () => {
+  const tasks = await cachedHome();
+  const writing = deferred<void>();
+  const reading = deferred<{ items: []; last: typeof last }>();
+  tasks.mockReturnValue(reading.promise);
+  const item = { id: "one", group: "我来做", task: { id: "task-one" } };
+  page().setData({ status: "ready", items: [item], visibleItems: [item] });
+  const action = invoke("runWrite", "toggle:one", () => writing.promise);
+  expect(page().data.listRefreshing).toBe(true);
+  await invoke("openQuick");
+  expect(page().data).toMatchObject({ sheet: "quick", quickLoading: false });
+  await invoke("quickTitleInput", { detail: { value: "新的事项" } });
+  expect(page().data.quickTitle).toBe("新的事项");
+  const create = vi.spyOn((await import("../services/personal-api")).personalApi, "write");
+  await invoke("saveQuick", { currentTarget: { dataset: {} } });
+  expect(create).not.toHaveBeenCalled();
+  writing.resolve();
+  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(4));
+  expect(page().data).toMatchObject({ writing: false, listRefreshing: true, items: [item] });
+  await invoke("saveQuick", { currentTarget: { dataset: {} } });
+  expect(create).not.toHaveBeenCalled();
+  const duplicate = vi.fn();
+  await invoke("runWrite", "toggle:one", duplicate);
+  expect(duplicate).not.toHaveBeenCalled();
+  reading.resolve({ items: [], last });
+  await action;
+  expect(page().data).toMatchObject({ listRefreshing: false, status: "empty" });
+});
+
+it("完成后的刷新失败或页面隐藏会撤下蒙层", async () => {
+  const tasks = await cachedHome();
+  tasks.mockRejectedValue(new Error("offline"));
+  await invoke("runWrite", "toggle:one", async () => {});
+  expect(page().data).toMatchObject({ listRefreshing: false, status: "error" });
+  const reading = deferred<{ items: []; last: typeof last }>();
+  tasks.mockReturnValue(reading.promise);
+  const action = invoke("runWrite", "toggle:one", async () => {});
+  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(6));
+  expect(page().data.listRefreshing).toBe(true);
+  await invoke("onHide");
+  expect(page().data.listRefreshing).toBe(false);
+  reading.resolve({ items: [], last });
+  await action;
+});
+
+it("结果待确认时撤下蒙层并保留重试入口", async () => {
+  await cachedHome();
+  const { PersonalApiError } = await import("../services/personal-api");
+  await invoke("runWrite", "toggle:one", async () => { throw new PersonalApiError("INTERNAL", "稍后重试", true); });
+  expect(page().data).toMatchObject({ listRefreshing: false, writing: false, uncertain: true });
+  expect(page().pendingWrite).not.toBeNull();
+});

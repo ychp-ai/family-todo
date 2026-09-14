@@ -22,6 +22,7 @@ Component({
     quickSuccess: { type: String, value: "" },
     saving: { type: Boolean, value: false },
     uncertain: { type: Boolean, value: false },
+    submitBusy: { type: Boolean, value: false },
     writing: { type: Boolean, value: false }
   },
   methods: componentMethods(["expand", "fullEditor", "quickDateChange", "quickFamilyChange", "quickNoteInput", "quickReminderChange", "quickRepeatChange", "quickSubjectChange", "quickTimeChange", "quickTitleInput", "quickViewersChange", "retryQuickFamily", "saveQuick"]),
