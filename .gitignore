@@ -29,4 +29,5 @@ project.private.config.json
 
 # Editor settings
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json

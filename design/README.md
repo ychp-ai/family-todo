@@ -44,6 +44,7 @@ python3 -m http.server 4387 --bind 127.0.0.1 --directory design
 ## 图标
 
 - [图标 PNG](assets/app-icon.png)：1254 × 1254，完整不透明背景，原图未压缩。
+- 小程序首页使用 `miniprogram/assets/app-icon.png` 的 144 × 144 派生图，对应 24 px 显示尺寸。macOS 可在仓库根目录运行 `sips -Z 144 design/assets/app-icon.png --out miniprogram/assets/app-icon.png` 重新生成，避免将大于 200 KB 的原图打入小程序包。
 - [生成与编辑提示词](assets/app-icon.prompt.md)：使用内置 image_gen 生成及编辑。
 - 图形为米白屋檐与蓝紫勾选，设计稿同时展示 64、40、24 CSS px 的缩略效果。
 - PNG 是生成式位图，颜色存在细微像素变化，CSS token 才是界面颜色的精确值。上传规格和平台裁切效果仍需在实际小程序后台确认。

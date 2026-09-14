@@ -28,6 +28,10 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 3. 工具原生编译 TS/WXML/WXSS；终端运行 `npm run dev` 同步共享契约变化。
 4. 如发生样式缓存异常，清除编译缓存后重新编译。
 
+编辑器使用项目安装的 TypeScript（`.vscode/settings.json` 指向 `node_modules/typescript/lib`）。打开 TS 文件后，点击状态栏的 TypeScript 版本并选择「使用工作区版本」。开发者工具 RC 2.02.2608031 内置的 4.1.2 无法识别本项目的现代配置，会连带报告模块找不到和隐式 any；2026-09-14 切换至工作区 5.9.3 后这些诊断消失。无需降级 tsconfig 或关闭校验。
+
+「代码质量」检查要求单张图片和音频不超过 200 KB。设计原图保留在 `design/`，小程序仅放适合显示尺寸的资源；首页进度条将百分号放在 WXML 插值内，避免编辑器把插值后的 `%` 误判为 CSS 语法错误。
+
 若模拟器提示「app.json: 在项目根目录未找到 app.json」，先确认 `project.config.json` 的 `miniprogramRoot` 为 `miniprogram/`，且 `miniprogram/app.json` 存在。配置正确但重新编译仍报错时，使用菜单「项目 → 重新打开此项目」让工具重新读取目录配置；无需把 app.json 复制到仓库根目录。2026-09-11 在开发者工具 RC 2.02.2608031 中通过重开项目恢复了首页启动。
 
 首页通过会话读取身份和业务数据，没有启动订阅弹窗；底部提供「首页 / 家庭」原生导航。page-state 支持 loading/empty/error/ready；错误态按钮发出 retry 事件，ready 展示 slot。

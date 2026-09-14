@@ -7,7 +7,7 @@
     <home-filters batch-mode="{{batchMode}}" family-options="{{familyOptions}}" family-index="{{familyIndex}}" bind:action="onComponentAction"/>
     <home-date-tabs today="{{today}}" tab="{{tab}}" selected-date="{{selectedDate}}" bind:action="onComponentAction"/>
     <view wx:if="{{tab === 'calendar'}}" class="form-helper">{{selectedDate}}</view>
-    <view class="list-summary"><text>{{summaryText}}</text><button class="text-button" bindtap="toggleCompleted">{{hideCompleted ? '显示已完成' : '隐藏已完成'}}</button></view><view class="progress-track"><view style="width:{{progress}}%"></view></view>
+    <view class="list-summary"><text>{{summaryText}}</text><button class="text-button" bindtap="toggleCompleted">{{hideCompleted ? '显示已完成' : '隐藏已完成'}}</button></view><view class="progress-track"><view style="width:{{progress + '%'}};"></view></view>
     <view wx:if="{{status === 'loading'}}"><view class="skeleton"></view><view class="skeleton"></view><view class="skeleton"></view><text class="end-note">正在加载事项…</text></view>
     <view wx:elif="{{status === 'error'}}" class="state-box"><image class="icon" src="/assets/repeat-brand.svg"/><text class="h4">事项暂时没有加载出来</text><text class="paragraph">{{error}}</text><button class="outline-button" bindtap="retry">重新加载</button></view>
     <view wx:elif="{{status === 'empty'}}" class="state-box"><image class="icon" src="/assets/calendar-brand.svg"/><text class="h4">{{tab === 'tomorrow' ? '给明天留个小安排' : '这里还没有安排'}}</text><text class="paragraph">从一件小事开始，
