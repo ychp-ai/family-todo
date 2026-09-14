@@ -1,7 +1,12 @@
+import { BatchViewers } from "./batch-viewers";
+import { ProgressService } from "./progress";
+import { RecurrenceService } from "./recurrence";
+import { OccurrenceLists } from "./occurrence-lists";
+import { resolveTaskSubject, setTaskAccess } from "./task-access";
 import { isPersonalData, isPersonalPayload, PERSONAL_ACTIONS } from "@family-todo/contracts";
-import type { AccessInput, PersonalAction, TaskDraft } from "@family-todo/contracts";
+import type { PersonalAction } from "@family-todo/contracts";
 import { familyTaskRights, scheduledInstant } from "@family-todo/domain";
-import type { CollaborativeTask, FamilyContext, FamilySubject, ReminderPreference } from "@family-todo/domain";
+import type { CollaborativeTask, FamilyContext, ReminderPreference } from "@family-todo/domain";
 import type { Clock, FamilyStore, FamilyTransaction, PersonalStore, UuidGenerator } from "@family-todo/ports";
 import { ApplicationError } from "./errors";
 import { PersonalService } from "./personal";
@@ -16,40 +21,6 @@ function writeId(action: PersonalAction, payload: unknown): string | null {
   if ("occurrence" in payload && payload.occurrence) return payload.occurrence.taskId;
   return null;
 }
-function subject(draft: TaskDraft, context: FamilyContext, actorId: string, old?: CollaborativeTask): { subject: FamilySubject; name: string } {
-  const actor = context.members.find(member => member.userId === actorId && member.status === "active"); if (!actor) taskMissing();
-  const chosen: FamilySubject = draft.subject.kind === "self" ? { kind: "member", membershipId: actor.id } : draft.subject;
-  const previous = old?.collaboration;
-  const unchanged = previous && JSON.stringify(previous.subject) === JSON.stringify(chosen);
-  if (chosen.kind === "member") {
-    const member = context.members.find(member => member.id === chosen.membershipId && member.status === "active");
-    if (member) return { subject: chosen, name: member.name };
-  } else {
-    const member = context.virtualMembers.find(member => member.id === chosen.virtualMemberId && member.status === "active");
-    if (member) return { subject: chosen, name: member.name };
-  }
-  if (unchanged) return { subject: chosen, name: previous.subjectName };
-  taskInvalid("执行人已不在当前家庭，请重新选择。");
-}
-async function setAccess(tx: FamilyTransaction, task: CollaborativeTask, context: FamilyContext, actorId: string, access: AccessInput): Promise<void> {
-  const binding = task.collaboration; if (!binding) taskMissing();
-  const rights = familyTaskRights(task, context, actorId); if (!rights.actor) taskMissing();
-  const active = context.members.filter(member => member.status === "active"); const activeIds = new Set(active.map(member => member.id));
-  const viewers = new Set([...access.viewerMembershipIds, ...rights.requiredIds].filter(id => activeIds.has(id)));
-  if (access.viewerMembershipIds.some(id => !activeIds.has(id)) || [...access.helperMembershipIds, ...access.reminderMembershipIds].some(id => !activeIds.has(id) || !viewers.has(id))) taskInvalid("共享、代记和提醒只能选择本家庭当前可见的真实成员。");
-  for (const member of active) {
-    const existing = await tx.preference(task.id, member.userId);
-    const currentEnabled = Boolean(existing?.enabled && !existing.selfDisabled && existing.membershipId === member.id);
-    const desired = member.userId === actorId ? access.remindMe : access.reminderMembershipIds.includes(member.id);
-    if (member.userId !== actorId && desired && existing?.selfDisabled) taskInvalid("该成员已自行关闭提醒，需本人开启。");
-    const selfDisabled = member.userId === actorId && desired !== currentEnabled ? !desired : existing?.selfDisabled ?? (member.userId === actorId && !desired);
-    const enabled = viewers.has(member.id) && desired && !selfDisabled;
-    if (existing && existing.enabled === enabled && existing.selfDisabled === selfDisabled && existing.membershipId === member.id) continue;
-    if (!existing && !enabled && !selfDisabled) continue;
-    await tx.savePreference({ taskId: task.id, userId: member.userId, membershipId: member.id, enabled, selfDisabled, version: (existing?.version ?? 0) + 1 });
-  }
-  binding.viewerMembershipIds = [...access.viewerMembershipIds]; binding.helperMembershipIds = [...access.helperMembershipIds];
-}
 
 export class CollaborativeTaskService {
   private readonly personal: PersonalService;
@@ -58,7 +29,10 @@ export class CollaborativeTaskService {
   }
   public async execute(action: PersonalAction, payload: unknown, requestId: string): Promise<unknown> {
     if (!isPersonalPayload(action, payload)) throw new ApplicationError("VALIDATION_ERROR", "请检查事项内容、日期和参数。");
-    if (action === "task.list" || action === "task.recycleList" || action === "reminder.list") return new CollaborativeLists(this.store, this.clock).execute(action, payload);
+    if (action === "occurrence.list" || action === "reminder.list" || (action === "task.list" && isPersonalPayload(action, payload) && !payload.unscheduled)) return new OccurrenceLists(this.store, this.clock).execute(action, payload);
+    if (action === "task.list" || action === "task.recycleList") return new CollaborativeLists(this.store, this.clock).execute(action, payload);
+    if (action === "task.batchAddViewers") return new BatchViewers(this.store, this.clock, this.uuids).execute(payload, requestId);
+    if (action === "progress.get") return new ProgressService(this.store, this.clock).execute(payload);
     const id = writeId(action, payload); let existing = id ? await this.store.readTask(id) : null;
     // A lost personal-create response may be retried after that same task has joined a family.
     if (action === "task.create" || action === "task.update") {
@@ -71,6 +45,7 @@ export class CollaborativeTaskService {
       if (receipt && action === "task.create") existing = await this.store.readTask(receipt.taskId);
     }
     const draft = "draft" in payload ? payload.draft : undefined;
+    if (action === "task.previewSchedule" || action === "task.pause" || action === "task.resume" || action === "task.stop" || existing?.recurrence || (draft && draft.schedule.kind !== "once")) return new RecurrenceService(this.store, this.clock, this.uuids).execute(action, payload, requestId);
     if (!existing?.collaboration && !draft?.familyId) return this.personal.execute(action, payload, requestId);
     const context = existing?.collaboration ? await taskContext(this.store, existing) : draft?.familyId ? await this.store.context(draft.familyId) : null;
     if (!context) taskMissing();
@@ -108,13 +83,13 @@ export class CollaborativeTaskService {
       if (action === "task.create" && isPersonalPayload(action, payload)) {
         if (context.family.taskCount >= 500) throw new ApplicationError("LIMIT_EXCEEDED", "家庭事项已达 500 条，请先整理。");
         if (await tx.task(candidateId)) throw new Error("Task identifier collision.");
-        const draft = payload.draft; const selected = subject(draft, context, actor.id);
+        const draft = payload.draft; if (draft.schedule.kind !== "once") taskInvalid("周期事项需要通过日程服务处理。"); const selected = resolveTaskSubject(draft, context, actor.id);
         task = { id: candidateId, ownerUserId: actor.id, ownerName: actor.displayName, title: draft.title.trim(), note: draft.note,
           version: 1, segmentId, occurrenceId, date: draft.schedule.date, time: draft.schedule.time, lifecycle: "active", status: "pending", occurrenceVersion: 0,
           actualCompletedAt: null, recordedAt: null, operatorName: null, reminderEnabled: false, reminderSelfDisabled: false, reminderVersion: 0,
           readAt: null, dismissedAt: null, createdAt: now, updatedAt: now,
           collaboration: { familyId: context.family.id, creatorMembershipId: actorMember.id, createdByUserId: actor.id, ownerBinding: selected.subject.kind === "virtual" ? { kind: "familyOwner" } : { kind: "membership", membershipId: actorMember.id }, subject: selected.subject, subjectName: selected.name, viewerMembershipIds: [], helperMembershipIds: [] } };
-        await setAccess(tx, task, context, actor.id, draft.access); context.family.taskCount++; kind = "task.created";
+        await setTaskAccess(tx, task, context, actor.id, draft.access); context.family.taskCount++; kind = "task.created";
       } else {
         const id = writeId(action, payload); if (!id) taskMissing();
         const loaded = await tx.task(id); if (!loaded) taskMissing(); task = loaded;
@@ -127,9 +102,9 @@ export class CollaborativeTaskService {
         if (action.startsWith("task.") && rights && !rights.manager) throw new ApplicationError("FORBIDDEN", "只有归属人或创建者可以管理这件事。");
         if (task.lifecycle !== "active" && action !== "task.restore") taskInvalid("事项已在回收站，请先恢复。");
         if (action === "task.update" && isPersonalPayload(action, payload)) {
-          taskVersion(task.version, payload.expectedVersion); const draft = payload.draft;
+          taskVersion(task.version, payload.expectedVersion); const draft = payload.draft; if (draft.schedule.kind !== "once") taskInvalid("周期事项需要通过日程服务处理。");
           if (draft.familyId !== context.family.id) taskInvalid("已归属家庭的事项不能更换家庭。");
-          const selected = subject(draft, context, actor.id, task);
+          const selected = resolveTaskSubject(draft, context, actor.id, task);
           const sameSubject = promotion
             ? selected.subject.kind === "member" && context.members.some(member => selected.subject.kind === "member" && member.id === selected.subject.membershipId && member.userId === task.ownerUserId)
             : JSON.stringify(task.collaboration?.subject) === JSON.stringify(selected.subject);
@@ -150,9 +125,9 @@ export class CollaborativeTaskService {
           binding.ownerBinding = selected.subject.kind === "virtual" ? { kind: "familyOwner" } : { kind: "membership", membershipId: binding.creatorMembershipId };
           task.title = draft.title.trim(); task.note = draft.note;
           if (changed) { task.date = draft.schedule.date; task.time = draft.schedule.time; task.segmentId = segmentId; task.occurrenceId = occurrenceId; task.occurrenceVersion = 0; task.readAt = null; task.dismissedAt = null; }
-          await setAccess(tx, task, context, actor.id, draft.access); kind = "task.updated";
+          await setTaskAccess(tx, task, context, actor.id, draft.access); kind = "task.updated";
         } else if (action === "task.setAccess" && isPersonalPayload(action, payload)) {
-          taskVersion(task.version, payload.expectedVersion); await setAccess(tx, task, context, actor.id, payload.access); kind = "task.accessChanged";
+          taskVersion(task.version, payload.expectedVersion); await setTaskAccess(tx, task, context, actor.id, payload.access); kind = "task.accessChanged";
         } else if (action === "task.delete" && isPersonalPayload(action, payload)) {
           taskVersion(task.version, payload.expectedVersion); task.lifecycle = "deleted"; context.family.taskCount--; kind = "task.deleted";
         } else if (action === "task.restore" && isPersonalPayload(action, payload)) {

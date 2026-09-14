@@ -5,6 +5,7 @@ import { scheduledInstant } from "@family-todo/domain";
 import type { PersonalEvent, PersonalScope, PersonalTask, User } from "@family-todo/domain";
 import type { PersonalQuery, PersonalReceipt, PersonalStore, PersonalTransaction, QueryCheckpoint } from "@family-todo/ports";
 
+import { readTaskRecurrence } from "./scheduling-codecs";
 import { retryTransaction } from "./transaction-retry";
 import { identityDocumentKey, readDocument, readUser } from "./identity-store";
 import type { IdentityDocument, IdentityTransaction } from "./identity-store";
@@ -18,7 +19,7 @@ interface Query {
 }
 interface StorageDocument { get(): unknown; set(options: { data: Record<string, unknown> }): unknown; }
 interface Collection extends Query { doc(id: string): StorageDocument }
-interface Command { lt(value: unknown): unknown; lte(value: unknown): unknown; gt(value: unknown): unknown; gte(value: unknown): { and(value: unknown): unknown }; }
+interface Command { in(values: unknown[]): unknown; lt(value: unknown): unknown; lte(value: unknown): unknown; gt(value: unknown): unknown; gte(value: unknown): { and(value: unknown): unknown }; }
 export interface PersonalDatabase {
   collection(name: string): Collection;
   command: Command;
@@ -30,11 +31,11 @@ function nullableInstant(v: unknown): v is string | null { return v === null || 
 export function readPersonalTask(v: unknown): PersonalTask {
   if (!isRecord(v) || !isUuid(v.id) || !isUuid(v.ownerUserId) || typeof v.ownerName !== "string" || typeof v.title !== "string" || !v.title.trim() || [...v.title].length > 80 || typeof v.note !== "string" || [...v.note].length > 1000 || !integer(v.version,1) || !isUuid(v.segmentId) || !isUuid(v.occurrenceId)
     || !(v.date === null || localDate(v.date)) || !(v.time === null || localTime(v.time)) || (v.date === null && v.time !== null)
-    || (v.lifecycle !== "active" && v.lifecycle !== "deleted") || (v.status !== "pending" && v.status !== "completed" && v.status !== "skipped")
+    || (v.lifecycle !== "active" && v.lifecycle !== "paused" && v.lifecycle !== "stopped" && v.lifecycle !== "deleted") || (v.status !== "pending" && v.status !== "completed" && v.status !== "skipped")
     || !integer(v.occurrenceVersion) || !nullableInstant(v.actualCompletedAt) || !nullableInstant(v.recordedAt) || !nullableText(v.operatorName)
     || typeof v.reminderEnabled !== "boolean" || typeof v.reminderSelfDisabled !== "boolean" || !integer(v.reminderVersion)
     || !nullableInstant(v.readAt) || !nullableInstant(v.dismissedAt) || !instant(v.createdAt) || !instant(v.updatedAt)) malformed();
-  return {id:v.id,ownerUserId:v.ownerUserId,ownerName:v.ownerName,title:v.title,note:v.note,version:v.version,segmentId:v.segmentId,occurrenceId:v.occurrenceId,date:v.date,time:v.time,lifecycle:v.lifecycle,status:v.status,occurrenceVersion:v.occurrenceVersion,actualCompletedAt:v.actualCompletedAt,recordedAt:v.recordedAt,operatorName:v.operatorName,reminderEnabled:v.reminderEnabled,reminderSelfDisabled:v.reminderSelfDisabled,reminderVersion:v.reminderVersion,readAt:v.readAt,dismissedAt:v.dismissedAt,createdAt:v.createdAt,updatedAt:v.updatedAt};
+  return {...(v.recurrence === undefined ? {} : { recurrence: readTaskRecurrence(v.recurrence) }),id:v.id,ownerUserId:v.ownerUserId,ownerName:v.ownerName,title:v.title,note:v.note,version:v.version,segmentId:v.segmentId,occurrenceId:v.occurrenceId,date:v.date,time:v.time,lifecycle:v.lifecycle,status:v.status,occurrenceVersion:v.occurrenceVersion,actualCompletedAt:v.actualCompletedAt,recordedAt:v.recordedAt,operatorName:v.operatorName,reminderEnabled:v.reminderEnabled,reminderSelfDisabled:v.reminderSelfDisabled,reminderVersion:v.reminderVersion,readAt:v.readAt,dismissedAt:v.dismissedAt,createdAt:v.createdAt,updatedAt:v.updatedAt};
 }
 function readScope(v: unknown): PersonalScope {
   if (!isRecord(v) || v.schemaVersion !== 1 || !isUuid(v.userId) || !integer(v.revision,1) || !integer(v.personalTaskCount) || v.personalTaskCount > 500 || !integer(v.activeFamilyCount)) malformed();

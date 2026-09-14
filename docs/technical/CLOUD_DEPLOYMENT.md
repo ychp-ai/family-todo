@@ -132,3 +132,63 @@ CLI 3.8.1 会将 JSON 形式的环境变量字符串解析为对象，前两次�
 本次本地函数 bundle SHA-256：`537e5177023dde96a2b5f9d44c272330e5248c07ff24be3b10b1864136edd40e`。Node 20.19.0 下最终 `npm run check` 通过，24个测试文件、271项测试，包含独立类型检查、共享契约和函数 bundle 构建。客户端独立复核5个文件、33项测试及小程序类型检查通过，三项评审问题全部关闭；服务端兼容回执和权限标记通过独立评审。[补丁真实回读记录](family-patch-verification.json)不含账号身份或邀请口令。
 
 双真实账号、iOS/Android 真机、微信分享和弱网交接仍待验收；页面按钮及停用成员样式尚未取得修复后截图。未上传体验版、发布小程序或提交推送代码。
+
+
+## 周期、进度与批量追加更新（2026-09-14 09:44）
+
+沿用本会话 API 更新后自动部署的授权，在整体代码评审通过后更新既有 `api`。本地 Node 20.19.0 `npm run check` 通过：30 个测试文件、368 项测试，包含严格服务端/小程序类型检查、共享与函数构建、独立 bundle 加载。分任务及最终独立评审的问题均已修复并复审通过。
+
+迁移实际命令（使用已核对环境的本机 CLI）：
+
+```sh
+TCB_CLI=/Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js TCB_DATABASE=tnt-5up4jdfvg node tools/migration/provision-recurrence.mjs --apply
+TCB_CLI=/Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js TCB_DATABASE=tnt-5up4jdfvg TCB_MIGRATION_JOURNAL=/private/tmp/family-todo-recurrence-migration-repeat.json node tools/migration/provision-recurrence.mjs --apply
+```
+
+实际 `node` 为本机 Node 20.19.0。首次创建4个集合，为4个集合执行索引更新（包括既有 tasks），核验5个受影响集合的全部索引和 ADMINONLY 权限。第二次执行没有 CreateTable/UpdateTable 操作；原业务数据未迁移或删除。详见 [迁移记录](../../database/recurrence-provision-result.json) 和 [脱敏验证记录](../../database/recurrence-verification-result.json)。
+
+随后按上节相同命令执行 `fn deploy api … --force --json`（exit 0）、`fn detail` 和 `fn invoke … -d @docs/examples/system-health.json`。查询详情仅保存允许公开的运行配置和结果字段。
+
+| 验证 | 实际结果 |
+| --- | --- |
+| 函数 ID / 更新时间（上海） | lam-d4wj80fb / 2026-09-14 09:44:27 |
+| 状态 / 运行时 / 配置 | Active / Nodejs20.19 / index.main / 10秒 / 256MB / InstallDependency FALSE |
+| 云端代码包大小 | 1,697,887 字节 |
+| 详情查询 RequestId | 21d5e018-a030-45b6-8091-4b26bc95f8a6 |
+| 健康检查 | ok=true，now=2026-09-14T01:44:51.374Z |
+| health 云调用 RequestId | 259df703-93e5-406c-a060-4ea710a58d76 |
+| 新4个集合与 tasks 客户端直接读取 | 全部被权限规则拒绝；写权限仅由 ADMINONLY 管理面核验，本次未额外实测客户端写入 |
+
+本次上传的本地 `cloudfunctions/api/index.js` SHA-256：`66bf23027a26def1462e4b7ecee8439084dc59003cdd90e4e60bbaf2828486bf`。共享契约 SHA-256：`8d63179ad82d6d1180ce292063026e80886c89431103b58a4a7c920475b22d39`。散列关联本次本地产物，不代表未来云端版本不会变化。
+
+真实业务调用于上海09:45:01–09:45:55完成，使用同一微信账号的自有验收家庭：
+
+- 每日无时刻、每周多时刻服务端预览；次数分页、指定次数读取、未来记录拒绝。
+- 完成记录的同 requestId 重放、撤销；暂停/继续不补当天，停止后删除恢复仍不可重启。
+- 家庭进度跨调用完整加载，完成后 completed 增一、pending 减一，分母等于两者之和。
+- 两项批处理完成个人归属及家庭追加，同 requestId 再调用返回一致回执，保留提醒及代记权限。本次首轮即全部完成，partial 续办、未知提交和慢事务场景由本地行为测试覆盖。
+- 仅本次新建的3个验收事项已全部移入回收站。
+
+44 次业务/读回调用端到端耗时333–2827ms，调用标识保存在验证记录。小样本不代表目标容量、暖调用 p95 或长历史扫描性能已达标。
+
+原生周期页面验收仍待继续：开发者工具自动化连接成功，但 reLaunch/页面数据操作超时；CUA 明确返回 Mac 锁定且无法自动解锁，已请求用户手动解锁。每日/每周编辑器和进度页的本次原生 smoke 未通过，未将模拟 Page 测试或真实 API 调用标为原生页面验收。双真实账号、iOS/Android 真机、弱网交接与目标容量压测仍未完成；未上传体验版或发布小程序。
+
+### 原生页面补验（2026-09-14 10:24）
+
+电脑解锁后重新执行 `node /private/tmp/family-todo-automation/recurrence-native-smoke.cjs`，每日和每周编辑器通过页面事件触发日程选择，真实 API 返回最多三次预览；家人进度读取真实家庭并正确显示当日无可见安排的空态。脚本未保存事项，进度无条目，因此不将其计作有数据的统计、原生 picker 手势、详情记录或批量确认验收。截图已检查页面布局，结果见 `/private/tmp/family-todo-recurrence-native-smoke.json`；iOS/Android 真机及双账号边界保持不变。
+
+### 异常恢复验证（2026-09-14 11:05）
+
+本轮只修改客户端恢复和相关文档，不新增 API/action/集合，因此未重新部署云函数。`npm run check` 在 10:59:26 通过（33 个测试文件、417 项测试）；逐任务复审与最终全局代码审查均通过。
+
+执行 `node /private/tmp/family-todo-automation/recovery-native-page.cjs`：半填草稿恢复/放弃、快速新增转完整编辑使用同一草稿 UUID；真实创建成功后受控丢失成功响应，首页保留未确认操作。重新进入首页重试使用原 requestId `c731737b-f584-4d88-8d9a-53740b11f8fb` 与原 payload，读回 version=1，第二次确认不再发送创建，旧草稿不再恢复。事项 `6d096bc6-cbf6-437d-bd2d-115cadd23919` 已移入回收站；前一轮故障注入脚本的事项 `5ec31dca-3e49-4fe1-a6ee-46fb2263236a` 也已回收。原生记录为 `/private/tmp/family-todo-recovery-native.json`，编辑及首页截图已检查。页面事件与弹窗选择通过 automator 触发，不代表原生手势或真机验收。
+
+`close → auto` 的完整草稿重启验收未通过：新写入半填草稿未恢复，另一次较早写入的 quick 草稿与未决请求则能够恢复。尚未定位此差异，保留为待解决验收项；不能将页面重建或本地服务重建测试算作平台重启验收。iOS/Android 真机和双真实账号边界未改变，未上传体验版或发布小程序。
+
+### 重启差异定位与原生页面补验（2026-09-14 11:38）
+
+上节重启差异已定位：开发者工具 RC 2.02.2608031 的模拟存储在最后一次写入后延迟 10 秒落盘。独立字符串、对象探针在约 2 秒关闭时均丢失，35 秒后关闭均保留。采用明确的 35 秒等待后，完整 App 重启的草稿恢复、放弃、quick→editor 同一草稿、真实创建响应丢失后的原请求确认均通过；即时关闭仍存在工具数据丢失限制，不能据此保证真机进程终止恢复。
+
+修复详情页内联 `import` 泛型造成的微信编译器 `Expected ident`，改用顶部类型别名。重新编译后完成详情记录、跳过与撤销、实际时间与备注补记、有数据进度和执行对象筛选、暂停/继续/停止、删除回收恢复、混合批量确认与版本冲突失败项重试、虚拟成员创建/改名/停用。页面事件由 automator 驱动，使用真实云 API，截图已检查；不等于双账号或 iOS/Android 真机验收。
+
+修复后 `npm run check` 于 11:34:32 通过（33 文件、417 测试）。本轮未重新部署、提交或上传体验版，新增验收事项已回收、虚拟成员已停用。条件、限制与持久证据见 [原生验收报告](../verification/native-acceptance/README.md)。

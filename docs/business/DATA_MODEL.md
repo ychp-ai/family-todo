@@ -1,6 +1,6 @@
 # 业务数据模型与一致性设计
 
-状态：身份、个人与家庭一次性待办已实现，服务端已部署；家庭协作实现与验收见 [家庭协作实现](../technical/FAMILY.md) 和 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文保留首版完整设计；周期、批量及订阅提醒仍未实现。
+状态：身份、个人与家庭待办、周期、进度和批处理的服务端代码已实现。真实部署与验收见 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文的概念模型保留设计语义，实际集合、字段和索引以 [家庭存储](../../database/family.md) 与 [周期存储](../../database/recurrence.md) 为准；订阅消息尚未实现。
 
 ## 统一约定
 
@@ -12,7 +12,7 @@
 
 ## 实体与存储映射
 
-下表是拟建集合。集合名、索引和访问路径随正式迁移实现；本次不创建资源。
+下表是概念模型，不能直接作为建库清单。实际实现保留旧一次性聚合字段，周期扩展保存在 Task.recurrence；新增 `schedule_segments`、`schedule_controls`、`occurrence_states`、`historical_subject_access`。幂等集合实际为 `idempotency_receipts`；查询检查点复用 `query_sessions`，没有独立 `query_checkpoints` 集合；迁移记录保存在仓库的脱敏 JSON，不创建 `migration_journal` 集合。
 
 | 实体 / 拟建集合 | 核心字段 | 不变量与访问路径 |
 | --- | --- | --- |

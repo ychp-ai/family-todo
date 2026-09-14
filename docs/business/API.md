@@ -1,6 +1,6 @@
 # 业务接口契约
 
-状态：身份、个人与家庭一次性待办已实现，服务端已部署；家庭协作实现与验收见 [家庭协作实现](../technical/FAMILY.md) 和 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文保留首版完整设计；周期、批量及订阅提醒仍未实现。
+状态：身份、个人与家庭待办、周期、进度和批量追加可见人的服务端代码已实现，共 43 个 action。真实部署和验收以 [发布记录](../technical/CLOUD_DEPLOYMENT.md) 为准；订阅消息与 identity.update 尚未实现。
 
 ## 协议与校验
 
@@ -14,8 +14,8 @@
 | api | identity.ensure | 已部署并通过真实身份/事务验证，见 [身份接入](../technical/IDENTITY.md) |
 | api | family、member、virtualMember、invitation | 19 个 action 已部署，见 [家庭协作实现](../technical/FAMILY.md) |
 | api | identity.update | 接口设计，尚未实现 |
-| api | task、occurrence | 个人和家庭一次性事项已部署，持久化、幂等及权限已实现；周期/批量尚未实现 |
-| api | reminder、progress | 一次性事项小程序内提醒查询、本人开关及已读/收起已部署；周期进度尚未实现 |
+| api | task、occurrence | 个人和家庭一次性、每日/每周周期、次数记录及批量追加可见人已实现；部署记录区分真实验证范围 |
+| api | reminder、progress | 单次与周期的小程序内提醒、本人开关、已读/收起和可见执行人进度已实现 |
 
 未实现 action 当前返回 `NOT_FOUND`，不返回模拟业务成功。完整请求示例见 [接口调用示例](API_EXAMPLES.md)。
 
@@ -56,7 +56,7 @@ task.list 增加 `overdue?:boolean`：true 时查询上海今天之前仍 pendin
 
 ## 公共类型
 
-下面是契约蓝图（TypeScript 表达），正式开发迁入 contracts 并配套校验器。UUID、LocalDate、LocalTime、Instant 均是通过运行时校验的 string，不能仅凭类型别名跳过验证。
+下面以 TypeScript 表达公共契约；正式类型与运行时校验器位于 `packages/contracts/src/`，未实现 action 已单独标注。UUID、LocalDate、LocalTime、Instant 均是通过运行时校验的 string，不能仅凭类型别名跳过验证。
 
 ```ts
 type Subject =
@@ -192,6 +192,8 @@ ExitPreview：`previewToken,expiresAt,familyVersion,targetName,successorName,own
 
 TaskEventDTO：`id,taskId,occurrenceId|null,kind,actorName,recordedAt,actualCompletedAt|null,note`。批量结果每项为 `{taskId,status:"succeeded",version}`、`{taskId,status:"failed",error:{code,message,retryable}}` 或 `{taskId,status:"pending"}`；结果顺序与输入一致，taskId 不得重复。complete=false 时用原 requestId 和原完整 payload 继续，不能把 pending 当失败用新 ID 提交。complete=true 仅表示全部有明确结果，用户可对失败项使用新 ID 和最新版本重试。整体 envelope 成功不表示所有事项成功。外层格式错误则整批 VALIDATION_ERROR，未知/失权 item 在单项返回 NOT_FOUND；已成功项重放时失权也不能泄露旧 DTO，返回对应稳定错误。
 
+续跑优先处理没有持久化终态的项，避免慢请求反复消耗在成功前缀上。已成功项仍须当前鉴权；本次剩余预算不足以重新确认时，该项返回无 version 的 `pending`，不表示原修改回滚，也不允许换 ID 重做。每次调用共用 8 秒应用预算，剩余不足 2 秒不启动新项。
+
 TaskEventDTO.kind 为 `task.created/updated/accessChanged/paused/resumed/stopped/deleted/restored`、`occurrence.completed/skipped/undone`；note 为 string，未填写取空字符串。ID、时间字段沿用公共类型；不存在的 occurrenceId/actualCompletedAt 明确为 null。预览返回 `now:Instant,nextOccurrences:SchedulePreviewSlot[],excludedPastSlots:boolean,explanation:string`；excludedPastSlots 只表示本次规则存在已被排除的过去计划，不暗示已创建这些次数。新建、更新、恢复周期和纯预览的 nextOccurrences 最多3项，无后续计划则为空，不制造占位次数。
 
 ## 提醒与家人进度
@@ -205,6 +207,8 @@ TaskEventDTO.kind 为 `task.created/updated/accessChanged/paused/resumed/stopped
 | progress.get | `{familyId,date,subject?:ResolvedSubject,cursor?}` | `{members:MemberProgress[]|null,complete,nextCursor,asOf}` | 必须当前家庭成员；仅统计自己可见的应做，不返回他人私密总量 |
 
 ReminderDTO：`occurrence:OccurrenceRef,title,familyId,familyName,subjectName,scheduledAt,readAt|null,dismissedAt|null`。MemberProgress：`subject:ResolvedSubject,name,completed,pending,skipped,denominator`；未完整扫描时 members=null，按 nextCursor 继续，不把局部计数显示成最终进度。denominator=completed+pending，skipped 单列，无记录文字为“暂无共享给你的安排”。部分查询失败时该 scope 不给出计数。
+
+进度按每次的历史执行人身份聚合，包含不在当前有效成员名单内的历史身份。源扫描完成后先返回 ready 游标，下一请求完整读取并再次鉴权后发布 members。极大结果在最终读取阶段超出预算时返回 `TEMPORARILY_UNAVAILABLE`，保留原游标手动重试或选择具体执行人，不返回局部总数；该限制不等于已完成容量或延迟压测。
 
 前端 onShow 立即刷新（2 秒内重复触发去重），可见期间每 30 秒刷新，onHide/onUnload 停止；列表筛选不传给 reminder.list。失败退避 5/15/30 秒，最多三次自动重试，保留手动重试。请求 10 秒超时；写请求超时保留 requestId，不乐观宣告失败后重复创建。时间判断用服务端 now，不能信任手机快慢。
 
@@ -226,7 +230,7 @@ ReminderDTO：`occurrence:OccurrenceRef,title,familyId,familyName,subjectName,sc
 | TEMPORARILY_UNAVAILABLE | true | 手动/退避重试，保留表单及 requestId |
 | INTERNAL_ERROR | true | 稳定文案，不返回 SDK 内容；服务端记录脱敏 requestId |
 
-这些新增错误码仍需正式加入 contracts；不得只修改页面字符串。
+上述错误码已在 contracts 注册并配套运行时校验；页面通过稳定 code 决定反馈和重试行为。
 
 ## 可复用请求示例
 

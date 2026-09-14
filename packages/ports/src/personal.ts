@@ -12,7 +12,7 @@ export interface PersonalTransaction {
   addEvent(event: PersonalEvent): Promise<void>;
 }
 export type PersonalQuery = {
-  mode: "tasks" | "recycle" | "reminders" | "history";
+  mode: "tasks" | "recycle" | "reminders" | "history" | "projection";
   taskId?: string; dateFrom?: string; dateTo?: string; unscheduled?: boolean;
   overdueBefore?: string; status?: "pending" | "completed" | "skipped"; includeDismissed?: boolean;
 };

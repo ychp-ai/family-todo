@@ -7,13 +7,13 @@ class Condition {
   public and(other: unknown): Condition { if (!(other instanceof Condition)) throw new Error("Invalid test query"); return new Condition(v => this.matches(v) && other.matches(v)); }
 }
 class Query {
-  public constructor(private readonly database: MemoryPersonalDatabase,private readonly name: string,private readonly filter: Record<string,unknown> = {},private readonly order = "_id",private readonly count = 100) {}
+  public constructor(private readonly database: MemoryPersonalDatabase,private readonly name: string,private readonly filter: Record<string,unknown> = {},private readonly order = "_id",private readonly count = 100, private readonly direction: "asc" | "desc" = "asc") {}
   public where(filter: Record<string,unknown>): Query { return new Query(this.database,this.name,filter,this.order,this.count); }
-  public orderBy(order: string, direction: "asc" | "desc"): Query { if (direction !== "asc") throw new Error("Unsupported test order"); return new Query(this.database,this.name,this.filter,order,this.count); }
-  public limit(count: number): Query { return new Query(this.database,this.name,this.filter,this.order,count); }
+  public orderBy(order: string, direction: "asc" | "desc"): Query { return new Query(this.database,this.name,this.filter,order,this.count,direction); }
+  public limit(count: number): Query { return new Query(this.database,this.name,this.filter,this.order,count,this.direction); }
   public async get(): Promise<unknown> {
     const rows = [...this.database.documents.entries()].filter(([key,row]) => key.startsWith(this.name+"/") && Object.entries(this.filter).every(([field,value]) => value instanceof Condition ? value.matches(row[field]) : row[field] === value)).map(([,row]) => structuredClone(row));
-    rows.sort((a,b) => String(a[this.order]).localeCompare(String(b[this.order])));
+    rows.sort((a,b) => (this.direction === "asc" ? 1 : -1) * String(a[this.order]).localeCompare(String(b[this.order])));
     return {data:rows.slice(0,this.count)};
   }
   public doc(id: string) {
@@ -25,6 +25,7 @@ export class MemoryPersonalDatabase extends MemoryIdentityDatabase implements Pe
     lt:(value: unknown) => new Condition(v => typeof v === "string" && typeof value === "string" && v < value),
     lte:(value: unknown) => new Condition(v => typeof v === "string" && typeof value === "string" && v <= value),
     gt:(value: unknown) => new Condition(v => typeof v === "string" && typeof value === "string" && v > value),
+    in:(values: unknown[]) => new Condition(v => values.includes(v)),
     gte:(value: unknown) => new Condition(v => typeof v === "string" && typeof value === "string" && v >= value),
   };
   public collection(name: string): Query { return new Query(this,name); }

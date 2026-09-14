@@ -1,0 +1,653 @@
+{
+  "envId": "family-todo-d3g28fx1c314f8638",
+  "databaseName": "tnt-5up4jdfvg",
+  "collections": [
+    "schedule_segments",
+    "schedule_controls",
+    "occurrence_states",
+    "historical_subject_access",
+    "tasks"
+  ],
+  "indexes": {
+    "schedule_segments": [
+      [
+        "task_segments",
+        "taskId",
+        "listOrder"
+      ]
+    ],
+    "schedule_controls": [
+      [
+        "task_control_boundary",
+        "taskId",
+        "controlOrder"
+      ]
+    ],
+    "tasks": [
+      [
+        "personal_projection",
+        "ownerUserId",
+        "createdOrder"
+      ],
+      [
+        "family_projection",
+        "familyId",
+        "createdOrder"
+      ]
+    ]
+  },
+  "uniqueIndexes": {
+    "occurrence_states": [
+      [
+        "unique_occurrence_identity",
+        "taskId",
+        "segmentId",
+        "localDate",
+        "slot"
+      ]
+    ]
+  },
+  "startedAt": "2026-09-14T01:43:10.948Z",
+  "operations": [
+    {
+      "action": "ListTables",
+      "requestId": "9aeab251-e2ee-4a98-a590-da90a5515f13",
+      "at": "2026-09-14T01:43:12.123Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "schedule_segments",
+      "requestId": "4eb8a37e-c13f-47af-b0b8-9b88f1a3f3c9",
+      "at": "2026-09-14T01:43:13.019Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "schedule_segments",
+      "requestId": "e5d79948-1c56-4d45-a94f-6220ce36d3f4",
+      "at": "2026-09-14T01:43:13.940Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "schedule_segments",
+      "requestId": "a6c86419-6903-4e61-ad79-a56f7fb05ee1",
+      "at": "2026-09-14T01:43:14.835Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "schedule_segments",
+      "requestId": "6b9356c3-275a-4ae0-83b7-8c6bea1f7140",
+      "at": "2026-09-14T01:43:15.777Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "schedule_segments",
+      "requestId": "a50e8112-6644-40b1-a6df-b7ced7e34ef3",
+      "at": "2026-09-14T01:43:16.640Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "schedule_segments",
+      "requestId": "fff1d610-1965-4a82-9a95-c4af60c28ceb",
+      "at": "2026-09-14T01:43:17.544Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "schedule_controls",
+      "requestId": "9e0f341c-9077-422b-ab85-9dfa848011ef",
+      "at": "2026-09-14T01:43:18.471Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "schedule_controls",
+      "requestId": "a34f663c-c896-48cc-9ed0-827d81e93f22",
+      "at": "2026-09-14T01:43:19.406Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "schedule_controls",
+      "requestId": "40fcbfe0-39ad-4ae3-9962-2e7b920eb013",
+      "at": "2026-09-14T01:43:20.412Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "schedule_controls",
+      "requestId": "130fc08f-95a3-4e75-ad22-70a64b4687bd",
+      "at": "2026-09-14T01:43:21.269Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "schedule_controls",
+      "requestId": "d2bba838-bd27-467e-959a-12f341353d90",
+      "at": "2026-09-14T01:43:22.186Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "schedule_controls",
+      "requestId": "77d49aaf-c53e-4a1b-99a7-e0c5befd31ba",
+      "at": "2026-09-14T01:43:23.076Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "occurrence_states",
+      "requestId": "c3f2b5eb-4ec3-4454-a862-5cb3eee5d9b4",
+      "at": "2026-09-14T01:43:24.075Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "occurrence_states",
+      "requestId": "cac64131-9eeb-4c0b-a1d5-00b96a0e9833",
+      "at": "2026-09-14T01:43:25.004Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "occurrence_states",
+      "requestId": "436b54c4-830b-4995-8041-21a74652f796",
+      "at": "2026-09-14T01:43:26.010Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "occurrence_states",
+      "requestId": "41b4291d-298d-423a-8cd4-6c83a346929f",
+      "at": "2026-09-14T01:43:26.897Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "occurrence_states",
+      "requestId": "762dcec8-b664-446d-8bfb-97b885462134",
+      "at": "2026-09-14T01:43:27.792Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "occurrence_states",
+      "requestId": "58341342-4fa3-419b-b907-2d36574713a8",
+      "at": "2026-09-14T01:43:28.642Z"
+    },
+    {
+      "action": "CreateTable",
+      "collection": "historical_subject_access",
+      "requestId": "b529e24a-beec-4143-9e51-46b75276a5ec",
+      "at": "2026-09-14T01:43:29.516Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "historical_subject_access",
+      "requestId": "c32cc38d-3929-4afa-b97a-27d80d4c617e",
+      "at": "2026-09-14T01:43:30.384Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "historical_subject_access",
+      "requestId": "4b0a6bd3-3ded-47bc-81e9-2f613aac6f79",
+      "at": "2026-09-14T01:43:31.392Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "historical_subject_access",
+      "requestId": "56cac0b8-e8a9-4e58-b9aa-01c4c9764e30",
+      "at": "2026-09-14T01:43:32.262Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "historical_subject_access",
+      "requestId": "5e3509aa-f15e-409d-84f0-155c48e88b17",
+      "at": "2026-09-14T01:43:33.129Z"
+    },
+    {
+      "action": "ModifyDatabaseACL",
+      "collection": "tasks",
+      "requestId": "f6510eb5-8602-4ae5-9361-160b98460b69",
+      "at": "2026-09-14T01:43:34.228Z"
+    },
+    {
+      "action": "DescribeDatabaseACL",
+      "collection": "tasks",
+      "requestId": "17352151-ac00-4fd6-8e95-9ffb6ebbf179",
+      "at": "2026-09-14T01:43:35.221Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "tasks",
+      "requestId": "bda96d22-0171-47f8-9ef6-598085fd05ef",
+      "at": "2026-09-14T01:43:36.052Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "tasks",
+      "requestId": "e101e0c3-eecc-4142-94c5-b43749e6257f",
+      "at": "2026-09-14T01:43:36.975Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "tasks",
+      "requestId": "6e77c30e-748b-4fb4-9768-68060cf72952",
+      "at": "2026-09-14T01:43:37.877Z"
+    }
+  ],
+  "verified": [
+    {
+      "collection": "schedule_segments",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "task_segments",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "taskId",
+              "Direction": "1"
+            },
+            {
+              "Name": "listOrder",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "schedule_controls",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "task_control_boundary",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "taskId",
+              "Direction": "1"
+            },
+            {
+              "Name": "controlOrder",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "occurrence_states",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "unique_occurrence_identity",
+          "unique": true,
+          "keys": [
+            {
+              "Name": "taskId",
+              "Direction": "1"
+            },
+            {
+              "Name": "segmentId",
+              "Direction": "1"
+            },
+            {
+              "Name": "localDate",
+              "Direction": "1"
+            },
+            {
+              "Name": "slot",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "historical_subject_access",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "tasks",
+      "acl": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "personal_reminders",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "reminderEnabled",
+              "Direction": "1"
+            },
+            {
+              "Name": "dismissedAt",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_recent",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_status_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_all_reminders",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "reminderEnabled",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_projection",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "createdOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_created",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "createdOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "personal_status_schedule",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "ownerUserId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "scheduleOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_projection",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "createdOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_id_",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_id",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_created",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "createdOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "family_recent",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "familyId",
+              "Direction": "1"
+            },
+            {
+              "Name": "lifecycle",
+              "Direction": "1"
+            },
+            {
+              "Name": "status",
+              "Direction": "1"
+            },
+            {
+              "Name": "recentOrder",
+              "Direction": "1"
+            }
+          ]
+        },
+        {
+          "name": "_openid_1",
+          "unique": false,
+          "keys": [
+            {
+              "Name": "_openid",
+              "Direction": "1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "completedAt": "2026-09-14T01:43:37.878Z"
+}

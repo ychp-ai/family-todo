@@ -1,6 +1,6 @@
 # 开发顺序与验收映射
 
-状态：身份、个人一次性待办和家庭协作已实现，服务端已部署，六个原生页面已接入；双真实账号与真机验收尚待完成。实际 action、存储和验证边界见 [个人待办实现](../technical/PERSONAL.md)、[家庭协作实现](../technical/FAMILY.md) 和 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文保留首版完整设计，周期、批量及订阅提醒尚未实现。
+状态：身份、个人及家庭协作、周期、进度与批量追加已实现，七个原生页面已接入；周期相关原生页面已继续补验，详情页编译兼容问题已修复；具体通过项见 [原生验收记录](../verification/native-acceptance/README.md)，双真实账号与真机验收尚待完成。实际 action、存储和验证边界见 [个人待办实现](../technical/PERSONAL.md)、[家庭协作实现](../technical/FAMILY.md) 和 [发布记录](../technical/CLOUD_DEPLOYMENT.md)。下文保留首版完整设计；实际部署及本地/真实验证以发布记录为准，订阅提醒尚未实现。
 
 ## 开发顺序
 
@@ -52,7 +52,7 @@
 
 ## 当前交付与边界
 
-本次提供 [技术总览](../TECHNICAL_DESIGN.md)、[一致性与访问算法](../technical/CONSISTENCY.md)、[日程算法](../technical/SCHEDULING.md)、[小程序实现](../technical/CLIENT.md)，并同步字段模型、索引提案、action 输入输出和验收条件。已有流程演示继续作为产品交互参考。浏览器 demo 仅用于交互验收，不是完整周期引擎、真实授权或持久化实现。健康、身份、个人及家庭一次性业务 action 已落地；周期和批量 action 仍属后续范围。
+本次提供 [技术总览](../TECHNICAL_DESIGN.md)、[一致性与访问算法](../technical/CONSISTENCY.md)、[日程算法](../technical/SCHEDULING.md)、[小程序实现](../technical/CLIENT.md)，并同步字段模型、索引提案、action 输入输出和验收条件。已有流程演示继续作为产品交互参考。浏览器 demo 仅用于交互验收，不是完整周期引擎、真实授权或持久化实现。健康、身份、个人及家庭事项、周期、进度和批量追加 action 已落地；订阅消息、后台定时提醒与真机多账号联调尚未完成。
 
 ## 每个步骤的交付门槛
 

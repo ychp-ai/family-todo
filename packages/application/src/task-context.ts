@@ -13,7 +13,14 @@ export function checkTaskRef(task: CollaborativeTask, ref: OccurrenceRef): void 
 export async function taskContext(store: FamilyStore, task: CollaborativeTask): Promise<FamilyContext> {
   const binding = task.collaboration; if (!binding) taskMissing();
   const ids = [binding.creatorMembershipId, ...(binding.ownerBinding.kind === "membership" ? [binding.ownerBinding.membershipId] : [])];
-  const context = await store.context(binding.familyId, ids); if (!context) taskMissing(); return context;
+  const context = await store.context(binding.familyId, ids); if (!context) taskMissing();
+  if (task.recurrence) {
+    context.historicalTaskId = task.id; context.historicalSubjectMembershipIds = [];
+    for (const member of context.members.filter(member => member.status === "active")) {
+      if (await store.historicalSubjectAccess(task.id, member.id)) context.historicalSubjectMembershipIds.push(member.id);
+    }
+  }
+  return context;
 }
 export async function verifyContext(tx: FamilyTransaction, context: FamilyContext, actorId: string): Promise<Membership> {
   const family = await tx.family(context.family.id); if (!family) taskMissing();
@@ -45,12 +52,12 @@ export async function familyTaskDTO(tx: FamilyTransaction, task: CollaborativeTa
     participants.push({ membershipId: member.id, name: member.name, canView, canHelp: canView && binding.helperMembershipIds.includes(member.id), requiredViewer: rights.requiredIds.has(member.id), isCreatorManager: rights.creator.id === member.id,
       ...(rights.manager || member.userId === actorId ? { receivesReminder: canView && Boolean(preference?.enabled && !preference.selfDisabled && preference.membershipId === member.id), reminderSelfDisabled: preference?.selfDisabled ?? false } : {}) });
   }
-  const active = task.lifecycle === "active";
+  const active = task.lifecycle !== "deleted";
   const subjectName = binding.subject.kind === "member" ? context.members.find(member => binding.subject.kind === "member" && member.id === binding.subject.membershipId)?.name : context.virtualMembers.find(member => binding.subject.kind === "virtual" && member.id === binding.subject.virtualMemberId)?.name;
   return { id: task.id, version: task.version, title: task.title, note: task.note, familyId: context.family.id, familyName: context.family.name,
     ownerUserId: rights.owner.userId, ownerName: rights.owner.name, createdByUserId: binding.createdByUserId,
-    subject: binding.subject, subjectName: subjectName ?? binding.subjectName, schedule: { kind: "once", date: task.date, time: task.time }, lifecycle: task.lifecycle,
+    subject: binding.subject, subjectName: subjectName ?? binding.subjectName, schedule: task.recurrence?.schedule ?? { kind: "once", date: task.date, time: task.time }, lifecycle: task.lifecycle,
     participants, myReminder: { enabled: mineEnabled, selfDisabled: mine?.selfDisabled ?? false, version: mine?.version ?? 0 },
-    capabilities: { canEdit: active && rights.manager, canRecord: rights.canRecord, canShare: active && rights.manager, canDelete: active && rights.manager, canRestore: !active && rights.manager, canResume: false },
+    capabilities: { canEdit: active && rights.manager, canRecord: rights.canRecord, canShare: active && rights.manager, canDelete: active && rights.manager, canRestore: !active && rights.manager, canResume: rights.manager && task.lifecycle === "paused" && !task.recurrence?.stopped },
     createdAt: task.createdAt, updatedAt: task.updatedAt };
 }

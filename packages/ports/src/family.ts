@@ -1,4 +1,4 @@
-import type { CollaborativeTask, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, PersonalEvent, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
+import type { HistoricalSubjectAccess, OccurrenceIdentity, PersistedOccurrenceState, PersistedScheduleControl, PersistedScheduleSegment, CollaborativeTask, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, PersonalEvent, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
 import type { PersonalQuery, PersonalReceipt, PersonalTransaction } from "./personal";
 
 export type FamilyReceipt = PersonalReceipt & {
@@ -6,6 +6,14 @@ export type FamilyReceipt = PersonalReceipt & {
   minimumConfirmation?: boolean; ownerOnly?: boolean;
 };
 export interface FamilyTransaction extends PersonalTransaction {
+  batchReceipt(userId: string, requestId: string, taskId: string): Promise<FamilyReceipt | null>;
+  saveBatchReceipt(userId: string, requestId: string, taskId: string, receipt: FamilyReceipt): Promise<void>;
+  segment(id: string): Promise<PersistedScheduleSegment | null>;
+  saveSegment(segment: PersistedScheduleSegment): Promise<void>;
+  saveControl(control: PersistedScheduleControl): Promise<void>;
+  occurrenceState(id: string): Promise<PersistedOccurrenceState | null>;
+  saveOccurrenceState(state: PersistedOccurrenceState): Promise<void>;
+  saveHistoricalSubjectAccess(access: HistoricalSubjectAccess): Promise<void>;
   task(id: string): Promise<CollaborativeTask | null>;
   saveTask(task: CollaborativeTask): Promise<void>;
   receipt(userId: string, requestId: string): Promise<FamilyReceipt | null>;
@@ -42,6 +50,13 @@ export interface FamilyStore {
   readInvitation(id: string): Promise<Invitation | null>;
   findInvitation(tokenHash: string): Promise<Invitation | null>;
   readTask(id: string): Promise<CollaborativeTask | null>;
+  deriveOccurrenceId(identity: OccurrenceIdentity): string;
+  readSegment(id: string): Promise<PersistedScheduleSegment | null>;
+  segments(taskId: string, after: string | null, limit: number): Promise<FamilyPage<PersistedScheduleSegment>>;
+  /** Strictly before boundary; descending effectiveAt then taskVersion, at most one row. */
+  controlBefore(taskId: string, boundary: string): Promise<PersistedScheduleControl | null>;
+  readOccurrenceState(id: string): Promise<PersistedOccurrenceState | null>;
+  historicalSubjectAccess(taskId: string, membershipId: string): Promise<boolean>;
   families(userId: string): Promise<Family[]>;
   members(query: FamilyListQuery, after: string | null, limit: number): Promise<FamilyPage<Membership>>;
   virtualMembers(query: FamilyListQuery, after: string | null, limit: number): Promise<FamilyPage<VirtualMember>>;

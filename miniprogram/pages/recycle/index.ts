@@ -34,7 +34,7 @@ Page({
       this.setData({ error: "请先重试确认上一次恢复操作。" });
       return;
     }
-    if(!this.pendingRestore){const answer=await wx.showModal({title:"恢复这件事？",content:"历史记录保留，恢复时重新校验成员权限，不恢复已退出成员的访问权。",confirmText:"恢复事项"});if(!answer.confirm||!this.visible)return;}
+    if(!this.pendingRestore){const answer=await wx.showModal({title:"恢复这件事？",content:task.schedule.kind==="once"?"历史记录保留，恢复时重新校验成员权限，不恢复已退出成员的访问权。":"历史及有效权限保留，周期恢复为暂停。曾停止的系列仅恢复历史，不能继续；已退出成员不会恢复访问权。",confirmText:"恢复事项"});if(!answer.confirm||!this.visible)return;}
     const intent = this.pendingRestore ?? { id: task.id, expectedVersion: task.version };
     this.pendingRestore = intent;
     this.epoch++;
@@ -43,7 +43,7 @@ Page({
       const result=await personalApi.write("task.restore", intent);
       this.pendingRestore = null;
       if (this.visible) {
-        if(result.removedParticipantCount)await wx.showModal({title:"事项已恢复",content:`已移除 ${result.removedParticipantCount} 位失效参与人，其他有效权限与历史记录保留。`,showCancel:false});else wx.showToast({ title: "事项已恢复", icon: "success" });
+        if(result.removedParticipantCount)await wx.showModal({title:"事项已恢复",content:`已移除 ${result.removedParticipantCount} 位失效参与人，其他有效权限与历史记录保留。`,showCancel:false});else if(result.task.schedule.kind!=="once")await wx.showModal({title:"事项已恢复",content:result.task.capabilities.canResume?"周期已恢复为暂停，可在详情继续以后的安排。":"本系列曾停止，仅恢复历史，不能继续。",showCancel:false});else wx.showToast({ title: "事项已恢复", icon: "success" });
         await this.refresh();
       }
     } catch (error) {

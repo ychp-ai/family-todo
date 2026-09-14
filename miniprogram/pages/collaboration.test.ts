@@ -24,7 +24,7 @@ describe("原生协作页面的授权边界", () => {
     const module = await import("../services/personal-api");
     vi.spyOn(module.personalApi, "write").mockRejectedValue(new module.PersonalApiError(code, "不可访问", false));
     page().visible = true;
-    page().setData({ status: "ready", items: [{ id: "task", version: 1, title: "私密标题", capabilities: { canRestore: true } }] });
+    page().setData({ status: "ready", items: [{ id: "task", version: 1, title: "私密标题", schedule: { kind: "once", date: null, time: null }, capabilities: { canRestore: true } }] });
     await invoke("restore", { currentTarget: { dataset: { id: "task" } } });
     expect(page().data).toMatchObject({ status: "error", items: [] });
     expect(page().pendingRestore).toBeNull();
@@ -100,7 +100,7 @@ describe("原生协作页面的授权边界", () => {
     finishOld(result("a", 1));
     await first;
     expect(page().data).toMatchObject({ familyIndex: 3, summaryText: "已完成 2 / 2 件" });
-    expect(reminders.mock.calls).toEqual([[false], [false]]);
+    expect(reminders.mock.calls.map(call=>call[0])).toEqual([false, false]);
     await invoke("stop");
   });
 

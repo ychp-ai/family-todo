@@ -2,12 +2,20 @@ import { ERROR_CODES, isRecord, isUuid } from "./api";
 import type { ErrorCode } from "./api";
 
 export type OnceSchedule = { kind: "once"; date: string | null; time: string | null };
+export type DailySchedule = { kind: "daily"; startDate: string; endDate: string | null; times: string[] };
+export type WeeklySchedule = { kind: "weekly"; startDate: string; endDate: string | null; times: string[]; weekdays: number[] };
+export type Schedule = OnceSchedule | DailySchedule | WeeklySchedule;
+export type SchedulePreviewSlot = { localDate: string | null; time: string | null; scheduledAt: string | null };
+export type MemberProgress = Summary & { subject: ResolvedSubject; name: string };
+export type BatchItemResult = { taskId: string; status: "succeeded"; version: number }
+  | { taskId: string; status: "failed"; error: { code: ErrorCode; message: string; retryable: boolean } }
+  | { taskId: string; status: "pending" };
 export type Subject = { kind: "self" } | { kind: "member"; membershipId: string } | { kind: "virtual"; virtualMemberId: string };
 export type ResolvedSubject = { kind: "user"; userId: string } | { kind: "member"; membershipId: string } | { kind: "virtual"; virtualMemberId: string };
 export type AccessInput = { viewerMembershipIds: string[]; helperMembershipIds: string[]; reminderMembershipIds: string[]; remindMe: boolean };
 export type TaskDraft = {
   title: string; note: string; familyId: string | null; subject: Subject;
-  schedule: OnceSchedule; access: AccessInput;
+  schedule: Schedule; access: AccessInput;
 };
 /** Compatibility name retained for existing once-task callers. */
 export type PersonalDraft = TaskDraft;
@@ -25,8 +33,8 @@ export type OccurrenceDTO = OccurrenceRef & {
 export type TaskDTO = {
   id: string; version: number; title: string; note: string; familyId: string | null; familyName: string | null;
   ownerUserId: string; ownerName: string; createdByUserId: string;
-  subject: ResolvedSubject; subjectName: string; schedule: OnceSchedule;
-  lifecycle: "active" | "deleted"; participants: ParticipantDTO[]; myReminder: ReminderPreferenceDTO;
+  subject: ResolvedSubject; subjectName: string; schedule: Schedule;
+  lifecycle: "active" | "paused" | "stopped" | "deleted"; participants: ParticipantDTO[]; myReminder: ReminderPreferenceDTO;
   capabilities: { canEdit: boolean; canRecord: boolean; canShare: boolean; canDelete: boolean; canRestore: boolean; canResume: boolean };
   createdAt: string; updatedAt: string;
 };
@@ -41,6 +49,13 @@ export type PageInput = { limit?: number; cursor?: string };
 export type TaskListInput = PageInput & { familyId?: string | null; dateFrom?: string; dateTo?: string; unscheduled?: boolean; overdue?: boolean; status?: "pending" | "completed" | "skipped" };
 export type WriteRef = { id: string; expectedVersion: number };
 export type PersonalActionMap = {
+  "task.previewSchedule": { payload: { schedule: Schedule; taskId?: string }; data: { now: string; nextOccurrences: SchedulePreviewSlot[]; excludedPastSlots: boolean; explanation: string } };
+  "task.pause": { payload: WriteRef; data: { task: TaskDTO } };
+  "task.resume": { payload: WriteRef; data: { task: TaskDTO; nextOccurrences: OccurrenceDTO[] } };
+  "task.stop": { payload: WriteRef; data: { task: TaskDTO } };
+  "occurrence.list": { payload: PageInput & { taskId: string; dateFrom: string; dateTo: string }; data: Page<OccurrenceDTO> };
+  "task.batchAddViewers": { payload: { items: { taskId: string; expectedVersion: number; targetFamilyId?: string; viewerMembershipIds: string[] }[] }; data: { complete: boolean; results: BatchItemResult[] } };
+  "progress.get": { payload: { familyId: string; date: string; subject?: ResolvedSubject; cursor?: string }; data: { members: MemberProgress[] | null; complete: boolean; nextCursor: string | null; asOf: string } };
   "task.create": { payload: { draft: PersonalDraft }; data: { task: TaskDTO; nextOccurrences: OccurrenceDTO[] } };
   "task.get": { payload: { id: string; occurrence?: OccurrenceRef }; data: { task: TaskDTO; occurrence: OccurrenceDTO | null } };
   "task.list": { payload: TaskListInput; data: AggregatePage<TaskListItem> };
@@ -57,7 +72,7 @@ export type PersonalActionMap = {
   "reminder.markRead": { payload: { occurrence: OccurrenceRef }; data: { occurrenceId: string; read: true } };
   "reminder.dismiss": { payload: { occurrence: OccurrenceRef }; data: { occurrenceId: string; dismissed: true } };
 };
-export const PERSONAL_ACTIONS = ["task.create", "task.get", "task.list", "task.update", "task.setAccess", "task.delete", "task.restore", "task.recycleList", "task.history", "occurrence.record", "occurrence.undo", "reminder.list", "reminder.setMine", "reminder.markRead", "reminder.dismiss"] as const;
+export const PERSONAL_ACTIONS = ["task.previewSchedule", "task.pause", "task.resume", "task.stop", "occurrence.list", "task.batchAddViewers", "progress.get", "task.create", "task.get", "task.list", "task.update", "task.setAccess", "task.delete", "task.restore", "task.recycleList", "task.history", "occurrence.record", "occurrence.undo", "reminder.list", "reminder.setMine", "reminder.markRead", "reminder.dismiss"] as const;
 export type PersonalAction = keyof PersonalActionMap;
 
 export function exact(value: unknown, required: readonly string[], optional: readonly string[] = []): value is Record<string, unknown> {
@@ -76,6 +91,40 @@ export function nullable<T>(v: unknown, guard: (v: unknown) => v is T): v is T |
 export function string(v: unknown): v is string { return typeof v === "string"; }
 export function text(v: unknown, min: number, max: number): v is string { return string(v) && [...v.trim()].length >= min && [...v.trim()].length <= max; }
 export function isOnceSchedule(v: unknown): v is OnceSchedule { return exact(v, ["kind", "date", "time"]) && v.kind === "once" && nullable(v.date, localDate) && nullable(v.time, localTime) && (v.date !== null || v.time === null); }
+export function isSchedule(v: unknown): v is Schedule {
+  if (isOnceSchedule(v)) return true;
+  if (!isRecord(v) || (v.kind !== "daily" && v.kind !== "weekly")
+    || !exact(v, ["kind", "startDate", "endDate", "times", ...(v.kind === "weekly" ? ["weekdays"] : [])])
+    || !localDate(v.startDate) || !nullable(v.endDate, localDate) || (v.endDate !== null && v.endDate < v.startDate)
+    || !Array.isArray(v.times) || v.times.length > 6 || !v.times.every(localTime) || new Set(v.times).size !== v.times.length) return false;
+  return v.kind === "daily" || (Array.isArray(v.weekdays) && v.weekdays.length >= 1 && v.weekdays.length <= 7
+    && v.weekdays.every(day => integer(day, 1) && day <= 7) && new Set(v.weekdays).size === v.weekdays.length);
+}
+export function isSchedulePreviewSlot(v: unknown): v is SchedulePreviewSlot {
+  if (!exact(v, ["localDate", "time", "scheduledAt"]) || !nullable(v.localDate, localDate) || !nullable(v.time, localTime)) return false;
+  if (v.localDate === null || v.time === null) return v.scheduledAt === null && (v.localDate !== null || v.time === null);
+  return instant(v.scheduledAt) && v.scheduledAt === new Date(`${v.localDate}T${v.time}:00+08:00`).toISOString();
+}
+export function isMemberProgress(v: unknown): v is MemberProgress {
+  return exact(v, ["subject", "name", "completed", "pending", "skipped", "denominator"]) && isResolvedSubject(v.subject)
+    && text(v.name, 1, 12) && integer(v.completed) && integer(v.pending) && integer(v.skipped)
+    && integer(v.denominator) && v.denominator === v.completed + v.pending;
+}
+export function isBatchItemResult(v: unknown): v is BatchItemResult {
+  if (!isRecord(v) || !isUuid(v.taskId)) return false;
+  if (v.status === "pending") return exact(v, ["taskId", "status"]);
+  if (v.status === "succeeded") return exact(v, ["taskId", "status", "version"]) && integer(v.version, 1);
+  if (v.status !== "failed" || !exact(v, ["taskId", "status", "error"]) || !exact(v.error, ["code", "message", "retryable"])) return false;
+  const error = v.error;
+  return ERROR_CODES.some(code => code === error.code) && text(error.message, 1, 1000) && typeof error.retryable === "boolean";
+}
+function dateWindow(from: unknown, to: unknown): boolean {
+  return localDate(from) && localDate(to) && from <= to && (Date.parse(to) - Date.parse(from)) / 86400000 < 31;
+}
+function subjectKey(subject: ResolvedSubject): string {
+  const id = subject.kind === "user" ? subject.userId : subject.kind === "member" ? subject.membershipId : subject.virtualMemberId;
+  return `${subject.kind}:${id.toLowerCase()}`;
+}
 export function isSubject(v: unknown): v is Subject {
   return (exact(v, ["kind"]) && v.kind === "self")
     || (exact(v, ["kind", "membershipId"]) && v.kind === "member" && isUuid(v.membershipId))
@@ -93,7 +142,7 @@ export function isAccessInput(v: unknown): v is AccessInput {
 }
 export function isTaskDraft(v: unknown): v is TaskDraft {
   if (!exact(v, ["title", "note", "familyId", "subject", "schedule", "access"]) || !text(v.title, 1, 80) || !text(v.note, 0, 1000)
-    || !nullable(v.familyId, isUuid) || !isSubject(v.subject) || !isOnceSchedule(v.schedule) || !isAccessInput(v.access)) return false;
+    || !nullable(v.familyId, isUuid) || !isSubject(v.subject) || !isSchedule(v.schedule) || !isAccessInput(v.access)) return false;
   return v.familyId !== null || (v.subject.kind === "self" && v.access.viewerMembershipIds.length === 0
     && v.access.helperMembershipIds.length === 0 && v.access.reminderMembershipIds.length === 0);
 }
@@ -122,17 +171,26 @@ export function isOccurrenceDTO(v: unknown): v is OccurrenceDTO {
 }
 export function isTaskDTO(v: unknown): v is TaskDTO {
   return exact(v, ["id", "version", "title", "note", "familyId", "familyName", "ownerUserId", "ownerName", "createdByUserId", "subject", "subjectName", "schedule", "lifecycle", "participants", "myReminder", "capabilities", "createdAt", "updatedAt"])
-    && isUuid(v.id) && integer(v.version,1) && text(v.title,1,80) && text(v.note,0,1000) && familyFields(v) && isUuid(v.ownerUserId) && text(v.ownerName,1,12) && isUuid(v.createdByUserId) && isResolvedSubject(v.subject) && text(v.subjectName,1,12) && isOnceSchedule(v.schedule) && (v.lifecycle === "active" || v.lifecycle === "deleted") && Array.isArray(v.participants) && v.participants.length <= 20 && v.participants.every(isParticipantDTO)
+    && isUuid(v.id) && integer(v.version,1) && text(v.title,1,80) && text(v.note,0,1000) && familyFields(v) && isUuid(v.ownerUserId) && text(v.ownerName,1,12) && isUuid(v.createdByUserId) && isResolvedSubject(v.subject) && text(v.subjectName,1,12) && isSchedule(v.schedule) && (v.lifecycle === "active" || v.lifecycle === "paused" || v.lifecycle === "stopped" || v.lifecycle === "deleted") && Array.isArray(v.participants) && v.participants.length <= 20 && v.participants.every(isParticipantDTO)
     && new Set(v.participants.map(p => p.membershipId.toLowerCase())).size === v.participants.length
     && (v.familyId === null ? v.participants.length === 0 && v.subject.kind === "user" : v.subject.kind !== "user") && isPreference(v.myReminder) && exact(v.capabilities, ["canEdit", "canRecord", "canShare", "canDelete", "canRestore", "canResume"]) && Object.values(v.capabilities).every(b => typeof b === "boolean") && instant(v.createdAt) && instant(v.updatedAt);
 }
 export function pageInput(v: Record<string,unknown>): boolean { return (v.limit === undefined || (integer(v.limit,1) && v.limit <= 50)) && (v.cursor === undefined || (string(v.cursor) && v.cursor.length > 0 && v.cursor.length <= 2048)); }
 export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknown): v is PersonalActionMap[A]["payload"] {
   switch (action) {
+    case "task.previewSchedule": return exact(v, ["schedule"], ["taskId"]) && isSchedule(v.schedule) && (v.taskId === undefined || isUuid(v.taskId));
+    case "occurrence.list": return exact(v, ["taskId", "dateFrom", "dateTo"], ["limit", "cursor"]) && isUuid(v.taskId) && dateWindow(v.dateFrom, v.dateTo) && pageInput(v);
+    case "progress.get": return exact(v, ["familyId", "date"], ["subject", "cursor"]) && isUuid(v.familyId) && localDate(v.date) && pageInput(v)
+      && (v.subject === undefined || isResolvedSubject(v.subject));
+    case "task.batchAddViewers": return exact(v, ["items"]) && Array.isArray(v.items) && v.items.length >= 1 && v.items.length <= 20
+      && v.items.every(item => exact(item, ["taskId", "expectedVersion", "viewerMembershipIds"], ["targetFamilyId"])
+        && isUuid(item.taskId) && integer(item.expectedVersion, 1) && membershipIds(item.viewerMembershipIds)
+        && (item.targetFamilyId === undefined || isUuid(item.targetFamilyId)))
+      && new Set(v.items.map(item => item.taskId.toLowerCase())).size === v.items.length;
     case "task.create": return exact(v,["draft"]) && isPersonalDraft(v.draft);
     case "task.update": return exact(v,["id","expectedVersion","draft"]) && isUuid(v.id) && integer(v.expectedVersion,1) && isPersonalDraft(v.draft);
     case "task.setAccess": return exact(v,["id","expectedVersion","access"]) && isUuid(v.id) && integer(v.expectedVersion,1) && isAccessInput(v.access);
-    case "task.delete": case "task.restore": return exact(v,["id","expectedVersion"]) && isUuid(v.id) && integer(v.expectedVersion,1);
+    case "task.pause": case "task.resume": case "task.stop": case "task.delete": case "task.restore": return exact(v,["id","expectedVersion"]) && isUuid(v.id) && integer(v.expectedVersion,1);
     case "task.get": return exact(v,["id"],["occurrence"]) && isUuid(v.id) && (v.occurrence === undefined || isOccurrenceRef(v.occurrence));
     case "task.list": {
       if (!exact(v,[],["familyId","dateFrom","dateTo","unscheduled","overdue","status","limit","cursor"]) || !pageInput(v) || !(v.familyId === undefined || v.familyId === null || isUuid(v.familyId))) return false;
@@ -151,7 +209,7 @@ export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknow
   }
   return false;
 }
-export function isTaskEvent(v: unknown): v is TaskEventDTO { return exact(v,["id","taskId","occurrenceId","kind","actorName","recordedAt","actualCompletedAt","note"]) && isUuid(v.id) && isUuid(v.taskId) && nullable(v.occurrenceId,isUuid) && string(v.kind) && ["task.created","task.updated","task.deleted","task.restored","task.accessChanged","occurrence.completed","occurrence.skipped","occurrence.undone"].includes(v.kind) && text(v.actorName,1,12) && instant(v.recordedAt) && nullable(v.actualCompletedAt,instant) && text(v.note,0,1000); }
+export function isTaskEvent(v: unknown): v is TaskEventDTO { return exact(v,["id","taskId","occurrenceId","kind","actorName","recordedAt","actualCompletedAt","note"]) && isUuid(v.id) && isUuid(v.taskId) && nullable(v.occurrenceId,isUuid) && string(v.kind) && ["task.created","task.updated","task.deleted","task.restored","task.accessChanged","task.paused","task.resumed","task.stopped","occurrence.completed","occurrence.skipped","occurrence.undone"].includes(v.kind) && text(v.actorName,1,12) && instant(v.recordedAt) && nullable(v.actualCompletedAt,instant) && text(v.note,0,1000); }
 export function isReminder(v: unknown): v is ReminderDTO { return exact(v,["occurrence","title","familyId","familyName","subjectName","scheduledAt","readAt","dismissedAt"]) && isOccurrenceRef(v.occurrence) && text(v.title,1,80) && familyFields(v) && text(v.subjectName,1,12) && instant(v.scheduledAt) && nullable(v.readAt,instant) && nullable(v.dismissedAt,instant); }
 export function opaque(v: unknown): v is string { return string(v) && v.length > 0 && v.length <= 2048; }
 export function isScopeResult(v: unknown): v is ScopeResult {
@@ -173,12 +231,24 @@ export function page(v: unknown, item: (v: unknown) => boolean, aggregate = fals
 }
 export function isPersonalData<A extends PersonalAction>(action: A, v: unknown): v is PersonalActionMap[A]["data"] {
   switch(action) {
+    case "task.previewSchedule": return exact(v, ["now", "nextOccurrences", "excludedPastSlots", "explanation"]) && instant(v.now)
+      && Array.isArray(v.nextOccurrences) && v.nextOccurrences.length <= 3 && v.nextOccurrences.every(isSchedulePreviewSlot)
+      && typeof v.excludedPastSlots === "boolean" && string(v.explanation);
+    case "occurrence.list": return page(v, isOccurrenceDTO);
+    case "progress.get": return exact(v, ["members", "complete", "nextCursor", "asOf"]) && instant(v.asOf) && typeof v.complete === "boolean"
+      && (v.complete ? v.nextCursor === null && Array.isArray(v.members) && v.members.every(isMemberProgress)
+        && new Set(v.members.map(member => subjectKey(member.subject))).size === v.members.length
+        : opaque(v.nextCursor) && v.members === null);
+    case "task.batchAddViewers": return exact(v, ["complete", "results"]) && typeof v.complete === "boolean" && Array.isArray(v.results)
+      && v.results.length >= 1 && v.results.length <= 20 && v.results.every(isBatchItemResult)
+      && new Set(v.results.map(item => item.taskId.toLowerCase())).size === v.results.length
+      && v.complete === v.results.every(item => item.status !== "pending");
     case "task.update":
       if (exact(v,["id","version","updated","accessLost"]) && isUuid(v.id) && integer(v.version,1) && v.updated === true && v.accessLost === true) return true;
       return isPersonalData("task.create", v);
-    case "task.create": return exact(v,["task","nextOccurrences"]) && isTaskDTO(v.task) && Array.isArray(v.nextOccurrences) && v.nextOccurrences.length <= 3 && v.nextOccurrences.every(isOccurrenceDTO);
+    case "task.resume": case "task.create": return exact(v,["task","nextOccurrences"]) && isTaskDTO(v.task) && Array.isArray(v.nextOccurrences) && v.nextOccurrences.length <= 3 && v.nextOccurrences.every(isOccurrenceDTO);
     case "task.get": return exact(v,["task","occurrence"]) && isTaskDTO(v.task) && nullable(v.occurrence,isOccurrenceDTO);
-    case "task.setAccess": return exact(v,["task"]) && isTaskDTO(v.task);
+    case "task.pause": case "task.stop": case "task.setAccess": return exact(v,["task"]) && isTaskDTO(v.task);
     case "task.delete": return exact(v,["id","version","deleted"]) && isUuid(v.id) && integer(v.version,1) && v.deleted === true;
     case "task.restore": return exact(v,["task","removedParticipantCount"]) && isTaskDTO(v.task) && integer(v.removedParticipantCount);
     case "task.list": return page(v, x => exact(x,["task","occurrence"]) && isTaskDTO(x.task) && isOccurrenceDTO(x.occurrence),true);

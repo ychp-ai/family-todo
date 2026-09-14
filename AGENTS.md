@@ -6,7 +6,7 @@
 
 - 家庭待办提醒（`family-todo`），原生微信小程序。
 - 当前已实现身份接入、个人与家庭一次性待办、协作权限、回收站和小程序内提醒，API 已部署到现有云环境。
-- 首版业务规则已整理于 [业务需求](docs/REQUIREMENTS.md)，涵盖多家庭、虚拟人、待办协作及小程序内提醒；家庭协作与虚拟人已实现；周期、批量及订阅提醒尚未实现，真实验证范围见发布记录。
+- 首版业务规则已整理于 [业务需求](docs/REQUIREMENTS.md)，涵盖多家庭、虚拟人、待办协作及小程序内提醒；家庭协作、虚拟人、周期、进度与批量追加已实现；订阅提醒尚未实现，真实验证范围见发布记录。
 - 默认时区 `Asia/Shanghai`，瞬时时间使用 UTC RFC3339 毫秒字符串。
 
 ## 阅读顺序
@@ -22,10 +22,10 @@
 
 - 原生 WXML/WXSS + TypeScript，npm workspaces，CloudBase。
 - 严格 TypeScript，官方 `miniprogram-api-typings`，Vitest，esbuild。
-- V1 使用单一 `api` 云函数；支持健康、身份、19 个家庭 action 和15个事项/提醒 action，具体见 contracts 和当前范围。
+- V1 使用单一 `api` 云函数；支持健康、身份、19 个家庭 action 和22个事项/次数/提醒/进度 action，具体见 contracts 和当前范围。
 - 运行时以 `.nvmrc`、package.json 和云配置为准；调整前核对官方文档。
 - 不默认引入跨端框架、大型状态库、微服务或额外付费资源。
-- 暂不添加定时函数、回调函数或业务 tabBar；现有15个集合与迁移见 database/。
+- 暂不添加定时函数、回调函数或业务 tabBar；存储包含19个集合，实际云端迁移状态见 database/ 和发布记录。
 
 ## 目录与依赖方向
 
@@ -59,7 +59,7 @@ tools/ database/ docs/      工程工具、数据约定和持续维护文档
 - 请求：`{ apiVersion: 1, action, requestId, payload }`；action 采用 `domain.verb`。
 - 成功：`{ ok: true, requestId, data }`。
 - 失败：`{ ok: false, requestId, error: { code, message, retryable } }`。
-- requestId 使用 UUID，调用方重试时保留原 ID；个人与家庭业务写入已有事务内持久化回执；客户端未决请求目前仅在进程内保留。
+- requestId 使用 UUID，调用方重试时保留原 ID；个人与家庭业务写入已有事务内持久化回执；客户端未决业务写按可信账号和环境持久化，邀请接受口令仅在进程内保留；不自动重放。
 - 输入以 unknown 接收，经过运行时校验；不以类型断言替代校验。
 - 新增 action 同步修改 contracts、handler、测试和技术文档。
 - 内部异常映射稳定错误码，不返回 SDK 原文、堆栈、密钥、OpenID 或环境细节。

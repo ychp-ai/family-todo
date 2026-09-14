@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { API_ACTIONS } from "./api";
-import { PERSONAL_ACTIONS, isPersonalData, isPersonalDraft, isPersonalPayload, isTaskDraft } from "./personal";
+import { API_ACTIONS, isApiRequestEnvelope } from "./api";
+import { PERSONAL_ACTIONS, isPersonalData, isPersonalDraft, isPersonalPayload, isTaskDraft, isSchedule } from "./personal";
 import type { PersonalAction, PersonalActionMap, PersonalDraft, TaskDraft, TaskDTO, OccurrenceDTO } from "./personal";
 
 const id = "ac9b6a08-4357-4a19-98bb-f1bffef9c4d0";
@@ -17,6 +17,13 @@ const page = <T>(items: T[]) => ({ items, complete: true, nextCursor: null, asOf
 const aggregate = <T>(items: T[]) => ({ ...page(items), scopes: [{ familyId: null, status: "ok" }, { familyId: id, status: "ok" }], summary: null });
 const reminder = { occurrence: ref, title: task.title, familyId: id, familyName: "我们家", subjectName: "小宝", scheduledAt: now, readAt: null, dismissedAt: null };
 const fixtures = {
+  "task.previewSchedule": { payload: { schedule: { kind: "daily", startDate: "2026-09-11", endDate: null, times: [] }, taskId: id }, data: { now, nextOccurrences: [{ localDate: "2026-09-11", time: null, scheduledAt: null }], excludedPastSlots: false, explanation: "从今天开始" } },
+  "task.pause": { payload: { id, expectedVersion: 1 }, data: { task: { ...task, lifecycle: "paused" } } },
+  "task.resume": { payload: { id, expectedVersion: 1 }, data: { task, nextOccurrences: [occurrence] } },
+  "task.stop": { payload: { id, expectedVersion: 1 }, data: { task: { ...task, lifecycle: "stopped" } } },
+  "occurrence.list": { payload: { taskId: id, dateFrom: "2026-09-01", dateTo: "2026-09-30" }, data: page([occurrence]) },
+  "task.batchAddViewers": { payload: { items: [{ taskId: id, expectedVersion: 1, viewerMembershipIds: [id] }] }, data: { complete: true, results: [{ taskId: id, status: "succeeded", version: 2 }] } },
+  "progress.get": { payload: { familyId: id, date: "2026-09-11" }, data: { complete: true, nextCursor: null, asOf: now, members: [{ subject: task.subject, name: "小宝", completed: 1, pending: 2, skipped: 1, denominator: 3 }] } },
   "task.create": { payload: { draft }, data: { task, nextOccurrences: [occurrence] } },
   "task.get": { payload: { id, occurrence: ref }, data: { task, occurrence } },
   "task.list": { payload: { familyId: id, dateFrom: "2026-09-01", dateTo: "2026-09-30", limit: 50 }, data: { ...aggregate([{ task, occurrence }]), scopes: [{ familyId: id, status: "ok" }] } },
@@ -36,6 +43,8 @@ const fixtures = {
 
 describe("家庭与个人一次性事项契约", () => {
   it.each(PERSONAL_ACTIONS)("接受 %s 并拒绝未知身份字段", action => {
+    expect(API_ACTIONS).toContain(action);
+    expect(isApiRequestEnvelope({ apiVersion: 1, action, requestId: id, payload: fixtures[action].payload })).toBe(true);
     expect(isPersonalPayload(action, fixtures[action].payload)).toBe(true);
     expect(isPersonalData(action, fixtures[action].data)).toBe(true);
     expect(isPersonalPayload(action, { ...fixtures[action].payload, userId: id })).toBe(false);
@@ -49,7 +58,7 @@ describe("家庭与个人一次性事项契约", () => {
     expect(isPersonalPayload("task.create", { draft: personalDraft })).toBe(true);
     expect(isPersonalData("task.create", { task: personalTask, nextOccurrences: [personalOccurrence] })).toBe(true);
     expect(isPersonalData("task.list", { ...page([{ task: personalTask, occurrence: personalOccurrence }]), scopes: [{ familyId: null, status: "ok" }], summary: { completed: 0, pending: 1, skipped: 0, denominator: 1 } })).toBe(true);
-    expect(PERSONAL_ACTIONS).toHaveLength(15);
+    expect(PERSONAL_ACTIONS).toHaveLength(22);
     expect(API_ACTIONS).toContain("task.setAccess");
   });
   it("家庭支持self、真实成员与虚拟人，个人禁止成员权限和跨类型组合", () => {
@@ -80,11 +89,11 @@ describe("家庭与个人一次性事项契约", () => {
     expect(isPersonalData("task.get", { task: { ...task, participants: [participant, participant] }, occurrence: null })).toBe(false);
     expect(isPersonalData("task.get", { task: { ...task, capabilities: { ...task.capabilities, role: "owner" } }, occurrence: null })).toBe(false);
   });
-  it("禁止周期，校验日期和Unicode文本边界", () => {
+  it("校验日期和Unicode文本边界", () => {
     expect(isTaskDraft({ ...draft, title: "😀".repeat(80), note: "😀".repeat(1000) })).toBe(true);
     expect(isTaskDraft({ ...draft, title: "😀".repeat(81) })).toBe(false);
-    for (const schedule of [{ kind: "daily", startDate: "2026-09-11", endDate: null, times: ["18:00"] }, { kind: "once", date: "2026-02-30", time: null }, { kind: "once", date: "1999-12-31", time: null }, { kind: "once", date: "2101-01-01", time: null }, { kind: "once", date: null, time: "18:00" }, { kind: "once", date: "2026-09-11", time: "24:00" }]) expect(isTaskDraft({ ...draft, schedule })).toBe(false);
-    expect(isPersonalData("task.get", { task: { ...task, lifecycle: "paused" }, occurrence: null })).toBe(false);
+    for (const schedule of [{ kind: "once", date: "2026-02-30", time: null }, { kind: "once", date: "1999-12-31", time: null }, { kind: "once", date: "2101-01-01", time: null }, { kind: "once", date: null, time: "18:00" }, { kind: "once", date: "2026-09-11", time: "24:00" }]) expect(isTaskDraft({ ...draft, schedule })).toBe(false);
+    expect(isPersonalData("task.get", { task: { ...task, lifecycle: "paused" }, occurrence: null })).toBe(true);
     expect(isPersonalData("task.get", { task: { ...task, lifecycle: { toString: () => "active" } }, occurrence: null })).toBe(false);
     expect(isPersonalPayload("occurrence.undo", { occurrence: { ...ref, localDate: null }, expectedVersion: 0 })).toBe(false);
     expect(isPersonalPayload("occurrence.undo", { occurrence: { ...ref, localDate: null, slot: "unscheduled" }, expectedVersion: 0 })).toBe(true);
@@ -104,5 +113,46 @@ describe("家庭与个人一次性事项契约", () => {
     expect(isPersonalPayload("task.list", { familyId: null, dateFrom: "2026-09-01", dateTo: "2026-10-01" })).toBe(true);
     for (const payload of [{ limit: 51 }, { cursor: "" }, { dateFrom: "2026-09-01" }, { dateFrom: "2026-09-01", dateTo: "2026-10-02" }, { unscheduled: true, dateFrom: "2026-09-01", dateTo: "2026-09-02" }, { overdue: true, status: "completed" }, { overdue: true, unscheduled: true }, { status: { toString: () => "pending" } }]) expect(isPersonalPayload("task.list", payload)).toBe(false);
     expect(isPersonalPayload("reminder.list", { familyId: id })).toBe(false);
+  });
+});
+
+
+describe("周期、进度和批处理的严格契约", () => {
+  const daily = { kind: "daily", startDate: "2026-09-11", endDate: null, times: ["20:00", "08:00"] };
+  it("支持无时刻、每日和ISO星期；拒绝非法日期、重复及超限时刻", () => {
+    for (const schedule of [daily, { ...daily, times: [] }, { ...daily, endDate: daily.startDate }, { ...daily, kind: "weekly", weekdays: [7, 1] }]) {
+      expect(isSchedule(schedule)).toBe(true);
+      expect(isTaskDraft({ ...draft, schedule })).toBe(true);
+    }
+    for (const changes of [{ startDate: "2026-02-30" }, { startDate: "2101-01-01" }, { endDate: "2026-09-10" }, { times: ["08:00", "08:00"] }, { times: ["24:00"] }, { times: Array.from({length: 7}, (_, i) => `0${i}:00`) }, { kind: "weekly", weekdays: [] }, { kind: "weekly", weekdays: [0] }, { kind: "weekly", weekdays: [1.5] }, { kind: "weekly", weekdays: [8] }, { kind: "weekly", weekdays: [1, 1] }, { weekdays: [1] }, { timeZone: "UTC" }]) expect(isSchedule({ ...daily, ...changes })).toBe(false);
+  });
+  it("预览拒绝伪造instant、额外字段及超过3次，并接受无后续计划", () => {
+    const data = fixtures["task.previewSchedule"].data;
+    expect(isPersonalData("task.previewSchedule", { ...data, nextOccurrences: [] })).toBe(true);
+    expect(isPersonalData("task.previewSchedule", { ...data, nextOccurrences: Array(4).fill(data.nextOccurrences[0]) })).toBe(false);
+    expect(isPersonalData("task.previewSchedule", { ...data, nextOccurrences: [{ localDate: "2026-09-11", time: "18:00", scheduledAt: "2026-09-11T18:00:00.000Z" }] })).toBe(false);
+    expect(isPersonalPayload("task.previewSchedule", { schedule: daily, taskId: null })).toBe(false);
+    expect(isPersonalData("task.get", { task: { ...task, lifecycle: "stopped" }, occurrence: null })).toBe(true);
+  });
+  it("周期窗口必须成对、最多31天；写版本从1开始", () => {
+    for (const payload of [{ taskId: id, dateFrom: "2026-09-01" }, { taskId: id, dateFrom: "2026-09-01", dateTo: "2026-10-02" }, { taskId: id, dateFrom: "2026-09-01", dateTo: "2026-09-01", limit: 0 }]) expect(isPersonalPayload("occurrence.list", payload)).toBe(false);
+    for (const action of ["task.pause", "task.resume", "task.stop"] as const) expect(isPersonalPayload(action, { id, expectedVersion: 0 })).toBe(false);
+  });
+  it("批量拒绝重复task和超限项；整体完成仅在每项终态后成立", () => {
+    const item = { taskId: id, expectedVersion: 1, targetFamilyId: otherId, viewerMembershipIds: [id] };
+    expect(isPersonalPayload("task.batchAddViewers", { items: [item] })).toBe(true);
+    for (const items of [[], [item, { ...item, taskId: id.toUpperCase() }], [{ ...item, viewerMembershipIds: [id, id] }], [{ ...item, targetFamilyId: null }], [{ ...item, helperMembershipIds: [id] }], Array(21).fill(item)]) expect(isPersonalPayload("task.batchAddViewers", { items })).toBe(false);
+    const partial = { complete: false, results: [{ taskId: id, status: "pending" }] };
+    expect(isPersonalData("task.batchAddViewers", partial)).toBe(true);
+    expect(isPersonalData("task.batchAddViewers", { ...partial, complete: true })).toBe(false);
+    const failed = { taskId: id, status: "failed", error: { code: "NOT_FOUND", message: "事项不存在", retryable: false } };
+    expect(isPersonalData("task.batchAddViewers", { complete: true, results: [failed] })).toBe(true);
+    expect(isPersonalData("task.batchAddViewers", { complete: true, results: [{ ...failed, error: { ...failed.error, code: "SDK_SECRET" } }] })).toBe(false);
+  });
+  it("部分进度不发布计数，完整进度满足分母并使用ResolvedSubject", () => {
+    const data = fixtures["progress.get"].data;
+    expect(isPersonalData("progress.get", { ...data, complete: false, members: null, nextCursor: "signed" })).toBe(true);
+    for (const update of [{ complete: false, nextCursor: "signed" }, { members: null }, { nextCursor: "signed" }, { members: [{ ...data.members[0], denominator: 4 }] }]) expect(isPersonalData("progress.get", { ...data, ...update })).toBe(false);
+    expect(isPersonalPayload("progress.get", { familyId: id, date: "2026-09-11", subject: { kind: "user", userId: id } })).toBe(true);
   });
 });

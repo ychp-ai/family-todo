@@ -1,10 +1,10 @@
 # 家庭协作实现
 
-本阶段接入家庭、邀请、真实/无账号成员、退出与拥有权转交、一次性事项协作和多家庭查询。服务端已部署，原生页面已接入；实际验证边界以 [发布记录](CLOUD_DEPLOYMENT.md) 为准。周期、按人进度、批量操作与订阅消息仍未实现。
+本阶段接入家庭、邀请、真实/无账号成员、退出与拥有权转交、一次性事项协作和多家庭查询。服务端已部署，原生页面已接入；实际验证边界以 [发布记录](CLOUD_DEPLOYMENT.md) 为准。现已在同一路由实现周期、按人进度与批量追加；算法和数据边界见 [日程实现](SCHEDULING.md)，原生接入与部署状态见 [当前范围](../SCOPE.md)。订阅消息尚未实现。
 
 ## 入口与权限
 
-单一 api 注册健康、身份、19 个家庭 action 和 15 个事项/提醒 action，共36个。请求、响应与 unknown 校验定义在 contracts 的 family.ts/personal.ts。application 的 FamilyService 编排家庭生命周期，CollaborativeTaskService 将既有个人事项与家庭事项统一路由，CollaborativeLists 合并个人及最多10个家庭。
+单一 api 注册健康、身份、19 个家庭 action 和 22 个事项/次数/提醒/进度 action，共43个。请求、响应与 unknown 校验定义在 contracts 的 family.ts/personal.ts。application 的 FamilyService 编排家庭生命周期，CollaborativeTaskService 将既有个人事项与家庭事项统一路由，CollaborativeLists 合并个人及最多10个家庭；OccurrenceLists 负责周期与一次性次数的有界投影，ProgressService 在完整扫描后汇总可见执行人进度，BatchViewers 按单项事务追加可见人。
 
 家庭拥有人与普通成员只能看到自己有权查看的事项。普通私密事项不会因为家庭角色而向拥有人公开。普通事项的归属人和有效创建管理者可管理；真实执行人必要可见、可记录，不因此自动具有编辑或提醒权限。虚拟事项的归属人随当前家庭拥有人解析，创建者保留管理职责。退出通过历史 membership 的 successor 链继承管理责任，重新加入创建新 membership；称呼不授予权限。
 

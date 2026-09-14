@@ -17,13 +17,13 @@ function occurrence(task: PersonalTask): OccurrenceDTO {
     recordedAt: task.recordedAt, operatorName: task.operatorName, canRecord: task.lifecycle === "active" };
 }
 export function taskDTO(task: PersonalTask): TaskDTO {
-  const active = task.lifecycle === "active";
+  const active = task.lifecycle !== "deleted";
   return { id: task.id, version: task.version, title: task.title, note: task.note, familyId: null, familyName: null,
     ownerUserId: task.ownerUserId, ownerName: task.ownerName, createdByUserId: task.ownerUserId,
     subject: { kind: "user", userId: task.ownerUserId }, subjectName: task.ownerName,
-    schedule: { kind: "once", date: task.date, time: task.time }, lifecycle: task.lifecycle, participants: [],
+    schedule: task.recurrence?.schedule ?? { kind: "once", date: task.date, time: task.time }, lifecycle: task.lifecycle, participants: [],
     myReminder: { enabled: task.reminderEnabled, selfDisabled: task.reminderSelfDisabled, version: task.reminderVersion },
-    capabilities: { canEdit: active, canRecord: active, canShare: active, canDelete: active, canRestore: !active, canResume: false },
+    capabilities: { canEdit: active, canRecord: active, canShare: active, canDelete: active, canRestore: !active, canResume: task.lifecycle === "paused" && !task.recurrence?.stopped },
     createdAt: task.createdAt, updatedAt: task.updatedAt };
 }
 function checkRef(task: PersonalTask, ref: OccurrenceRef): void {
@@ -74,7 +74,7 @@ export class PersonalService {
       if (action === "task.create" && isPersonalPayload(action,payload)) {
         if (scope.personalTaskCount >= 500) throw new ApplicationError("LIMIT_EXCEEDED", "个人事项已达 500 条，请先整理。");
         if (await tx.task(taskId)) throw new Error("Task identifier collision.");
-        const draft = payload.draft;
+        const draft = payload.draft; if (draft.schedule.kind !== "once") invalid("周期事项需要通过日程服务处理。");
         task = { id: taskId, ownerUserId: actor.id, ownerName: actor.displayName, title: draft.title.trim(), note: draft.note,
           version: 1, segmentId, occurrenceId, date: draft.schedule.date, time: draft.schedule.time, lifecycle: "active",
           status: "pending", occurrenceVersion: 0, actualCompletedAt: null, recordedAt: null, operatorName: null,
@@ -84,7 +84,7 @@ export class PersonalService {
         result = {task:taskDTO(task),nextOccurrences:[occurrence(task)]};
       } else if (action === "task.update" && isPersonalPayload(action,payload)) {
         task = await owned(tx,payload.id,actor); version(task.version,payload.expectedVersion);
-        const draft = payload.draft; const scheduleChanged = task.date !== draft.schedule.date || task.time !== draft.schedule.time;
+        const draft = payload.draft; if (draft.schedule.kind !== "once") invalid("周期事项需要通过日程服务处理。"); const scheduleChanged = task.date !== draft.schedule.date || task.time !== draft.schedule.time;
         if (scheduleChanged && task.status !== "pending") invalid("请先撤销完成或跳过记录，再修改日期时间。");
         task.title = draft.title.trim(); task.note = draft.note;
         if (scheduleChanged) { task.date = draft.schedule.date; task.time = draft.schedule.time; task.segmentId = segmentId; task.occurrenceId = occurrenceId; task.occurrenceVersion = 0; task.readAt = null; task.dismissedAt = null; }

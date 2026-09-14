@@ -1,9 +1,11 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { instant, isRecord, isTaskEvent, isUuid } from "@family-todo/contracts";
-import type { CollaborativeTask, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
+import { occurrenceIdentityKey } from "@family-todo/domain";
+import type { HistoricalSubjectAccess, OccurrenceIdentity, PersistedOccurrenceState, PersistedScheduleControl, PersistedScheduleSegment, CollaborativeTask, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
 import { FamilyBudgetExceededError } from "@family-todo/ports";
 import type { FamilyListQuery, FamilyPage, FamilyReceipt, FamilyStore, FamilyTransaction, PersonalQuery } from "@family-todo/ports";
 import { readCollaborativeTask, readFamily, readInvitation, readMembership, readPreference, readReminderReceipt, readSlot, readVirtual } from "./family-codecs";
+import { readOccurrenceState, readScheduleControl, readScheduleSegment } from "./scheduling-codecs";
 import { readDocument } from "./identity-store";
 import type { IdentityTransaction } from "./identity-store";
 import type { WechatIdentity } from "./invocation-identity";
@@ -17,9 +19,15 @@ function reverseTime(value: string): string { return String(9999999999999 - Date
 function ordered(value: { id: string; createdAt: string }, reverse = false): string { return `${reverse ? reverseTime(value.createdAt) : value.createdAt}/${value.id}`; }
 function budgetTransaction(tx: IdentityTransaction, budget: () => void): IdentityTransaction {
   let operations = 0;
+  const cache = new Map<string, unknown>();
   function count() { budget(); if (++operations > 80) throw new Error("Transaction document budget exceeded."); }
   return { collection(name) { return { doc(id) { const doc = tx.collection(name).doc(id); return {
-    async get() { count(); const value = await doc.get(); budget(); return value; }, async set(options) { count(); const value = await doc.set(options); budget(); return value; }
+    async get() {
+      budget(); const key = `${name}/${id}`; if (cache.has(key)) return structuredClone(cache.get(key));
+      count(); const value = await doc.get(); budget(); cache.set(key, structuredClone(value)); return value;
+    }, async set(options) {
+      count(); const value = await doc.set(options); budget(); cache.set(`${name}/${id}`, { data: { ...structuredClone(options.data), _id: id } }); return value;
+    }
   }; } }; } };
 }
 class FamilyTransactionAdapter extends Transaction implements FamilyTransaction {
@@ -32,6 +40,12 @@ class FamilyTransactionAdapter extends Transaction implements FamilyTransaction 
   private async write(collection: string, id: string, value: object): Promise<void> {
     await this.doc(collection, id).set({ data: { ...value, schemaVersion: 1 } });
   }
+  public segment(id: string) { return this.read("schedule_segments", id, readScheduleSegment); }
+  public saveSegment(segment: PersistedScheduleSegment) { return this.write("schedule_segments", segment.id, { ...segment, listOrder: `${segment.effectiveFrom}/${segment.id}` }); }
+  public saveControl(control: PersistedScheduleControl) { return this.write("schedule_controls", control.id, { ...control, controlOrder: `${control.effectiveAt}/${String(control.taskVersion).padStart(16, "0")}` }); }
+  public occurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState); }
+  public saveOccurrenceState(state: PersistedOccurrenceState) { return this.write("occurrence_states", state.id, { ...state, listOrder: `${state.localDate ?? ""}/${state.id}` }); }
+  public saveHistoricalSubjectAccess(access: HistoricalSubjectAccess) { return this.write("historical_subject_access", key(access.taskId, access.membershipId), access); }
   public override task(id: string) { return this.read("tasks", id, readCollaborativeTask); }
   public override saveTask(task: CollaborativeTask) { return this.write("tasks", task.id, { ...taskFields(task), familyId: task.collaboration?.familyId ?? null }); }
   public family(id: string) { return this.read("families", id, readFamily); }
@@ -51,6 +65,15 @@ class FamilyTransactionAdapter extends Transaction implements FamilyTransaction 
   public async addFamilyEvent(event: FamilyEvent) {
     if (readDocument(await this.doc("family_events", event.id).get())) throw new Error("Family event identifier collision.");
     await this.write("family_events", event.id, event);
+  }
+  public async batchReceipt(userId: string, requestId: string, taskId: string): Promise<FamilyReceipt | null> {
+    const value = readDocument(await this.doc("idempotency_receipts", key("batch-child/v1", userId, requestId, taskId)).get());
+    if (!value) return null;
+    if (value.schemaVersion !== 1 || value.kind !== "batch-child/v1" || value.userId !== userId || value.requestId !== requestId || value.taskId !== taskId || typeof value.fingerprint !== "string" || !("result" in value)) bad();
+    return { fingerprint: value.fingerprint, taskId, result: value.result };
+  }
+  public saveBatchReceipt(userId: string, requestId: string, taskId: string, receipt: FamilyReceipt) {
+    return this.write("idempotency_receipts", key("batch-child/v1", userId, requestId, taskId), { ...receipt, kind: "batch-child/v1", userId, requestId, taskId });
   }
   public override async receipt(userId: string, requestId: string): Promise<FamilyReceipt | null> {
     const value = readDocument(await this.doc("idempotency_receipts", key(userId, requestId)).get());
@@ -135,6 +158,30 @@ export class CloudBaseFamilyStore implements FamilyStore {
     });
     return { items, more: rows.length > limit || (limit === 200 && rows.length === 200), after: next };
   }
+  public deriveOccurrenceId(identity: OccurrenceIdentity): string {
+    const namespace = Buffer.from("736cf0e07e51468bb8692a7c9fe41241", "hex");
+    const hash = createHash("sha1").update(namespace).update(occurrenceIdentityKey(identity), "utf8").digest();
+    const bytes = Buffer.from(hash.subarray(0, 16));
+    bytes[6] = ((bytes[6] ?? 0) & 15) | 80; bytes[8] = ((bytes[8] ?? 0) & 63) | 128;
+    const hex = bytes.toString("hex"); return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  public readSegment(id: string) { return this.read("schedule_segments", id, readScheduleSegment); }
+  public segments(taskId: string, after: string | null, limit: number) { return this.page("schedule_segments", { taskId }, after, limit, readScheduleSegment); }
+  public readOccurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState); }
+  public async historicalSubjectAccess(taskId: string, membershipId: string): Promise<boolean> {
+    const value = await this.read("historical_subject_access", key(taskId, membershipId), v => {
+      if (!isRecord(v) || v.taskId !== taskId || v.membershipId !== membershipId) bad(); return true;
+    });
+    return value === true;
+  }
+  public async controlBefore(taskId: string, boundary: string): Promise<PersistedScheduleControl | null> {
+    this.budget();
+    const response = await this.db.collection("schedule_controls").where({ taskId, controlOrder: this.db.command.lt(`${boundary}/`) }).orderBy("controlOrder", "desc").limit(1).get();
+    this.budget(); if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > 1) bad();
+    const row: unknown = response.data[0]; if (row === undefined) return null;
+    if (!isRecord(row) || row.schemaVersion !== 1) bad();
+    const control = readScheduleControl({ ...row, id: row._id }); if (control.taskId !== taskId || control.effectiveAt >= boundary) bad(); return control;
+  }
   public readMember(id: string) { return this.read("memberships", id, readMembership); }
   public readVirtualMember(id: string) { return this.read("virtual_members", id, readVirtual); }
   public readInvitation(id: string) { return this.read("invitations", id, readInvitation); }
@@ -190,15 +237,16 @@ export class CloudBaseFamilyStore implements FamilyStore {
   public async scanTasks(userId: string, familyId: string | null, query: PersonalQuery, asOf: string, after: string | null, limit: number): Promise<FamilyPage<CollaborativeTask>> {
     if (query.mode === "history") throw new Error("Use task event scanner for history.");
     const c = this.db.command;
-    const filter: Record<string, unknown> = { ...(familyId ? { familyId } : { ownerUserId: userId }), lifecycle: query.mode === "recycle" ? "deleted" : "active" };
-    const order = query.mode === "recycle" || query.unscheduled ? "createdOrder" : query.overdueBefore || query.mode === "reminders" ? "recentOrder" : "scheduleOrder";
+    const management = query.mode === "tasks" && !query.dateFrom && !query.dateTo && !query.unscheduled && !query.overdueBefore && !query.status;
+    const filter: Record<string, unknown> = { ...(familyId ? { familyId } : { ownerUserId: userId }), ...(query.mode === "projection" ? {} : { lifecycle: management ? c.in(["active", "paused", "stopped"]) : query.mode === "recycle" ? "deleted" : "active" }) };
+    const order = query.mode === "projection" || management || query.mode === "recycle" || query.unscheduled ? "createdOrder" : query.overdueBefore || query.mode === "reminders" ? "recentOrder" : "scheduleOrder";
     if (query.status) filter.status = query.status;
     if (query.unscheduled) filter.date = null;
     if (query.overdueBefore) filter.date = c.gte("0001-01-01").and(c.lt(query.overdueBefore));
     if (query.dateFrom && query.dateTo) filter.date = c.gte(query.dateFrom).and(c.lte(query.dateTo));
     if (query.mode === "reminders") { filter.status = "pending"; filter.scheduledAt = c.gte("0001-01-01T00:00:00.000Z").and(c.lte(asOf)); }
     const result = await this.page("tasks", filter, after, limit, readCollaborativeTask, order);
-    return { ...result, items: result.items.filter(task => familyId ? task.collaboration?.familyId === familyId : !task.collaboration) };
+    return { ...result, items: result.items.filter(task => (!management || task.lifecycle !== "deleted") && (familyId ? task.collaboration?.familyId === familyId : !task.collaboration)) };
   }
   public fingerprint(value: unknown) { return this.legacy.fingerprint(value); }
   public randomToken() { return randomBytes(16).toString("base64url"); }

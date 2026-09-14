@@ -35,7 +35,7 @@ export type ReminderPreference = {
 };
 export type ReminderReceipt = { occurrenceId: string; userId: string; readAt: string | null; dismissedAt: string | null; version: number };
 /** Includes active members plus only the historical links needed by this operation. */
-export type FamilyContext = { family: Family; members: Membership[]; virtualMembers: VirtualMember[] };
+export type FamilyContext = { family: Family; members: Membership[]; virtualMembers: VirtualMember[]; historicalTaskId?: string; historicalSubjectMembershipIds?: string[] };
 
 export function resolvedMember(context: FamilyContext, membershipId: string): Membership {
   const seen = new Set<string>();
@@ -58,9 +58,10 @@ export function familyTaskRights(task: CollaborativeTask, context: FamilyContext
   const owner = resolvedMember(context, binding.ownerBinding.kind === "familyOwner" ? context.family.ownerMembershipId : binding.ownerBinding.membershipId);
   const creator = resolvedMember(context, binding.creatorMembershipId);
   const subjectId = binding.subject.kind === "member" ? binding.subject.membershipId : null;
-  const requiredIds = new Set([owner.id, creator.id, ...(subjectId === null ? [] : [subjectId])]);
+  const historicalIds = context.historicalTaskId === task.id ? context.historicalSubjectMembershipIds ?? [] : [];
+  const requiredIds = new Set([...historicalIds, owner.id, creator.id, ...(subjectId === null ? [] : [subjectId])]);
   const manager = actor !== undefined && (owner.id === actor.id || creator.id === actor.id);
   const canView = actor !== undefined && (requiredIds.has(actor.id) || binding.viewerMembershipIds.includes(actor.id));
-  const canRecord = canView && task.lifecycle === "active" && (manager || actor.id === subjectId || binding.helperMembershipIds.includes(actor.id));
+  const canRecord = canView && task.lifecycle !== "deleted" && (manager || actor.id === subjectId || binding.helperMembershipIds.includes(actor.id));
   return { actor, owner, creator, requiredIds, manager, canView, canRecord };
 }

@@ -1,7 +1,9 @@
+import type { TaskRecurrence } from "./recurrence-persistence";
 export type PersonalTask = {
   id: string; ownerUserId: string; ownerName: string; title: string; note: string;
   version: number; segmentId: string; occurrenceId: string;
-  date: string | null; time: string | null; lifecycle: "active" | "deleted";
+  date: string | null; time: string | null; lifecycle: "active" | "paused" | "stopped" | "deleted";
+  recurrence?: TaskRecurrence;
   status: "pending" | "completed" | "skipped"; occurrenceVersion: number;
   actualCompletedAt: string | null; recordedAt: string | null; operatorName: string | null;
   reminderEnabled: boolean; reminderSelfDisabled: boolean; reminderVersion: number;

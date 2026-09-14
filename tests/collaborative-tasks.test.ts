@@ -28,7 +28,7 @@ async function call<K extends PersonalAction>(actor: Actor, action: K, payload: 
   const result = await service.execute(action, payload, requestId);
   if (!isPersonalData(action, result)) throw new Error("Invalid response"); return result;
 }
-function draft(familyId: string | null): TaskDraft { return { title: "家庭安排", note: "", familyId, subject: { kind: "self" }, schedule: { kind: "once", date: "2026-09-11", time: "20:00" }, access: { viewerMembershipIds: [], helperMembershipIds: [], reminderMembershipIds: [], remindMe: true } }; }
+function draft(familyId: string | null): TaskDraft & { schedule: { kind: "once"; date: string; time: string } } { return { title: "家庭安排", note: "", familyId, subject: { kind: "self" }, schedule: { kind: "once", date: "2026-09-11", time: "20:00" }, access: { viewerMembershipIds: [], helperMembershipIds: [], reminderMembershipIds: [], remindMe: true } }; }
 function access(task: TaskDTO) { return { viewerMembershipIds: task.participants.filter(p => p.canView && !p.requiredViewer).map(p => p.membershipId), helperMembershipIds: task.participants.filter(p => p.canHelp).map(p => p.membershipId), reminderMembershipIds: task.participants.filter(p => p.receivesReminder).map(p => p.membershipId), remindMe: task.myReminder.enabled }; }
 
 describe("collaborative once tasks", () => {
@@ -224,4 +224,53 @@ describe("collaborative once tasks", () => {
     expect(created.task.participants).toHaveLength(20);
     expect(created.task.participants.every(member => member.receivesReminder)).toBe(true);
   });
+});
+
+describe("recurring family permissions", () => {
+  it("keeps historical real subject viewing and recording without granting future-subject recording", async () => {
+    const f = await setup(); f.creator.now = "2026-09-11T22:30:00.000Z"; f.viewer.now = f.creator.now; f.owner.now = f.creator.now;
+    const d: TaskDraft = { ...draft(f.family.id), subject: { kind: "member", membershipId: f.viewer.member.id }, schedule: { kind: "daily", startDate: "2026-09-12", endDate: null, times: ["08:00", "20:00"] } };
+    const created = await call(f.creator, "task.create", { draft: d }); const morning = created.nextOccurrences[0]; if (!morning) throw new Error("Missing morning");
+    f.creator.now = "2026-09-12T10:30:00.000Z"; f.viewer.now = f.creator.now; f.owner.now = f.creator.now;
+    const updated = await call(f.creator, "task.update", { id: created.task.id, expectedVersion: 1, draft: { ...d, subject: { kind: "member", membershipId: f.owner.member.id } } });
+    expect("task" in updated && updated.task.participants.find(p => p.membershipId === f.viewer.member.id)?.requiredViewer).toBe(true);
+    const list = await call(f.viewer, "occurrence.list", { taskId: created.task.id, dateFrom: "2026-09-12", dateTo: "2026-09-12" });
+    expect(list.items.map(o => [o.slot, o.subjectName, o.canRecord])).toEqual([["08:00", f.viewer.member.name, true], ["20:00", f.owner.member.name, false]]);
+    const oldRef = { id: morning.id, taskId: morning.taskId, segmentId: morning.segmentId, localDate: morning.localDate, slot: morning.slot };
+    await expect(call(f.owner, "occurrence.record", { occurrence: oldRef, expectedVersion: 0, status: "completed" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const requestId = randomUUID(); const payload = { occurrence: oldRef, expectedVersion: 0, status: "completed" as const };
+    const recorded = await call(f.viewer, "occurrence.record", payload, requestId); expect(recorded.occurrence.operatorName).toBe(f.viewer.member.name);
+    await f.creator.store().transaction(async tx => {
+      const family = await tx.family(f.family.id); if (!family) throw new Error("Missing family");
+      await tx.saveMember({ ...f.viewer.member, status: "left", successorMembershipId: f.creator.member.id, version: 2 });
+      await tx.saveSlot({ familyId: f.family.id, userId: f.viewer.user.id, activeMembershipId: null });
+      await tx.saveFamily({ ...family, version: family.version + 1, memberCount: 2 });
+    });
+    await expect(call(f.viewer, "occurrence.record", payload, requestId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  it("includes paused and stopped tasks in management scans and permits creator-successor management", async () => {
+    const f = await setup(); const d: TaskDraft = { ...draft(f.family.id), schedule: { kind: "daily", startDate: "2026-09-12", endDate: null, times: ["08:00"] } };
+    const a = await call(f.creator, "task.create", { draft: d }); const b = await call(f.creator, "task.create", { draft: d });
+    await call(f.creator, "task.pause", { id: a.task.id, expectedVersion: 1 }); await call(f.creator, "task.stop", { id: b.task.id, expectedVersion: 1 });
+    expect((await f.creator.store().scanTasks(f.creator.user.id, f.family.id, { mode: "tasks" }, f.creator.now, null, 20)).items.map(t => t.lifecycle).sort()).toEqual(["paused", "stopped"]);
+    await f.owner.store().transaction(async tx => {
+      const family = await tx.family(f.family.id); if (!family) throw new Error("Missing family");
+      await tx.saveMember({ ...f.creator.member, status: "left", successorMembershipId: f.viewer.member.id, version: 2 });
+      await tx.saveSlot({ familyId: f.family.id, userId: f.creator.user.id, activeMembershipId: null });
+      await tx.saveFamily({ ...family, version: family.version + 1, memberCount: 2 });
+    });
+    const successor = await call(f.viewer, "task.get", { id: a.task.id }); expect(successor.task.capabilities.canEdit).toBe(true);
+    await call(f.viewer, "task.resume", { id: a.task.id, expectedVersion: 2 });
+  });
+});
+
+it("only a paused series manager receives canResume; subject and viewer cannot resume", async () => {
+  const f = await setup(); const d: TaskDraft = { ...draft(f.family.id), subject: { kind: "member", membershipId: f.viewer.member.id }, schedule: { kind: "daily", startDate: "2026-09-12", endDate: null, times: ["08:00"] }, access: { ...draft(f.family.id).access, viewerMembershipIds: [f.owner.member.id] } };
+  const created = await call(f.creator, "task.create", { draft: d }); const paused = await call(f.creator, "task.pause", { id: created.task.id, expectedVersion: 1 });
+  expect(paused.task.capabilities.canResume).toBe(true);
+  for (const [actor, manager] of [[f.creator, true], [f.viewer, false], [f.owner, false]] as const) {
+    const viewed = await call(actor, "task.get", { id: created.task.id });
+    expect(viewed.task.capabilities).toMatchObject({ canResume: manager, canEdit: manager, canDelete: manager });
+    if (!manager) await expect(call(actor, "task.resume", { id: created.task.id, expectedVersion: paused.task.version })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  }
 });

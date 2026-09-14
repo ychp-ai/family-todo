@@ -32,7 +32,7 @@ describe("CloudBase family adapter (local transactional simulator)", () => {
     const f = await seededFamily(); f.database.failCollection = "idempotency_receipts";
     await expect(f.store().transaction(async tx => { await tx.saveFamily({ ...f.family, name: "未提交" }); await tx.saveReceipt(f.user.id, randomUUID(), { taskId: f.family.id, fingerprint: "x", result: {} }); })).rejects.toThrow();
     expect((await f.store().context(f.family.id))?.family.name).toBe("我们的家");
-    await expect(f.store().transaction(async tx => { for (let index = 0; index < 81; index++) await tx.family(f.family.id); })).rejects.toThrow("budget");
+    await expect(f.store().transaction(async tx => { for (let index = 0; index < 81; index++) await tx.family(randomUUID()); })).rejects.toThrow("budget");
   });
   it("authenticates encrypted invitation receipts and opaque session signatures", async () => {
     const f = await seededFamily(); const store = f.store(); const token = store.randomToken();

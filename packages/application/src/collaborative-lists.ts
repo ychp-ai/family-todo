@@ -6,6 +6,7 @@ import type { Clock, FamilyStore, PersonalQuery } from "@family-todo/ports";
 import { ApplicationError } from "./errors";
 import { taskDTO as personalTaskDTO } from "./personal";
 import { familyTaskDTO, occurrenceDTO, taskContext, taskMissing, verifyContext } from "./task-context";
+import { nextProjected, overlayOccurrence, projectedDTO } from "./recurrence-projection";
 
 type ListAction = "task.list" | "task.recycleList" | "reminder.list";
 type Stream = { familyId: string | null; version: number; after: string | null; headId: string | null; done: boolean; failed: boolean };
@@ -75,6 +76,7 @@ export class CollaborativeLists {
     const cache = new Map<string, { task: CollaborativeTask; context: FamilyContext | null }>();
     async function unavailable(): Promise<never> { throw new ApplicationError("TEMPORARILY_UNAVAILABLE", "部分家庭暂时无法加载，请稍后重试。", true); }
     const prepare = async (task: CollaborativeTask, scope: Stream) => {
+      if (query.unscheduled && task.recurrence && (task.recurrence.schedule.kind !== "once" || task.recurrence.schedule.date !== null)) return false;
       if (scope.familyId === null) {
         if (task.collaboration || task.ownerUserId !== start.actor.id) taskMissing();
         if (query.mode === "reminders" && (!task.reminderEnabled || task.reminderSelfDisabled || (!query.includeDismissed && task.dismissedAt !== null))) return false;
@@ -123,7 +125,18 @@ export class CollaborativeLists {
       const { task, context } = entry; let dto: TaskDTO;
       if (context) dto = await this.store.transaction(async tx => { await verifyContext(tx, context, start.actor.id); return familyTaskDTO(tx, task, context, start.actor.id); });
       else dto = personalTaskDTO(task);
-      if (action === "task.list") items.push({ task: dto, occurrence: occurrenceDTO(task, dto.capabilities.canRecord) });
+      if (action === "task.list") {
+        let occurrence = occurrenceDTO(task, dto.capabilities.canRecord);
+        if (task.recurrence) {
+          const segment = await this.store.readSegment(task.recurrence.currentSegmentId);
+          if (!segment || segment.taskId !== task.id) expired();
+          const candidate = nextProjected(task, segment, checkpoint.asOf, 1)[0];
+          const projected = candidate ? await overlayOccurrence(this.store, task, candidate) : null;
+          if (!projected) expired();
+          occurrence = projectedDTO(this.store, task, context, start.actor.id, projected);
+        }
+        items.push({ task: dto, occurrence });
+      }
       else if (action === "task.recycleList") items.push(dto);
       else {
         const receipt = context ? await this.store.transaction(tx => tx.reminderReceipt(task.occurrenceId, start.actor.id)) : { readAt: task.readAt, dismissedAt: task.dismissedAt };
@@ -147,22 +160,22 @@ export class CollaborativeLists {
     const result = action === "task.recycleList" ? base : { ...base, scopes: checkpoint.streams.map(scope => ({ familyId: scope.familyId, status: scope.failed ? "failed" : scope.done && !scope.headId ? "ok" : "partial", ...(scope.failed ? { errorCode: "TEMPORARILY_UNAVAILABLE" } : {}) })), summary: complete && checkpoint.streams.every(scope => !scope.failed) ? checkpoint.summary : null };
     if (!isPersonalData(action, result)) throw new Error("Invalid collaborative list result."); return result;
   }
-  public async history(payload: PersonalActionMap["task.history"]["payload"], context: FamilyContext): Promise<unknown> {
+  public async history(payload: PersonalActionMap["task.history"]["payload"], context: FamilyContext | null): Promise<unknown> {
     const now = this.clock.now().toISOString();
     const actor = await this.store.transaction(async tx => {
-      const user = await tx.actor(); await verifyContext(tx, context, user.id); const task = await tx.task(payload.taskId);
-      if (!task || task.lifecycle !== "active" || !familyTaskRights(task, context, user.id).canView) taskMissing(); return user;
+      const user = await tx.actor(); if (context) await verifyContext(tx, context, user.id); const task = await tx.task(payload.taskId);
+      if (!task || task.lifecycle === "deleted" || (context ? !familyTaskRights(task, context, user.id).canView : Boolean(task.collaboration) || task.ownerUserId !== user.id)) taskMissing(); return { ...user, revision: (await tx.scope(user.id)).revision };
     });
     const fingerprint = this.store.fingerprint({ action: "task.history", payload: { ...payload, cursor: undefined } });
     let after: string | null = null; let asOf = now; let expiresAt = new Date(Date.parse(now) + 15 * 60000).toISOString();
     if (payload.cursor) {
       const saved = await this.store.readSession(payload.cursor);
-      if (!saved || saved.actorId !== actor.id || saved.fingerprint !== fingerprint || saved.familyVersion !== context.family.version || saved.familyId !== context.family.id || !instant(saved.asOf) || !instant(saved.expiresAt) || saved.expiresAt <= now || !nullableString(saved.after)) expired();
+      if (!saved || saved.actorId !== actor.id || saved.fingerprint !== fingerprint || saved.familyVersion !== (context?.family.version ?? null) || saved.familyId !== (context?.family.id ?? null) || saved.revision !== actor.revision || !instant(saved.asOf) || !instant(saved.expiresAt) || saved.expiresAt <= now || !nullableString(saved.after)) expired();
       after = saved.after; asOf = saved.asOf; expiresAt = saved.expiresAt;
     }
     const page = await this.store.events(payload.taskId, after, payload.limit ?? 20);
-    await this.store.transaction(async tx => { await verifyContext(tx, context, actor.id); });
-    const nextCursor = page.more ? await this.store.saveSession({ actorId: actor.id, fingerprint, familyVersion: context.family.version, familyId: context.family.id, after: page.after, asOf, expiresAt }) : null;
+    await this.store.transaction(async tx => { if (context) await verifyContext(tx, context, actor.id); if ((await tx.scope(actor.id)).revision !== actor.revision) expired(); });
+    const nextCursor = page.more ? await this.store.saveSession({ actorId: actor.id, fingerprint, familyVersion: context?.family.version ?? null, familyId: context?.family.id ?? null, revision: actor.revision, after: page.after, asOf, expiresAt }) : null;
     return { items: page.items, nextCursor, complete: !page.more, asOf };
   }
 }

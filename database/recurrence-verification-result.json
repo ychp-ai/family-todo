@@ -1,0 +1,461 @@
+{
+  "environment": "family-todo-d3g28fx1c314f8638",
+  "verifiedAt": "2026-09-14T01:45:55.495Z",
+  "deployment": {
+    "Timeout": 10,
+    "MemorySize": 256,
+    "Runtime": "Nodejs20.19",
+    "Handler": "index.main",
+    "CodeSize": 1697887,
+    "FunctionName": "api",
+    "InstallDependency": "FALSE",
+    "Status": "Active",
+    "FunctionId": "lam-d4wj80fb",
+    "ModTime": "2026-09-14 09:44:27",
+    "AddTime": "2026-09-11 17:20:36",
+    "Type": "Event",
+    "RequestId": "21d5e018-a030-45b6-8091-4b26bc95f8a6"
+  },
+  "health": {
+    "ok": true,
+    "now": "2026-09-14T01:44:51.374Z",
+    "cloudRequestId": "259df703-93e5-406c-a060-4ea710a58d76"
+  },
+  "localCheck": {
+    "node": "20.19.0",
+    "testFiles": 30,
+    "tests": 368,
+    "passed": true,
+    "apiBundleSha256": "66bf23027a26def1462e4b7ecee8439084dc59003cdd90e4e60bbaf2828486bf"
+  },
+  "migrationRepeat": {
+    "completedAt": "2026-09-14T01:44:06.747Z",
+    "createTableCount": 0,
+    "updateTableCount": 0,
+    "verifiedCollections": 5
+  },
+  "cloudFlow": {
+    "startedAt": "2026-09-14T01:45:01.482Z",
+    "completedAt": "2026-09-14T01:45:55.495Z",
+    "fixtureTaskIds": [
+      "8136d562-c06c-4f28-9c84-ef53febe2c0b",
+      "a42fba61-efb8-4315-b0f2-e5889edc4ce0",
+      "2b2cebae-86c4-4a9c-93e7-300057cf70dd"
+    ],
+    "fixturesMovedToRecycle": true,
+    "steps": [
+      {
+        "name": "每日无时刻与每周多时刻服务端预览",
+        "at": "2026-09-14T01:45:06.944Z"
+      },
+      {
+        "name": "次数分页、未来拒绝、指定次数读取、记录重放及撤销",
+        "at": "2026-09-14T01:45:17.214Z"
+      },
+      {
+        "name": "暂停与继续不补当天、停止后删除恢复不可重启",
+        "at": "2026-09-14T01:45:31.035Z"
+      },
+      {
+        "name": "真实家庭进度按次数变化且分母正确",
+        "at": "2026-09-14T01:45:42.648Z"
+      },
+      {
+        "name": "两项批量个人归属与家庭追加一次完成、同 requestId 回执重放，保留提醒与代记",
+        "at": "2026-09-14T01:45:51.201Z"
+      },
+      {
+        "name": "本次新增验收事项全部移入回收站",
+        "at": "2026-09-14T01:45:55.494Z"
+      }
+    ],
+    "calls": [
+      {
+        "action": "identity.ensure",
+        "requestId": "48f205f0-4953-4cd3-a5c5-5853bbe8aa3b",
+        "cloudRequestId": "eb2e2688-11f9-4f29-8237-82b2af87f1f6",
+        "elapsedMs": 2827,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "system.health",
+        "requestId": "f1b83660-2223-49ff-b61f-f5d0cb61b88d",
+        "cloudRequestId": "7f5f9202-6c2e-4694-ba4f-766795fc0464",
+        "elapsedMs": 333,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "family.get",
+        "requestId": "28b37c37-b3d2-4717-bdbb-015a9fae9935",
+        "cloudRequestId": "9a5ce09a-2f99-4f87-a50f-6b733749a494",
+        "elapsedMs": 1495,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.previewSchedule",
+        "requestId": "5c8b1847-79c9-4dbf-8212-42cc64d225c5",
+        "cloudRequestId": "05fae082-a38f-44b7-ab8c-413d8a949b4d",
+        "elapsedMs": 462,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.previewSchedule",
+        "requestId": "54156e05-fe4a-4718-9d42-5d2694af9bb9",
+        "cloudRequestId": "c4dd43d6-2215-49f8-8137-e8f59affdef9",
+        "elapsedMs": 340,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.create",
+        "requestId": "d335b07f-5020-4531-9902-53a19661a1dd",
+        "cloudRequestId": "a6b71934-d8ae-48fb-bdc5-8a4be490a85d",
+        "elapsedMs": 1684,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.list",
+        "requestId": "595b678c-f76a-4c68-8f17-eadcab7c8637",
+        "cloudRequestId": "1328bac6-d526-4ef3-a2ea-13f66d69971d",
+        "elapsedMs": 1317,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.list",
+        "requestId": "34c615ee-8051-452c-9e2b-a58c74d973c3",
+        "cloudRequestId": "4cd77ef3-33ab-42a3-8d10-3aee033e81a8",
+        "elapsedMs": 1140,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.record",
+        "requestId": "21a3c509-6f64-4adc-993b-e092260da90f",
+        "cloudRequestId": "11adda59-2bdd-4b34-9863-fb08bd8e4745",
+        "elapsedMs": 1318,
+        "ok": false,
+        "errorCode": "INVALID_STATE"
+      },
+      {
+        "action": "occurrence.record",
+        "requestId": "667f56b3-bd2d-4958-806f-cbcd70601a41",
+        "cloudRequestId": "3e619162-6931-4e57-939e-1fc43ba27354",
+        "elapsedMs": 1488,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.record",
+        "requestId": "667f56b3-bd2d-4958-806f-cbcd70601a41",
+        "cloudRequestId": "f7415500-113e-4bb3-a32d-104a4531d7c8",
+        "elapsedMs": 749,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "98721551-de67-48a0-a8b3-fe0e8f8c3813",
+        "cloudRequestId": "ff46e69f-e664-4068-9b67-3c8fe6e72e67",
+        "elapsedMs": 1090,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.undo",
+        "requestId": "8595e487-796b-41ad-ab3f-84ddd4d41ee2",
+        "cloudRequestId": "120f2a3d-37eb-4c0c-ae55-d514c277dfc9",
+        "elapsedMs": 1472,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "e8d98891-ac73-47e6-9977-ab84dc9b4e89",
+        "cloudRequestId": "a214f32a-f24c-42d2-a2ac-3ce2c1e6c5bd",
+        "elapsedMs": 1016,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.pause",
+        "requestId": "f68a8a48-5602-457c-bb9a-a1adfb9dfa57",
+        "cloudRequestId": "4c366889-d74f-42d1-8da3-e00480a8af4a",
+        "elapsedMs": 1212,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.list",
+        "requestId": "03c64edc-9f7f-46aa-a9a3-51d4e4e8ebf2",
+        "cloudRequestId": "b6cc7dec-a5cd-4dc0-9425-b9bbb1bec5f1",
+        "elapsedMs": 1175,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "386599e7-d54c-4ad9-815c-e6c35f7ce559",
+        "cloudRequestId": "96c7b899-6eed-4fc7-bba8-062467474984",
+        "elapsedMs": 648,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.resume",
+        "requestId": "b45ed9f3-06cc-487c-8a4e-4140d1d65990",
+        "cloudRequestId": "5e53855f-1466-458c-ac96-d06bde4bd08e",
+        "elapsedMs": 1406,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.list",
+        "requestId": "a5ff0b71-8205-47f0-b4d6-6005d4a50e7f",
+        "cloudRequestId": "39a1694e-cca9-4237-9173-7b138d8ec052",
+        "elapsedMs": 1083,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "0d56d635-d48a-4c6d-850d-7145899222f4",
+        "cloudRequestId": "45d57758-8d3c-43b3-955c-eda563c3f7a8",
+        "elapsedMs": 810,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.stop",
+        "requestId": "64ca544e-6059-4fe1-97e4-d1757e321ee4",
+        "cloudRequestId": "4e534977-4f37-40d8-beea-0431c5ab3aaf",
+        "elapsedMs": 1230,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "01869a5b-cdb9-4ec2-91bf-3df568ed743b",
+        "cloudRequestId": "d96b4c41-7173-4a33-a329-6988c4921b1a",
+        "elapsedMs": 701,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.delete",
+        "requestId": "0a22ab2a-764d-4f93-a467-2c5849139861",
+        "cloudRequestId": "73707928-b6c2-46cb-968a-e1775f15ee79",
+        "elapsedMs": 1215,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.restore",
+        "requestId": "74b4214a-9762-4345-a724-afd095c9b6a1",
+        "cloudRequestId": "4b8b8df5-dd65-412f-ad1b-c47173dac88c",
+        "elapsedMs": 1270,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "6b2b45cb-053a-43ce-8e98-8ae381d62d43",
+        "cloudRequestId": "e4f24f34-bcd1-4410-906d-c3a8eeee1d73",
+        "elapsedMs": 687,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.delete",
+        "requestId": "6a533bb4-a2c8-4ddf-816e-5f4945f9f17b",
+        "cloudRequestId": "402f1cbf-ce35-4ed4-8e60-d20a6bae0576",
+        "elapsedMs": 1355,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.create",
+        "requestId": "d2f2f92b-5d17-4f4a-b417-e06ef77b97bf",
+        "cloudRequestId": "a3b99b89-353d-44f7-b210-da4272793389",
+        "elapsedMs": 1831,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "progress.get",
+        "requestId": "8f589e16-ca0f-45d0-b72c-653b0e9b6ed4",
+        "cloudRequestId": "7970dddd-d241-426d-862d-80bf11b765e9",
+        "elapsedMs": 2188,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "progress.get",
+        "requestId": "0d47cb5b-7aae-4aba-9f0d-e956e39d2206",
+        "cloudRequestId": "6a8c4f45-191a-401b-935e-978a07629992",
+        "elapsedMs": 1076,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.list",
+        "requestId": "0867ced1-8bb0-42a1-a07c-5b4ec2200358",
+        "cloudRequestId": "4e6df724-bea3-4ffc-bcff-19b15c867e8e",
+        "elapsedMs": 1648,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "occurrence.record",
+        "requestId": "ffd1eb5d-810d-47d6-8dd7-adb276fb6577",
+        "cloudRequestId": "19dd7b85-5f7e-4ffe-bdf2-54a7feec315b",
+        "elapsedMs": 1534,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "progress.get",
+        "requestId": "ef2a5664-38c1-463d-9716-80372c8a9931",
+        "cloudRequestId": "64745e4e-5801-442d-9a3e-1976bf8be833",
+        "elapsedMs": 2249,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "progress.get",
+        "requestId": "70dbce2a-a070-489d-8bc6-f5359af561d0",
+        "cloudRequestId": "9e7c165b-89a2-4711-acb8-e07dab80041f",
+        "elapsedMs": 1079,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.create",
+        "requestId": "84a2a00d-e084-4c39-82f0-445061588bee",
+        "cloudRequestId": "29ee154a-d515-4f5e-8c38-1485c8a69e2d",
+        "elapsedMs": 1083,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "965e3380-c8d3-487a-a2d2-3ba8eaf27370",
+        "cloudRequestId": "334fe295-2d0b-4ed4-abf4-f187193f659a",
+        "elapsedMs": 516,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "339e8e88-4c57-4c79-b64c-363b2647323c",
+        "cloudRequestId": "815fc584-d790-4157-a55a-0562eeeb7bb4",
+        "elapsedMs": 1168,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.batchAddViewers",
+        "requestId": "56158106-c229-4e35-8f44-dc5c8346101a",
+        "cloudRequestId": "92c92969-a0c6-4522-b2f6-4ed3b5a07162",
+        "elapsedMs": 2327,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.batchAddViewers",
+        "requestId": "56158106-c229-4e35-8f44-dc5c8346101a",
+        "cloudRequestId": "9bf5c7e0-b529-41b3-b16b-abc405e5ccde",
+        "elapsedMs": 1586,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "83dd8b2a-6d9b-40db-a424-d45b65cc4b2b",
+        "cloudRequestId": "5fefc405-864a-460b-b246-1e4fb0bba031",
+        "elapsedMs": 666,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "33c990f9-b613-4901-8f75-cb854e26b094",
+        "cloudRequestId": "5a8c6a8c-1115-4505-9827-c7e401aa24eb",
+        "elapsedMs": 1197,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "b4d93f1d-45c7-47a1-a86a-940a5c14d44a",
+        "cloudRequestId": "5935f247-354e-4697-ae26-800eb047b7a7",
+        "elapsedMs": 747,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.delete",
+        "requestId": "361025e2-15b0-493c-af26-0b214ae3ba2f",
+        "cloudRequestId": "e38b91e4-174c-4637-bab9-6d8b3c8dad33",
+        "elapsedMs": 1077,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.get",
+        "requestId": "fb6f10ce-661b-4658-89fa-65c726adcecf",
+        "cloudRequestId": "b4b0fd43-e828-4071-bc74-a8c70c8fb6a9",
+        "elapsedMs": 1099,
+        "ok": true,
+        "errorCode": null
+      },
+      {
+        "action": "task.delete",
+        "requestId": "4fd8e71e-8b72-4012-b255-49639d408dbe",
+        "cloudRequestId": "625096d2-20e1-4eb5-9756-7d929d26fb74",
+        "elapsedMs": 1362,
+        "ok": true,
+        "errorCode": null
+      }
+    ]
+  },
+  "clientReadAcl": [
+    {
+      "collection": "schedule_segments",
+      "denied": true
+    },
+    {
+      "collection": "schedule_controls",
+      "denied": true
+    },
+    {
+      "collection": "occurrence_states",
+      "denied": true
+    },
+    {
+      "collection": "historical_subject_access",
+      "denied": true
+    },
+    {
+      "collection": "tasks",
+      "denied": true
+    }
+  ],
+  "nativeAcceptance": {
+    "status": "blocked",
+    "reason": "开发者工具页面自动化超时；CUA 检测到 Mac 锁定且无法自动解锁，等待手动解锁。",
+    "date": "2026-09-14"
+  },
+  "limits": [
+    "真实业务为一个微信账号的自有验收家庭；未进行双真实账号/真机验证",
+    "本次两项批次首轮即完成；partial 续办、超时和延迟授权由本地行为测试覆盖",
+    "客户端 ACL 实测为直接读取被拒绝；写权限来自 ADMINONLY 管理面核验，未额外执行客户端写入",
+    "44 次调用端到端耗时 333–2827ms；不是目标容量或 p95 基准",
+    "原生周期页面验收仍待解锁；不将 Node Page 模拟或云 API 调用标为原生验收"
+  ]
+}
