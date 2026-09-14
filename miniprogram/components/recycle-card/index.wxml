@@ -1,0 +1,2 @@
+<view class="flow-card"><text class="h3">{{item.title}}</text><text class="paragraph">{{item.familyName || "个人事项"}} · {{item.subjectName}}
+整个事项已删除，历史保留。</text><view class="flow-notice">恢复后保留原来的安排和完成记录。</view><button class="primary-button full-width" data-id="{{item.id}}" bindtap="restore" disabled="{{writing || !item.capabilities.canRestore}}">恢复事项</button></view>

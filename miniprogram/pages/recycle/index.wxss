@@ -1,1 +1,3 @@
 /* 复用完整流程设计稿的 flow-card 和 flow-notice。 */
+
+.recycle-filter{display:block;margin-bottom:16px}

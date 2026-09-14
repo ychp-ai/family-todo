@@ -30,7 +30,7 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 
 若模拟器提示「app.json: 在项目根目录未找到 app.json」，先确认 `project.config.json` 的 `miniprogramRoot` 为 `miniprogram/`，且 `miniprogram/app.json` 存在。配置正确但重新编译仍报错时，使用菜单「项目 → 重新打开此项目」让工具重新读取目录配置；无需把 app.json 复制到仓库根目录。2026-09-11 在开发者工具 RC 2.02.2608031 中通过重开项目恢复了首页启动。
 
-首页通过会话读取身份和业务数据，没有启动订阅弹窗或底部导航。page-state 支持 loading/empty/error/ready；错误态按钮发出 retry 事件，ready 展示 slot。
+首页通过会话读取身份和业务数据，没有启动订阅弹窗；底部提供「首页 / 家庭」原生导航。page-state 支持 loading/empty/error/ready；错误态按钮发出 retry 事件，ready 展示 slot。
 
 App 中已装配 `globalData.session`，仅创建协调器，不在启动时调用身份接口。首页通过会话加载真实身份与事项；家庭配置和实际部署状态见 [家庭协作实现](technical/FAMILY.md) 与发布记录。
 

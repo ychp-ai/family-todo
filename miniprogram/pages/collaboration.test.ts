@@ -1,3 +1,4 @@
+import { applyNativeData } from "../../tests/helpers/native-data";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AggregatePage, FamilySummary, TaskListItem } from "@family-todo/contracts";
 
@@ -7,9 +8,9 @@ beforeEach(() => {
   vi.resetModules();
   vi.stubGlobal("Page", (definition: NativePage) => {
     captured = definition;
-    definition.setData = patch => Object.assign(definition.data, patch);
+    definition.setData = patch => applyNativeData(definition.data, patch);
   });
-  vi.stubGlobal("wx", { reLaunch: vi.fn(), showToast: vi.fn(), navigateTo: vi.fn(), showModal: vi.fn().mockResolvedValue({ confirm: true }) });
+  vi.stubGlobal("wx", { switchTab: vi.fn(), reLaunch: vi.fn(), showToast: vi.fn(), navigateTo: vi.fn(), showModal: vi.fn().mockResolvedValue({ confirm: true }) });
 });
 function page(): NativePage { if (!captured) throw new Error("Page was not registered"); return captured; }
 async function invoke(name: string, ...args: unknown[]): Promise<void> {
@@ -19,6 +20,30 @@ async function invoke(name: string, ...args: unknown[]): Promise<void> {
 }
 
 describe("原生协作页面的授权边界", () => {
+  it("家庭 tab 展示会话昵称，丢弃已不属于本人的目标家庭", async () => {
+    await import("./families/index");
+    vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ displayName: "小明" }) } } }));
+    const families = await import("../services/family-api");
+    vi.spyOn(families, "listFamilies").mockResolvedValue({ items: [], last: { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } });
+    const read = vi.spyOn(families.familyApi, "read");
+    const navigation = await import("../services/family-navigation");
+    navigation.openFamilyTab("inaccessible-family");
+    await invoke("onShow");
+    await vi.waitFor(() => expect(page().data.status).toBe("empty"));
+    expect(page().data).toMatchObject({ displayName: "小明", avatarInitial: "小", id: "", family: null });
+    expect(read).not.toHaveBeenCalled();
+    expect(navigation.consumeFamilyDestination()).toBeNull();
+  });
+
+  it("接受邀请后切换到家庭 tab 并传递已加入家庭", async () => {
+    await import("./invitation/index");
+    page().setData({ joinedId: "joined-family" });
+    await invoke("openFamily");
+    expect(wx.switchTab).toHaveBeenCalledWith(expect.objectContaining({ url: "/pages/families/index" }));
+    const navigation = await import("../services/family-navigation");
+    expect(navigation.consumeFamilyDestination()).toBe("joined-family");
+  });
+
   it.each(["FORBIDDEN", "NOT_FOUND"])("回收站恢复返回 %s 后清空私密事项", async code => {
     await import("./recycle/index");
     const module = await import("../services/personal-api");
@@ -109,7 +134,7 @@ describe("原生协作页面的授权边界", () => {
     const api = (await import("../services/personal-api")).personalApi;
     const read = vi.spyOn(api, "read");
     vi.spyOn(api, "write").mockResolvedValue({ id: "task", version: 2, updated: true, accessLost: true });
-    page().setData({ id: "task", title: "家庭安排", note: "私密备注", version: 1 });
+    page().setData({ status: "ready", id: "task", title: "家庭安排", note: "私密备注", version: 1 });
     await invoke("save");
     expect(page().data).toMatchObject({ title: "", note: "", rows: [], uncertain: false });
     expect(wx.reLaunch).toHaveBeenCalledWith({ url: "/pages/home/index" });
@@ -131,8 +156,107 @@ describe("原生协作页面的授权边界", () => {
     await import("./editor/index");
     const module = await import("../services/personal-api");
     vi.spyOn(module.personalApi, "write").mockRejectedValue(new module.PersonalApiError("FORBIDDEN", "已无权限", false));
-    page().setData({ id: "task", title: "不可再读", note: "备注", version: 1 });
+    page().setData({ status: "ready", id: "task", title: "不可再读", note: "备注", version: 1 });
     await invoke("save");
     expect(page().data).toMatchObject({ status: "error", title: "", note: "", rows: [], uncertain: false });
+  });
+});
+
+describe("家庭页微信资料填写", () => {
+  it("头像选择返回页面保留草稿，取消不写入资料", async () => {
+    await import("./families/index");
+    page().profileUserId = "user-one";
+    page().setData({ displayName: "小明", avatarPath: "", status: "ready" });
+    const profile = await import("../services/local-profile");
+    const save = vi.spyOn(profile, "saveLocalProfile");
+    await invoke("openProfile");
+    await invoke("onHide");
+    await invoke("chooseAvatar", { detail: { avatarUrl: "wxfile://temp/avatar" } });
+    await invoke("onShow");
+    expect(page().data).toMatchObject({ sheet: "profile", profileAvatar: "wxfile://temp/avatar", profileName: "小明" });
+    await invoke("closeSheet");
+    expect(save).not.toHaveBeenCalled();
+    expect(page().data.displayName).toBe("小明");
+  });
+  it("保存使用表单最终昵称，成功后更新展示", async () => {
+    await import("./families/index");
+    page().profileUserId = "user-one";
+    page().setData({ sheet: "profile", profileName: "旧值", profileAvatar: "wxfile://temp/avatar" });
+    vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ id: "user-one" }) } } }));
+    const profile = await import("../services/local-profile");
+    const save = vi.spyOn(profile, "saveLocalProfile").mockReturnValue({ displayName: "微信昵称", avatarPath: "wxfile://usr/saved" });
+    await invoke("saveProfile", { detail: { value: { nickname: "微信昵称" } } });
+    expect(save).toHaveBeenCalledWith("user-one", "微信昵称", "wxfile://temp/avatar");
+    expect(page().data).toMatchObject({ sheet: "", displayName: "微信昵称", avatarInitial: "微", avatarPath: "wxfile://usr/saved", profileSaving: false });
+  });
+  it("账号切换后禁止将编辑资料写给原账号", async () => {
+    await import("./families/index");
+    page().profileUserId = "user-one";
+    page().setData({ sheet: "profile" });
+    vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ id: "user-two" }) } } }));
+    const profile = await import("../services/local-profile");
+    const save = vi.spyOn(profile, "saveLocalProfile");
+    await invoke("saveProfile", { detail: { value: { nickname: "小明" } } });
+    expect(save).not.toHaveBeenCalled();
+    expect(page().data.profileError).toContain("账号已变化");
+  });
+});
+
+describe("家庭成员删除", () => {
+  async function setup() {
+    await import("./families/index");
+    page().visible = true;
+    page().setData({ id: "family", owner: true, virtualMembers: [{ id: "child", name: "小宝", status: "active", version: 3 }] });
+    page().load = vi.fn();
+    const families = await import("../services/family-api");
+    return vi.spyOn(families.familyApi, "write").mockResolvedValue({ member: { id: "child", familyId: "family", name: "小宝", status: "inactive", version: 4 } });
+  }
+  const event = { currentTarget: { dataset: { id: "child" } } };
+  it("确认后停用无账号成员，保留版本并刷新列表", async () => {
+    const write = await setup();
+    await invoke("deleteVirtual", event);
+    expect(wx.showModal).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("历史记录保留"), confirmText: "删除成员" }));
+    expect(write).toHaveBeenCalledWith("virtualMember.deactivate", { id: "child", expectedVersion: 3 });
+    expect(page().load).toHaveBeenCalledOnce();
+  });
+  it("取消删除不写入", async () => {
+    const write = await setup();
+    vi.mocked(wx.showModal).mockResolvedValue({ confirm: false, cancel: true, errMsg: "" });
+    await invoke("deleteVirtual", event);
+    expect(write).not.toHaveBeenCalled();
+  });
+  it("普通成员不能删除无账号成员或其他真实成员", async () => {
+    const write = await setup();
+    page().setData({ owner: false, family: { id: "family", myMembershipId: "me" }, members: [{ id: "child", isMe: false, role: "member" }] });
+    await invoke("deleteVirtual", event);
+    await invoke("startExit", event);
+    expect(wx.showModal).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+    expect(page().exitInput).toBeNull();
+  });
+  it("确认期间切换家庭使删除失效", async () => {
+    const write = await setup();
+    vi.mocked(wx.showModal).mockImplementationOnce(async () => {
+      page().setData({ id: "other-family" });
+      return { confirm: true, cancel: false, errMsg: "" };
+    });
+    await invoke("deleteVirtual", event);
+    expect(write).not.toHaveBeenCalled();
+  });
+  it("重新读取家庭时隐藏已删除的无账号成员", async () => {
+    await import("./families/index");
+    page().visible = true;
+    page().setData({ id: "family" });
+    vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ displayName: "我" }) } } }));
+    const families = await import("../services/family-api");
+    const family = { id: "family", name: "家", ownerName: "我", myMembershipId: "me", ownerMembershipId: "me", authEpoch: 1, myRole: "owner" as const, version: 1 };
+    vi.spyOn(families, "listFamilies").mockResolvedValue({ items: [family], last: { items: [family], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } });
+    vi.spyOn(families.familyApi, "read").mockResolvedValue({ family, members: [], virtualMembers: [] });
+    vi.spyOn(families, "listManagedVirtualMembers").mockResolvedValue([
+      { id: "active", familyId: "family", name: "小宝", status: "active", version: 1 },
+      { id: "deleted", familyId: "family", name: "旧成员", status: "inactive", version: 2 },
+    ]);
+    await invoke("load");
+    expect(page().data.virtualMembers).toEqual([expect.objectContaining({ id: "active" })]);
   });
 });

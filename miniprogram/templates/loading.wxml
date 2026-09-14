@@ -1,0 +1,22 @@
+<!-- 保留实际卡片的头像、文本与操作位置，加载状态不提供可点击控件。 -->
+<template name="loading-cards">
+  <view class="loading-layout" role="status" aria-label="{{label}}">
+    <view aria-hidden="true">
+      <view wx:if="{{kind === 'family'}}" class="loading-card"><view class="skeleton loading-title"></view><view class="skeleton loading-line"></view><view class="skeleton loading-action"></view></view>
+      <view wx:if="{{kind === 'family'}}" class="skeleton loading-section"></view>
+      <view wx:for="{{[0, 1]}}" wx:key="*this" class="loading-card {{kind === 'members' || kind === 'list' || kind === 'family' ? 'loading-card-row' : ''}}">
+        <view wx:if="{{kind === 'members' || kind === 'list'}}" class="skeleton loading-avatar"></view>
+        <view class="loading-copy"><view class="skeleton loading-title"></view><view class="skeleton loading-line"></view><view wx:if="{{kind === 'form'}}" class="skeleton loading-input"></view><view wx:if="{{kind === 'form' || kind === 'recycle'}}" class="skeleton loading-line loading-line-short"></view><view wx:if="{{kind === 'form' || kind === 'recycle'}}" class="skeleton loading-action"></view></view>
+        <view wx:if="{{kind === 'family'}}" class="skeleton loading-edit"></view>
+        <view wx:if="{{kind === 'members'}}" class="skeleton loading-meter"></view>
+      </view>
+    </view>
+    <text class="end-note">{{label}}</text>
+  </view>
+</template>
+<template name="loading-preview">
+  <view class="loading-layout loading-preview" role="status" aria-label="正在检查交接范围">
+    <view aria-hidden="true"><view class="skeleton loading-line"></view><view class="skeleton loading-line"></view><view class="skeleton loading-line loading-line-short"></view></view>
+    <text class="form-helper">正在完整检查交接范围，请稍候…</text>
+  </view>
+</template>

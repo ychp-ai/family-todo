@@ -1,3 +1,4 @@
+import { applyNativeData } from "../../tests/helpers/native-data";
 import { randomUUID } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AppOptions } from "../types/app";
@@ -23,7 +24,7 @@ it("home exposes recovered pending immediately after the first verified session,
   vi.spyOn(personalApi, "read").mockRejectedValue(new Error("offline lists"));
   type PageHarness = {data: Record<string, unknown>; visible: boolean; setData(patch: Record<string, unknown>): void; refresh(): Promise<void>};
   let page: PageHarness | undefined;
-  vi.stubGlobal("Page", (definition: PageHarness) => { page = definition; definition.setData = patch => Object.assign(definition.data, patch); });
+  vi.stubGlobal("Page", (definition: PageHarness) => { page = definition; definition.setData = patch => applyNativeData(definition.data, patch); });
   await import("./home/index");
   if (!page) throw new Error("page not registered");
   expect(page.data.pendingCount).toBe(0);

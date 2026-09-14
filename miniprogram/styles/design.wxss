@@ -8,7 +8,7 @@ button.icon-button{width:44px;height:44px;display:inline-flex;align-items:center
 .home-greeting{display:flex;align-items:center;justify-content:space-between;margin-bottom:23px;gap:8px}
 .overline{font-size:11px;color:var(--muted);letter-spacing:.5px;line-height:1.5;margin-bottom:8px}
 .home-greeting .h3{font:600 24px/1.2 var(--display);letter-spacing:-1px;white-space:nowrap}
-.greeting-dot{color:var(--brand);margin-left:-3px}
+.greeting-dot{color:var(--brand);margin-left:0px}
 .avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:37px;height:37px;font:600 14px var(--display);flex:none;color:var(--brand-dark)}
 .lavender{background:#e4e4f4;color:#5860a2}
 button.reminder-banner{display:flex;align-items:center;gap:11px;padding:15px 13px;background:#eaeaf7;width:100%;text-align:left;border-radius:16px;margin-bottom:17px;min-height:73px}
@@ -30,7 +30,7 @@ button.text-button{min-width:44px;min-height:44px;display:inline-flex;align-item
 .date-tabs button text{font:11px var(--utility);margin-left:3px;opacity:.8}
 .date-tabs button.calendar-button{margin-left:auto;padding:0;width:44px;display:flex;align-items:center;justify-content:center;flex:none}
 button.calendar-button .icon{width:19px;height:19px}
-.list-summary{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);height:29px}
+.list-summary{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);min-height:44px;gap:12px}
 .list-summary button.text-button{font-size:10px}
 .progress-track{height:3px;background:#e4e4ee;border-radius:4px;overflow:hidden;margin:2px 0 21px}
 .progress-track>text{display:block;background:var(--brand);height:100%;border-radius:4px;transition:width .25s ease}
@@ -145,10 +145,38 @@ button.sheet-secondary .icon{width:15px;height:15px}
 .flow-quiet{font-size:11px;color:var(--muted);line-height:1.9}
 .flow-choice{width:100%;display:flex;align-items:center;gap:8px;min-height:44px;font-size:12px}
 
-.screen{height:100vh;display:flex;flex-direction:column;overflow:hidden}.status-space{flex:none}.appbar{flex:none}.phone-scroll{flex:1;min-height:0;box-sizing:border-box}.scroll-inner{padding:20px 19px 24px}.detail-scroll .scroll-inner{padding-top:23px}.phone-bottom{padding:12px 19px calc(12px + env(safe-area-inset-bottom));background:var(--canvas);flex:none}.icon{width:22px;height:22px;flex:none;display:inline-block}.tiny{width:14px;height:14px}.chevron{width:16px;height:16px}.strong,.small,.paragraph,.h3,.h4{display:block}.h3,.h4{margin:0}.app-name image{width:24px;height:24px;border-radius:7px}.family-filter{min-height:44px}.family-filter .icon{width:17px;height:17px}.family-filter .tiny{position:static;width:14px;height:14px}.home-greeting button.family-entry{width:44px;height:44px;border-radius:50%;background:var(--lavender);display:flex;align-items:center;justify-content:center;flex:none}button.family-entry .icon{width:21px;height:21px}.progress-track>view{height:100%;background:var(--brand);border-radius:4px}button.task-main .strong{font-size:15px;line-height:1.6;font-weight:500}.is-done button.task-main .strong{color:#85818c}.check-circle .icon{width:14px;height:14px}.date-tabs picker{margin-left:auto}button.reminder-banner .strong{font-size:13px;line-height:1.5}button.reminder-banner .small{font-size:10px;line-height:1.5;margin-top:4px;color:#777491}.home-greeting .h3{font:600 24px/1.2 var(--display);letter-spacing:-1px;white-space:nowrap}.state-box .h4{font-size:14px;margin:14px 0 8px}.state-box .paragraph{font-size:11px;line-height:1.9;color:var(--muted)}.state-box button.outline-button{margin-top:15px}button.backlog .tiny{margin-left:auto}.mask{position:fixed;inset:0;background:#29273566;z-index:50;display:flex;align-items:flex-end;padding:12px}.sheet{width:100%;max-height:90vh;background:var(--canvas);border-radius:24px 24px 19px 19px;padding:12px 24px calc(27px + env(safe-area-inset-bottom));box-sizing:border-box}.sheet-scroll{max-height:73vh}.sheet-header .h2{font-size:18px;font-weight:600}.title-input{height:58px;box-sizing:border-box}.checkbox-label checkbox,.flow-choice checkbox{transform:scale(.78);transform-origin:left center;width:20px}.form-select,.form-input{box-sizing:border-box}.form-input textarea,textarea.form-input{min-height:92px}.two-fields{display:flex}.two-fields>view{flex:1;min-width:0}.sheet-error{font-size:11px;color:#9e4c4c;line-height:1.8;margin-top:10px}.loading-note{font-size:11px;color:var(--muted);text-align:center;padding:12px}.flow-card .field-label:first-child{margin-top:0}.flow-card .h3{font-size:16px;line-height:1.6;margin-bottom:7px}.flow-card .paragraph{font-size:12px;line-height:1.9;color:var(--muted)}.reminder-item .h3{font-size:14px}.reminder-item .paragraph{font-size:10px;line-height:1.9;color:var(--muted);margin-top:8px}.reminder-item .item-actions{display:flex;gap:8px;margin-top:15px}.item-actions button{flex:1}.completion-copy .strong{font-size:14px;line-height:1.5;color:var(--green)}.completion-card.pending .strong{color:var(--brand)}.completion-copy .paragraph{font-size:10px;line-height:1.6;margin-top:6px;color:#69836e}.section-title .h4{font-size:12px;font-weight:600}.history-item .strong{font-size:12px;font-weight:500}.history-item .paragraph{font-size:11px;line-height:1.6;color:var(--muted);margin-top:6px}.history-item .time{font-size:10px;color:var(--muted)}button.quiet-button{background:#e8e9f4;color:var(--brand)}.flow-danger{color:#9e4c4c;border-color:#dbc6cb}
+.screen{height:100vh;display:flex;flex-direction:column;overflow:hidden}.status-space{flex:none}.appbar{flex:none}.phone-scroll{flex:1;min-height:0;box-sizing:border-box}.scroll-inner{padding:20px 19px 24px}.detail-scroll .scroll-inner{padding-top:23px}.phone-bottom{padding:12px 19px calc(12px + env(safe-area-inset-bottom));background:var(--canvas);flex:none}.icon{width:22px;height:22px;flex:none;display:inline-block}.tiny{width:14px;height:14px}.chevron{width:16px;height:16px}.strong,.small,.paragraph,.h3,.h4{display:block}.h3,.h4{margin:0}.app-name image{width:24px;height:24px;border-radius:7px}.family-filter{min-height:44px}.family-filter .icon{width:17px;height:17px}.family-filter .tiny{position:static;width:14px;height:14px}.home-greeting button.family-entry{width:44px;height:44px;border-radius:50%;background:var(--lavender);display:flex;align-items:center;justify-content:center;flex:none}button.family-entry .icon{width:21px;height:21px}.progress-track>view{height:100%;background:var(--brand);border-radius:4px}button.task-main .strong{font-size:15px;line-height:1.6;font-weight:500}.is-done button.task-main .strong{color:#85818c}.check-circle .icon{width:14px;height:14px}.date-tabs picker{margin-left:auto}button.reminder-banner .strong{font-size:13px;line-height:1.5}button.reminder-banner .small{font-size:10px;line-height:1.5;margin-top:4px;color:#777491}.home-greeting .h3{font:600 24px/1.2 var(--display);letter-spacing:-1px;white-space:nowrap}.state-box .h4{font-size:14px;margin:14px 0 8px}.state-box .paragraph{font-size:11px;line-height:1.9;color:var(--muted)}.state-box button.outline-button{margin-top:15px}button.backlog .tiny{margin-left:auto}.mask{position:fixed;inset:0;background:#29273566;z-index:50;display:flex;align-items:flex-end;padding:12px}.sheet{display:flex;flex-direction:column;width:100%;max-height:90vh;background:var(--canvas);border-radius:24px 24px 19px 19px;padding:12px 24px calc(27px + env(safe-area-inset-bottom));box-sizing:border-box}.sheet-scroll{min-height:0;max-height:calc(90vh - 112px - env(safe-area-inset-bottom));flex-shrink:1}.sheet-handle,.sheet-header{flex-shrink:0}.sheet-header .h2{font-size:18px;font-weight:600}.title-input{height:58px;box-sizing:border-box}.checkbox-label checkbox,.flow-choice checkbox{transform:scale(.78);transform-origin:left center;width:20px}.form-select,.form-input{box-sizing:border-box}.form-input textarea,textarea.form-input{min-height:92px}.two-fields{display:flex}.two-fields>view{flex:1;min-width:0}.sheet-error{font-size:11px;color:#9e4c4c;line-height:1.8;margin-top:10px}.loading-note{font-size:11px;color:var(--muted);text-align:center;padding:12px}.flow-card .field-label:first-child{margin-top:0}.flow-card .h3{font-size:16px;line-height:1.6;margin-bottom:7px}.flow-card .paragraph{font-size:12px;line-height:1.9;color:var(--muted)}.reminder-item .h3{font-size:14px}.reminder-item .paragraph{font-size:10px;line-height:1.9;color:var(--muted);margin-top:8px}.reminder-item .item-actions{display:flex;gap:8px;margin-top:15px}.item-actions button{flex:1}.completion-copy .strong{font-size:14px;line-height:1.5;color:var(--green)}.completion-card.pending .strong{color:var(--brand)}.completion-copy .paragraph{font-size:10px;line-height:1.6;margin-top:6px;color:#69836e}.section-title .h4{font-size:12px;font-weight:600}.history-item .strong{font-size:12px;font-weight:500}.history-item .paragraph{font-size:11px;line-height:1.6;color:var(--muted);margin-top:6px}.history-item .time{font-size:10px;color:var(--muted)}button.quiet-button{background:#e8e9f4;color:var(--brand)}.flow-danger{color:#9e4c4c;border-color:#dbc6cb}
 
 button.primary-button[disabled]{background:var(--brand);color:#fff}
 /* 原生 button 不具备浏览器按钮的默认垂直居中。 */
 .date-tabs button,.form-pills button{display:flex;align-items:center;justify-content:center}
 button.primary-button.full-width,button.outline-button.full-width{width:100%}
 textarea.form-input{height:92px}
+
+/* 原生文本、长名称与操作热区的布局边界。 */
+.end-note,.form-helper,.form-error,.sheet-message,.sheet-success,.sheet-error{display:block}
+.form-error:empty,.sheet-error:empty{margin:0}
+.overline{display:block}
+.home-greeting>view,.completion-copy,.info-value{min-width:0}
+.home-greeting .h3{white-space:normal}
+.filter-row{gap:12px}
+.filter-row>picker{flex:1;min-width:0}
+.filter-row>button{flex:none}
+.family-filter>text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button.reminder-banner>view:nth-child(2){flex:1;min-width:0}
+.reminder-icon{flex:none}
+.task-main .strong,.task-meta>text,.detail-title,.detail-note,.info-value,.flow-card .h3,.form-select{overflow-wrap:anywhere}
+.info-value .avatar{overflow:hidden}
+.form-pills{flex-wrap:wrap}
+.sheet-actions{align-items:stretch;flex-wrap:wrap}
+.sheet-actions>button{flex:1 1 110px}
+button.text-button,.text-button{min-height:44px}
+view.text-button{display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);padding:0 4px}
+button.primary-button,button.outline-button,button.icon-button,button.family-row,button.family-tool{transition:transform 120ms cubic-bezier(.23,1,.32,1)}
+button.primary-button:active,button.outline-button:active,button.icon-button:active,button.family-row:active,button.family-tool:active{transform:scale(.98)}
+button[disabled]:active{transform:none}
+@media (prefers-reduced-motion:reduce){
+  button.primary-button,button.outline-button,button.icon-button,button.family-row,button.family-tool{transition:none}
+  button.primary-button:active,button.outline-button:active,button.icon-button:active,button.family-row:active,button.family-tool:active{transform:none}
+  .skeleton{animation:none}
+}

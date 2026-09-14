@@ -1,1 +1,11 @@
-{"navigationStyle":"custom","usingComponents":{}}
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "editor-content": "/components/editor-content/index",
+    "editor-subject": "/components/editor-subject/index",
+    "editor-schedule": "/components/editor-schedule/index",
+    "editor-permissions": "/components/editor-permissions/index",
+    "editor-preview": "/components/editor-preview/index",
+    "editor-conflict": "/components/editor-conflict/index"
+  }
+}

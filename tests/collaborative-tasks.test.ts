@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { isPersonalData } from "@family-todo/contracts";
 import type { PersonalAction, PersonalActionMap, TaskDraft, TaskDTO } from "@family-todo/contracts";
 import type { Family, Membership } from "@family-todo/domain";
+import { OccurrenceLists } from "../packages/application/src/occurrence-lists";
 import { CollaborativeTaskService } from "../packages/application/src/collaborative-tasks";
 import { CloudBasePersonalStore } from "../packages/infra-cloudbase/src/personal-store";
 import { familyFixture } from "./support/family-fixture";
@@ -32,6 +33,50 @@ function draft(familyId: string | null): TaskDraft & { schedule: { kind: "once";
 function access(task: TaskDTO) { return { viewerMembershipIds: task.participants.filter(p => p.canView && !p.requiredViewer).map(p => p.membershipId), helperMembershipIds: task.participants.filter(p => p.canHelp).map(p => p.membershipId), reminderMembershipIds: task.participants.filter(p => p.receivesReminder).map(p => p.membershipId), remindMe: task.myReminder.enabled }; }
 
 describe("collaborative once tasks", () => {
+  it("batches visible tasks and reuses request reads while preserving continuation", async () => {
+    const f = await setup(); const ids: string[] = [];
+    for (let i = 0; i < 24; i++) ids.push((await call(f.creator, "task.create", { draft: draft(f.family.id) })).task.id);
+    const store = f.creator.store(); const scan = vi.spyOn(store, "scanTasks");
+    const contexts = vi.spyOn(store, "context"); const reads = vi.spyOn(store, "readTask");
+    const lists = new OccurrenceLists(store, { now: () => new Date(f.creator.now) });
+    const first = await lists.execute("task.list", { familyId: f.family.id, limit: 50 });
+    expect(isPersonalData("task.list", first)).toBe(true);
+    if (!isPersonalData("task.list", first)) throw new Error("Invalid list");
+    const found = first.items.map(item => item.task.id); let cursor = first.nextCursor;
+    for (let i = 0; cursor && i < 20; i++) {
+      const next = await new OccurrenceLists(f.creator.store(), { now: () => new Date(f.creator.now) }).execute("task.list", { familyId: f.family.id, limit: 50, cursor });
+      if (!isPersonalData("task.list", next)) throw new Error("Invalid list");
+      found.push(...next.items.map(item => item.task.id)); cursor = next.nextCursor;
+    }
+    expect(cursor).toBeNull(); expect(found.sort()).toEqual(ids.sort());
+    expect(scan.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(contexts).toHaveBeenCalledTimes(1); expect(reads).not.toHaveBeenCalled();
+  });
+  it("resumes an interrupted prefetched batch and revalidates the family before returning", async () => {
+    const f = await setup(); const ids: string[] = [];
+    for (let i = 0; i < 5; i++) ids.push((await call(f.creator, "task.create", { draft: draft(f.family.id) })).task.id);
+    const store = f.creator.store(); let remaining = 8000;
+    vi.spyOn(store, "remainingBudgetMs").mockImplementation(() => remaining);
+    const scan = store.scanTasks.bind(store);
+    vi.spyOn(store, "scanTasks").mockImplementation(async (...args) => { const page = await scan(...args); remaining = 3500; return page; });
+    const lists = new OccurrenceLists(store, { now: () => new Date(f.creator.now) });
+    const first = await lists.execute("task.list", { familyId: f.family.id });
+    if (!isPersonalData("task.list", first) || !first.nextCursor) throw new Error("Expected continuation");
+    expect(first.items).toEqual([]); expect(first.complete).toBe(false);
+    remaining = 8000;
+    const resumedStore = f.creator.store(); const contexts = vi.spyOn(resumedStore, "context");
+    const next = await new OccurrenceLists(resumedStore, { now: () => new Date(f.creator.now) }).execute("task.list", { familyId: f.family.id, cursor: first.nextCursor });
+    if (!isPersonalData("task.list", next)) throw new Error("Invalid list");
+    expect(next.complete).toBe(true); expect(next.items.map(item => item.task.id).sort()).toEqual(ids.sort());
+    expect(contexts).toHaveBeenCalledTimes(1);
+    const changed = f.creator.store(); const read = changed.scanTasks.bind(changed);
+    vi.spyOn(changed, "scanTasks").mockImplementation(async (...args) => {
+      const page = await read(...args);
+      await f.creator.store().transaction(async tx => { const family = await tx.family(f.family.id); if (!family) throw new Error("Missing family"); await tx.saveFamily({ ...family, version: family.version + 1 }); });
+      return page;
+    });
+    await expect(new OccurrenceLists(changed, { now: () => new Date(f.creator.now) }).execute("task.list", { familyId: f.family.id })).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+  });
   it("keeps ordinary private tasks hidden from the family owner and isolates list summaries", async () => {
     const f = await setup(); const created = await call(f.creator, "task.create", { draft: draft(f.family.id) });
     await expect(call(f.owner, "task.get", { id: created.task.id })).rejects.toMatchObject({ code: "NOT_FOUND" });

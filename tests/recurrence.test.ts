@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { isPersonalData } from "@family-todo/contracts";
 import type { OccurrenceDTO, OccurrenceRef, PersonalAction, PersonalActionMap, TaskDraft } from "@family-todo/contracts";
+import { OccurrenceLists } from "../packages/application/src/occurrence-lists";
 import { CollaborativeTaskService } from "../packages/application/src/collaborative-tasks";
 import { CloudBasePersonalStore } from "../packages/infra-cloudbase/src/personal-store";
 import { familyFixture } from "./support/family-fixture";
@@ -55,6 +56,27 @@ describe("recurring write closure", () => {
 });
 
 describe("recurring projection pages", () => {
+  it("prefetches edited segments and resumes every unconsumed segment after a deadline", async () => {
+    const f = await fixture(); f.time("2026-09-11T22:30:00.000Z"); const d = draft();
+    const created = await f.call("task.create", { draft: d });
+    f.time("2026-09-12T10:30:00.000Z"); d.schedule = { kind: "daily", startDate: "2026-09-11", endDate: null, times: ["19:00", "21:00"] };
+    await f.call("task.update", { id: created.task.id, expectedVersion: 1, draft: d });
+    const payload = { taskId: created.task.id, dateFrom: "2026-09-12", dateTo: "2026-09-13" };
+    const clock = { now: () => new Date("2026-09-12T10:30:00.000Z") };
+    const fast = f.store(); const segments = vi.spyOn(fast, "segments");
+    const expected = await new OccurrenceLists(fast, clock).execute("occurrence.list", payload);
+    if (!isPersonalData("occurrence.list", expected)) throw new Error("Invalid list");
+    expect(expected.items.map(o => `${o.localDate}/${o.slot}`)).toEqual(["2026-09-12/08:00", "2026-09-12/19:00", "2026-09-12/21:00", "2026-09-13/19:00", "2026-09-13/21:00"]);
+    expect(segments).toHaveBeenCalledTimes(1);
+    const slow = f.store(); const read = slow.segments.bind(slow); let remaining = 8000;
+    vi.spyOn(slow, "remainingBudgetMs").mockImplementation(() => remaining);
+    vi.spyOn(slow, "segments").mockImplementation(async (...args) => { const page = await read(...args); remaining = 3500; return page; });
+    const partial = await new OccurrenceLists(slow, clock).execute("occurrence.list", payload);
+    if (!isPersonalData("occurrence.list", partial) || !partial.nextCursor) throw new Error("Expected continuation");
+    expect(partial.items).toEqual([]);
+    const resumed = await new OccurrenceLists(f.store(), clock).execute("occurrence.list", { ...payload, cursor: partial.nextCursor });
+    expect(resumed).toEqual(expected);
+  });
   it("pages across edited segments in actual occurrence order without duplicates", async () => {
     const f = await fixture(); f.time("2026-09-11T22:30:00.000Z"); const d = draft();
     const created = await f.call("task.create", { draft: d });

@@ -1,1 +1,8 @@
-{"navigationStyle":"custom","usingComponents":{}}
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "progress-cover": "/components/progress-cover/index",
+    "progress-member": "/components/progress-member/index",
+    "progress-family-filter": "/components/progress-family-filter/index"
+  }
+}

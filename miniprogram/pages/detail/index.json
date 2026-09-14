@@ -1,1 +1,10 @@
-{"navigationStyle":"custom","usingComponents":{}}
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "detail-completion": "/components/detail-completion/index",
+    "detail-arrangement": "/components/detail-arrangement/index",
+    "detail-current-record": "/components/detail-current-record/index",
+    "detail-event": "/components/detail-event/index",
+    "detail-settings": "/components/detail-settings/index"
+  }
+}

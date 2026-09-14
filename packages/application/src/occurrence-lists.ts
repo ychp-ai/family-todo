@@ -11,11 +11,18 @@ import { legacySegment, overlayOccurrence, projectedDTO, projectionTask } from "
 type ListAction = "task.list" | "reminder.list" | "occurrence.list";
 type Scope = { familyId: string | null; version: number; failed: boolean };
 type Head = { order: string; occurrence: OccurrenceDTO };
-type Scan = { scope: number; taskAfter: string | null; taskId: string | null; tasksDone: boolean; segmentAfter: string | null; segmentId: string | null; segmentsDone: boolean; slot: number };
+// Persist only unconsumed IDs alongside the batch cursor; entities stay request-local.
+const scanBatchSize = 20;
+type Scan = { taskIds: string[]; segmentIds: string[]; scope: number; taskAfter: string | null; taskId: string | null; tasksDone: boolean; segmentAfter: string | null; segmentId: string | null; segmentsDone: boolean; slot: number };
 type State = { actorId: string; fingerprint: string; asOf: string; expiresAt: string; revision: number; scopes: Scope[]; from: string; to: string; oldest: string; afterOrder: string | null; top: Head[]; trimmed: boolean; scan: Scan; summary: Summary };
 function expired(): never { throw new ApplicationError("CURSOR_EXPIRED", "列表已更新，请重新加载。"); }
 function nullableString(v: unknown): v is string | null { return v === null || typeof v === "string"; }
-function emptyScan(): Scan { return { scope: 0, taskAfter: null, taskId: null, tasksDone: false, segmentAfter: null, segmentId: null, segmentsDone: false, slot: 0 }; }
+function emptyScan(): Scan { return { taskIds: [], segmentIds: [], scope: 0, taskAfter: null, taskId: null, tasksDone: false, segmentAfter: null, segmentId: null, segmentsDone: false, slot: 0 }; }
+function pendingIds(v: unknown): string[] {
+  if (v === undefined) return []; // Sessions created before batched scanning.
+  if (!Array.isArray(v) || v.length > scanBatchSize || !v.every(isUuid)) expired();
+  return v;
+}
 function readState(v: unknown): State {
   if (!isRecord(v) || !isUuid(v.actorId) || typeof v.fingerprint !== "string" || !instant(v.asOf) || !instant(v.expiresAt) || !integer(v.revision, 1)
     || !localDate(v.from) || !localDate(v.to) || !localDate(v.oldest) || !nullableString(v.afterOrder)
@@ -29,7 +36,7 @@ function readState(v: unknown): State {
     || !nullableString(s.segmentAfter) || !(s.segmentId === null || isUuid(s.segmentId)) || typeof s.segmentsDone !== "boolean" || !integer(s.slot) || s.slot > 186
     || !integer(total.completed) || !integer(total.pending) || !integer(total.skipped) || !integer(total.denominator)) expired();
   return { actorId: v.actorId, fingerprint: v.fingerprint, asOf: v.asOf, expiresAt: v.expiresAt, revision: v.revision, scopes, from: v.from, to: v.to, oldest: v.oldest, afterOrder: v.afterOrder, top, trimmed: v.trimmed,
-    scan: { scope: s.scope, taskAfter: s.taskAfter, taskId: s.taskId, tasksDone: s.tasksDone, segmentAfter: s.segmentAfter, segmentId: s.segmentId, segmentsDone: s.segmentsDone, slot: s.slot },
+    scan: { taskIds: pendingIds(s.taskIds), segmentIds: pendingIds(s.segmentIds), scope: s.scope, taskAfter: s.taskAfter, taskId: s.taskId, tasksDone: s.tasksDone, segmentAfter: s.segmentAfter, segmentId: s.segmentId, segmentsDone: s.segmentsDone, slot: s.slot },
     summary: { completed: total.completed, pending: total.pending, skipped: total.skipped, denominator: total.denominator } };
 }
 function older(date: string, days: number): string { return date <= addDays("2000-01-01", days) ? "2000-01-01" : addDays(date, -days); }
@@ -55,10 +62,12 @@ export class OccurrenceLists {
     if (familyId && !families.some(f => f.id === familyId)) taskMissing();
     const selected = familyId ? families.filter(f => f.id === familyId) : families;
     const scopes: Scope[] = familyId === undefined || familyId === null ? [{ familyId: null, version: start.scope.revision, failed: false }] : [];
+    const contexts = new Map<string, FamilyContext>();
     for (const family of selected) {
       let context: FamilyContext | null = null;
       try { context = await this.store.context(family.id); } catch { /* Report independent family failure without leaking its cause. */ }
       if (context && !context.members.some(m => m.userId === start.actor.id && m.status === "active")) expired();
+      if (context) contexts.set(family.id, context);
       scopes.push({ familyId: family.id, version: context?.family.version ?? family.version, failed: !context });
     }
     if (taskId && scopes.some(s => s.failed)) throw new ApplicationError("TEMPORARILY_UNAVAILABLE", "家庭暂时无法加载，请稍后重试。", true);
@@ -75,35 +84,49 @@ export class OccurrenceLists {
     const prepare = async (task: CollaborativeTask, scope: Scope) => {
       if (task.lifecycle === "deleted" || task.createdAt > state.asOf) return null;
       let context: FamilyContext | null = null;
-      if (scope.familyId) { if (task.collaboration?.familyId !== scope.familyId) return null; context = await taskContext(this.store, task); if (context.family.version !== scope.version) expired(); if (!familyTaskRights(task, context, start.actor.id).canView) return null; }
+      if (scope.familyId) { if (task.collaboration?.familyId !== scope.familyId) return null; context = await taskContext(this.store, task, contexts.get(scope.familyId)); if (context.family.version !== scope.version) expired(); if (!familyTaskRights(task, context, start.actor.id).canView) return null; }
       else if (task.collaboration || task.ownerUserId !== start.actor.id) return null;
       const entry = { task, context }; cache.set(task.id, entry); return entry;
     };
     if (target && !await prepare(target, scopes[0] ?? expired())) taskMissing();
+    const prefetchedTasks = new Map<string, CollaborativeTask>();
+    const segments = new Map<string, PersistedScheduleSegment>();
     let work = 0;
     // Retain only the smallest limit+1 candidates. No ordering claim is made until every stream in this window is scanned.
     while (state.scan.scope < state.scopes.length && work < 180 && this.store.remainingBudgetMs() > 4000) {
       const scan = state.scan, scope = state.scopes[scan.scope]; if (!scope) expired();
-      if (scope.failed || (!scan.taskId && scan.tasksDone)) { state.scan = { ...emptyScan(), scope: scan.scope + 1 }; continue; }
+      if (scope.failed || (!scan.taskId && scan.tasksDone && scan.taskIds.length === 0)) { state.scan = { ...emptyScan(), scope: scan.scope + 1 }; continue; }
       if (!scan.taskId) {
-        const page = target ? { items: [target], after: null, more: false } : await this.store.scanTasks(start.actor.id, scope.familyId, { mode: "projection" }, state.asOf, scan.taskAfter, 1);
-        work += 2; scan.taskAfter = page.after; scan.tasksDone = !page.more;
-        const task = page.items[0]; if (!task) continue;
+        if (scan.taskIds.length === 0) {
+          const page = target ? { items: [target], after: null, more: false } : await this.store.scanTasks(start.actor.id, scope.familyId, { mode: "projection" }, state.asOf, scan.taskAfter, scanBatchSize);
+          work += 2; scan.taskAfter = page.after; scan.tasksDone = !page.more;
+          scan.taskIds = page.items.map(task => task.id);
+          for (const task of page.items) prefetchedTasks.set(task.id, task);
+        }
+        const id = scan.taskIds.shift(); if (!id) continue;
+        const task = prefetchedTasks.get(id) ?? await this.store.readTask(id); if (!task) expired();
+        prefetchedTasks.delete(id);
         const entry = await prepare(task, scope); if (!entry) continue;
         const earliest = task.date && task.date < localDateAt(task.createdAt) ? task.date : localDateAt(task.createdAt);
         if (earliest < state.oldest) state.oldest = earliest;
-        scan.taskId = task.id; scan.segmentAfter = null; scan.segmentId = null; scan.segmentsDone = false; scan.slot = 0;
+        scan.taskId = task.id; scan.segmentIds = []; scan.segmentAfter = null; scan.segmentId = null; scan.segmentsDone = false; scan.slot = 0;
       }
       const task = cache.get(scan.taskId)?.task ?? await this.store.readTask(scan.taskId); work++;
       if (!task) expired();
       const entry = cache.get(task.id) ?? await prepare(task, scope); if (!entry) expired();
-      if (!scan.segmentId && scan.segmentsDone) { cache.delete(task.id); scan.taskId = null; continue; }
+      if (!scan.segmentId && scan.segmentsDone && scan.segmentIds.length === 0) { scan.taskId = null; continue; }
       let segment: PersistedScheduleSegment | null;
       if (!scan.segmentId) {
-        const page = task.recurrence ? await this.store.segments(task.id, scan.segmentAfter, 1) : { items: [legacySegment(task)], after: null, more: false };
-        work += 2; scan.segmentAfter = page.after; scan.segmentsDone = !page.more; segment = page.items[0] ?? null;
-        if (!segment) continue; scan.segmentId = segment.id; scan.slot = 0;
-      } else { segment = task.recurrence ? await this.store.readSegment(scan.segmentId) : legacySegment(task); work++; }
+        if (scan.segmentIds.length === 0) {
+          const page = task.recurrence ? await this.store.segments(task.id, scan.segmentAfter, scanBatchSize) : { items: [legacySegment(task)], after: null, more: false };
+          work += 2; scan.segmentAfter = page.after; scan.segmentsDone = !page.more;
+          scan.segmentIds = page.items.map(segment => segment.id);
+          for (const segment of page.items) segments.set(segment.id, segment);
+        }
+        const id = scan.segmentIds.shift(); if (!id) continue;
+        segment = segments.get(id) ?? (task.recurrence ? await this.store.readSegment(id) : legacySegment(task));
+        scan.segmentId = id; scan.slot = 0;
+      } else { segment = segments.get(scan.segmentId) ?? (task.recurrence ? await this.store.readSegment(scan.segmentId) : legacySegment(task)); work++; }
       if (!segment || segment.taskId !== task.id) expired();
       let index = 0, exhausted = true;
       for (const candidate of projectOccurrences({ task: projectionTask(task), segments: [segment], controls: [], dateFrom: state.from, dateTo: state.to, now: state.asOf })) {
@@ -132,7 +155,7 @@ export class OccurrenceLists {
         state.top.push({ order, occurrence }); state.top.sort((a, b) => a.order.localeCompare(b.order));
         if (state.top.length > limit + 1) { state.top.pop(); state.trimmed = true; }
       }
-      if (exhausted) { scan.segmentId = null; scan.slot = 0; }
+      if (exhausted) { segments.delete(segment.id); scan.segmentId = null; scan.slot = 0; }
     }
     const scanned = state.scan.scope === state.scopes.length;
     const heads = scanned ? state.top.slice(0, limit) : [];

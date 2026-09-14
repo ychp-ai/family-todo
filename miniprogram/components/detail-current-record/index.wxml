@@ -1,0 +1,1 @@
+<view class="history-list"><view class="history-item"><text class="strong">{{occurrence.status === 'pending' ? '尚未确认完成' : occurrence.operatorName + '记录' + completionLabel}}</text><text class="paragraph">{{occurrence.status === 'pending' ? '完成后，会在这里留下记录人和时间。' : (actualLabel ? '实际完成：' + actualLabel + ' · ' : '') + '记录时间：' + recordedLabel}}</text></view></view>

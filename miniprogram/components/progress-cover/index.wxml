@@ -1,0 +1,1 @@
+<view class="family-card"><view class="family-card-copy"><text class="paragraph">在一起的每一天</text><text class="h3">{{familyName}}</text><text class="small">{{memberCaption}}</text></view><view class="family-portrait"><view wx:for="{{portraits}}" wx:key="index" class="avatar lavender">{{item}}</view></view></view>

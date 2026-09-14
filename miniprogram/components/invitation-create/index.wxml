@@ -1,0 +1,1 @@
+<view class="flow-card"><text class="h3">{{family.name}}</text><text class="paragraph">邀请可转发，持有者可加入。有效期 7 天，无需额外审批。</text><button wx:if="{{owner}}" class="primary-button full-width" bindtap="create" disabled="{{writing || uncertain}}">生成新邀请</button><text wx:else class="flow-notice">只有当前家庭拥有人可以管理邀请。</text></view>

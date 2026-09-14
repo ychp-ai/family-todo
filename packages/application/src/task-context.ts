@@ -10,10 +10,15 @@ export function taskVersion(actual: number, expected: number): void { if (actual
 export function checkTaskRef(task: CollaborativeTask, ref: OccurrenceRef): void {
   if (ref.id !== task.occurrenceId || ref.taskId !== task.id || ref.segmentId !== task.segmentId || ref.localDate !== task.date || ref.slot !== occurrenceSlot(task)) taskMissing();
 }
-export async function taskContext(store: FamilyStore, task: CollaborativeTask): Promise<FamilyContext> {
+export async function taskContext(store: FamilyStore, task: CollaborativeTask, roster?: FamilyContext): Promise<FamilyContext> {
   const binding = task.collaboration; if (!binding) taskMissing();
   const ids = [binding.creatorMembershipId, ...(binding.ownerBinding.kind === "membership" ? [binding.ownerBinding.membershipId] : [])];
-  const context = await store.context(binding.familyId, ids); if (!context) taskMissing();
+  // Only reuse a roster containing both active bindings. Historical successor chains
+  // still use the store's validated loader; each task gets its own historical metadata.
+  const base = roster?.family.id === binding.familyId && ids.every(id => roster.members.some(member => member.id === id && member.status === "active"))
+    ? roster : await store.context(binding.familyId, ids);
+  if (!base) taskMissing();
+  const context: FamilyContext = { family: base.family, members: base.members, virtualMembers: base.virtualMembers };
   if (task.recurrence) {
     context.historicalTaskId = task.id; context.historicalSubjectMembershipIds = [];
     for (const member of context.members.filter(member => member.status === "active")) {

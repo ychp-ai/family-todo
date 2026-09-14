@@ -1,0 +1,1 @@
+<view class="member-progress-ring" aria-role="img" aria-label="已完成 {{completed}} 件，共 {{total}} 件"><image class="member-progress-ring-image" src="{{ring}}" aria-hidden="true"/><view class="member-progress-ring-count"><text class="member-progress-ring-completed">{{completed}}</text><text class="member-progress-ring-total">/{{total}}</text></view></view>

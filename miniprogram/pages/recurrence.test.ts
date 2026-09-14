@@ -1,10 +1,11 @@
+import { applyNativeData } from "../../tests/helpers/native-data";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { OccurrenceDTO, TaskDTO } from "@family-todo/contracts";
 type NativePage=Record<string,unknown>&{data:Record<string,unknown>;setData:(patch:Record<string,unknown>)=>void};
 let captured:NativePage|undefined;
 function page(){if(!captured)throw new Error("missing Page");return captured;}
 async function invoke(name:string,...args:unknown[]){const p=page(),method=p[name];if(typeof method!=="function")throw new Error(name);await method.apply(p,args);}
-beforeEach(()=>{vi.resetModules();vi.useFakeTimers();vi.stubGlobal("Page",(p:NativePage)=>{captured=p;p.setData=patch=>Object.assign(p.data,patch);});vi.stubGlobal("wx",{navigateTo:vi.fn(),showToast:vi.fn(),showModal:vi.fn().mockResolvedValue({confirm:true})});vi.stubGlobal("getApp",()=>({globalData:{session:{ensure:async()=>({id:"me"})}}}));});
+beforeEach(()=>{vi.resetModules();vi.useFakeTimers();vi.stubGlobal("Page",(p:NativePage)=>{captured=p;p.setData=patch=>applyNativeData(p.data, patch);});vi.stubGlobal("wx",{navigateTo:vi.fn(),showToast:vi.fn(),showModal:vi.fn().mockResolvedValue({confirm:true})});vi.stubGlobal("getApp",()=>({globalData:{session:{ensure:async()=>({id:"me"})}}}));});
 afterEach(()=>vi.useRealTimers());
 const occurrence={id:"morning",taskId:"task",segmentId:"segment",localDate:"2026-09-14",slot:"08:00",time:"08:00",subject:{kind:"member",membershipId:"old"},subjectName:"旧执行人",canRecord:false,status:"pending",version:0} as OccurrenceDTO;
 const task:TaskDTO={note:"",familyName:"家",ownerUserId:"me",ownerName:"我",createdByUserId:"me",subject:{kind:"member",membershipId:"new"},createdAt:"2026-09-14T00:00:00.000Z",updatedAt:"2026-09-14T00:00:00.000Z",id:"task",version:3,title:"周期",subjectName:"新执行人",schedule:{kind:"daily",startDate:"2026-09-14",endDate:null,times:["08:00","20:00"]},familyId:"family",participants:[],capabilities:{canEdit:true,canShare:true,canResume:false,canRecord:true,canDelete:true,canRestore:false},lifecycle:"active",myReminder:{enabled:true,version:1,selfDisabled:false}};

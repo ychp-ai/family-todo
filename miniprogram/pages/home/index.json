@@ -1,1 +1,13 @@
-{"navigationStyle":"custom","usingComponents":{}}
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "home-reminder-banner": "/components/home-reminder-banner/index",
+    "home-filters": "/components/home-filters/index",
+    "home-date-tabs": "/components/home-date-tabs/index",
+    "home-task-card": "/components/home-task-card/index",
+    "home-reminder-card": "/components/home-reminder-card/index",
+    "home-backlog-card": "/components/home-backlog-card/index",
+    "home-quick-form": "/components/home-quick-form/index",
+    "home-batch-group": "/components/home-batch-group/index"
+  }
+}
