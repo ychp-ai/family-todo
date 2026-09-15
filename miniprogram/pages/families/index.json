@@ -6,6 +6,7 @@
     "family-member": "/components/family-member/index",
     "family-virtual-member": "/components/family-virtual-member/index",
     "family-management": "/components/family-management/index",
-    "family-profile": "/components/family-profile/index"
+    "family-profile": "/components/family-profile/index",
+    "mp-half-screen-dialog": "weui-miniprogram/half-screen-dialog/half-screen-dialog"
   }
 }

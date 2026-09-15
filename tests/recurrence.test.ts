@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import { projectOccurrences } from "@family-todo/domain";
+import { overlayOccurrence, overlayOccurrences, projectionTask } from "../packages/application/src/recurrence-projection";
 import { isPersonalData } from "@family-todo/contracts";
 import type { OccurrenceDTO, OccurrenceRef, PersonalAction, PersonalActionMap, TaskDraft } from "@family-todo/contracts";
 import { OccurrenceLists } from "../packages/application/src/occurrence-lists";
@@ -56,6 +58,47 @@ describe("recurring write closure", () => {
 });
 
 describe("recurring projection pages", () => {
+  it("matches single overlays across pause/resume boundaries, including an exact due instant", async () => {
+    const f = await fixture(); const created = await f.call("task.create", { draft: draft() });
+    const store = f.store(); const task = await store.readTask(created.task.id);
+    if (!task?.recurrence) throw new Error("Missing recurring task");
+    const segment = await store.readSegment(task.recurrence.currentSegmentId);
+    if (!segment) throw new Error("Missing segment");
+    await store.transaction(async tx => {
+      await tx.saveControl({ id: randomUUID(), taskId: task.id, kind: "pause", effectiveAt: "2026-09-12T00:00:00.000Z", taskVersion: 2, enabled: false, stopped: false });
+      await tx.saveControl({ id: randomUUID(), taskId: task.id, kind: "resume", effectiveAt: "2026-09-13T00:00:00.000Z", taskVersion: 3, enabled: true, stopped: false });
+    });
+    const candidates = [...projectOccurrences({ task: projectionTask(task), segments: [segment], controls: [], dateFrom: "2026-09-12", dateTo: "2026-09-13", now: "2026-09-13T12:30:00.000Z" })];
+    const expected = [];
+    for (const candidate of candidates) expected.push(await overlayOccurrence(store, task, candidate));
+    const control = vi.spyOn(store, "controlBefore");
+    const actual = await overlayOccurrences(store, task, candidates);
+    expect(actual).toEqual(expected);
+    expect(actual.map(value => value !== null)).toEqual([true, false, false, true]);
+    expect(control).toHaveBeenCalledTimes(3);
+  });
+  it("reuses materialized occurrence pages instead of projecting source segments again", async () => {
+    const f = await fixture(); const created = await f.call("task.create", { draft: draft() });
+    const payload = { taskId: created.task.id, dateFrom: "2026-09-12", dateTo: "2026-09-13", limit: 1 };
+    const clock = { now: () => new Date("2026-09-11T10:30:00.000Z") };
+    const initial = f.store(); const controls = vi.spyOn(initial, "controlBefore");
+    const first = await new OccurrenceLists(initial, clock).execute("occurrence.list", payload);
+    expect(controls).toHaveBeenCalledTimes(1);
+    if (!isPersonalData("occurrence.list", first) || !first.nextCursor) throw new Error("Expected cursor");
+    const store = f.store(); const segments = vi.spyOn(store, "segments");
+    const states = vi.spyOn(store, "readOccurrenceStates");
+    const occurrences = [...first.items]; let cursor: string | null = first.nextCursor;
+    while (cursor) {
+      const page = await new OccurrenceLists(store, clock).execute("occurrence.list", { ...payload, cursor });
+      if (!isPersonalData("occurrence.list", page)) throw new Error("Invalid list");
+      occurrences.push(...page.items); cursor = page.nextCursor;
+    }
+    expect(occurrences.map(o => `${o.localDate}/${o.slot}`)).toEqual(["2026-09-12/08:00", "2026-09-12/20:00", "2026-09-13/08:00", "2026-09-13/20:00"]);
+    expect(segments).not.toHaveBeenCalled(); expect(states).not.toHaveBeenCalled();
+    const replay = await new OccurrenceLists(f.store(), clock).execute("occurrence.list", { ...payload, cursor: first.nextCursor });
+    if (!isPersonalData("occurrence.list", replay)) throw new Error("Invalid replay");
+    expect(replay.items).toEqual([occurrences[1]]);
+  });
   it("prefetches edited segments and resumes every unconsumed segment after a deadline", async () => {
     const f = await fixture(); f.time("2026-09-11T22:30:00.000Z"); const d = draft();
     const created = await f.call("task.create", { draft: d });
@@ -197,5 +240,69 @@ describe("reviewed recurrence response consistency", () => {
     if (!("nextOccurrences" in updated)) throw new Error("Missing update"); expect(updated.nextOccurrences[0]).toEqual(written.occurrence);
     expect((await f.call("task.get", { id: created.task.id })).occurrence).toEqual(written.occurrence);
     expect((await f.call("task.list", { dateFrom: "2026-09-15", dateTo: "2026-09-15" })).items[0]?.occurrence).toEqual(written.occurrence);
+  });
+});
+
+
+describe("list performance continuation", () => {
+  it("batches reminder receipts and preserves dismissal filtering and read state", async () => {
+    const f = await fixture(); f.time("2026-09-12T00:00:00.000Z");
+    const created = await f.call("task.create", { draft: { ...draft(), schedule: { kind: "daily", startDate: "2026-09-12", endDate: "2026-09-12", times: ["09:00", "10:00", "11:00", "12:00"] } } });
+    f.time("2026-09-12T10:00:00.000Z");
+    const initial = await f.call("reminder.list", {}); const first = initial.items[0], second = initial.items[1];
+    if (!first || !second) throw new Error("Missing reminders");
+    await f.call("reminder.dismiss", { occurrence: first.occurrence });
+    await f.call("reminder.markRead", { occurrence: second.occurrence });
+    const store = f.store(), reads = vi.spyOn(store, "readReminderReceipts");
+    const result = await new OccurrenceLists(store, { now: () => new Date("2026-09-12T10:00:00.000Z") }).execute("reminder.list", {});
+    if (!isPersonalData("reminder.list", result)) throw new Error("Invalid reminders");
+    expect(reads).toHaveBeenCalledTimes(1); expect(reads.mock.calls[0]?.[0]).toHaveLength(4);
+    expect(result.items).toHaveLength(3); expect(result.items[0]?.readAt).not.toBeNull();
+    expect(result.items.every(item => item.occurrence.taskId === created.task.id)).toBe(true);
+    expect((await f.call("reminder.list", { includeDismissed: true })).items).toHaveLength(4);
+  });
+  it("returns a compact task only when requested, retaining full details and unscheduled/recycle behavior", async () => {
+    const f = await fixture();
+    const created = await f.call("task.create", { draft: { ...draft(), note: "详细备注" } });
+    const full = await f.call("task.list", {});
+    const compact = await f.call("task.list", { view: "summary" });
+    expect(full.items[0]?.task).toHaveProperty("note", "详细备注");
+    expect(compact.items[0]?.task).not.toHaveProperty("note");
+    expect(compact.items[0]?.task).not.toHaveProperty("participants");
+    expect(compact.items[0]?.occurrence).toEqual(full.items[0]?.occurrence);
+    expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(full).length);
+    expect((await f.call("task.get", { id: created.task.id })).task.note).toBe("详细备注");
+    await f.call("task.create", { draft: { ...draft(), schedule: { kind: "once", date: null, time: null } } });
+    const unscheduled = await f.call("task.list", { unscheduled: true, view: "summary" });
+    expect(unscheduled.items).toHaveLength(1); expect(unscheduled.items[0]?.task).not.toHaveProperty("myReminder");
+    await f.call("task.delete", { id: created.task.id, expectedVersion: 1 });
+    const recycle = await f.call("task.recycleList", { view: "summary" });
+    expect(recycle.items[0]?.capabilities.canRestore).toBe(true);
+    expect(recycle.items[0]).not.toHaveProperty("participants");
+    expect((await f.call("task.recycleList", {})).items[0]).toHaveProperty("participants");
+  });
+  it("jumps a decades-long empty gap and still returns old closed-segment occurrences", async () => {
+    const f = await fixture(); f.time("2001-01-01T10:00:00.000Z");
+    const original: TaskDraft = { ...draft(), schedule: { kind: "daily", startDate: "2001-01-01", endDate: "2001-01-02", times: ["20:00"] } };
+    const created = await f.call("task.create", { draft: original });
+    f.time("2001-01-03T10:00:00.000Z");
+    await f.call("task.update", { id: created.task.id, expectedVersion: 1, draft: { ...original, schedule: { kind: "daily", startDate: "2027-01-01", endDate: null, times: ["20:00"] } } });
+    f.time("2026-09-15T10:00:00.000Z");
+    const first = await f.call("task.list", { overdue: true });
+    expect(first.items).toEqual([]); expect(first.nextCursor).not.toBeNull();
+    if (!first.nextCursor) throw new Error("Missing history cursor");
+    const second = await f.call("task.list", { overdue: true, cursor: first.nextCursor });
+    expect(second.items.map(item => item.occurrence.localDate)).toEqual(["2001-01-01", "2001-01-02"]);
+    expect(second.complete).toBe(true);
+    expect(await f.call("task.list", { overdue: true, cursor: first.nextCursor })).toEqual(second);
+  });
+  it("jumps directly to a backdated once without using its creation date as a lower bound", async () => {
+    const f = await fixture();
+    await f.call("task.create", { draft: { ...draft(), schedule: { kind: "once", date: "2000-01-01", time: "08:00" } } });
+    const first = await f.call("reminder.list", {});
+    if (!first.nextCursor) throw new Error("Missing history cursor");
+    const second = await f.call("reminder.list", { cursor: first.nextCursor });
+    expect(second.items.map(item => item.occurrence.localDate)).toEqual(["2000-01-01"]);
+    expect(second.complete).toBe(true);
   });
 });

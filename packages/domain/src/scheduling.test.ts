@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, canRecordOccurrence, enumerateSlots, isoWeekday, isValidActualCompletedAt, localDateAt, occurrenceIdentityKey, parseLocalDate, projectOccurrences, splitSchedule, toInstant, transitionLifecycle, validateSchedule } from "./scheduling";
+import { addDays, canRecordOccurrence, enumerateSlots, isoWeekday, isValidActualCompletedAt, localDateAt, occurrenceIdentityKey, parseLocalDate, previousSegmentDate, projectOccurrences, splitSchedule, toInstant, transitionLifecycle, validateSchedule } from "./scheduling";
 import type { DailySchedule, ProjectionInput, ScheduleControl, ScheduleSegment } from "./scheduling";
 
 const createdAt = "2026-09-10T10:30:00.000Z";
@@ -166,5 +166,29 @@ describe("记录与实际完成时间", () => {
     const [dateOnly] = project({ segments: [{ ...segment, schedule: { ...daily, times: [] } }] });
     expect(dateOnly?.canRecord).toBe(true);
     expect(isValidActualCompletedAt(once, "bad", now, createdAt)).toBe(false);
+  });
+});
+
+
+describe("historical window bounds", () => {
+  it("bounds every projected weekly/daily date across segment edges and date-only creation", () => {
+    for (const times of [[], ["08:00", "20:00"]]) {
+      for (const schedule of [{ kind: "daily" as const, startDate: "2026-09-10", endDate: "2026-09-20", times }, { kind: "weekly" as const, startDate: "2026-09-10", endDate: "2026-09-20", times, weekdays: [1, 7] }]) {
+        for (const effectiveUntil of [null, "2026-09-13T00:00:00.000Z"]) {
+          const candidate = { ...segment, schedule, effectiveUntil };
+          for (const before of ["2026-09-10", "2026-09-11", "2026-09-14", "2026-09-22"]) {
+            const bound = previousSegmentDate(candidate, before);
+            const slots = project({ segments: [candidate], dateFrom: "2026-09-01", dateTo: addDays(before, -1) });
+            for (const occurrence of slots) { expect(bound).not.toBeNull(); expect(occurrence.localDate && bound && occurrence.localDate <= bound).toBe(true); }
+          }
+        }
+      }
+    }
+  });
+  it("retains backdated current once but ignores obsolete once and respects the date floor", () => {
+    const once = { ...segment, schedule: { kind: "once" as const, date: "2000-01-01", time: null } };
+    expect(previousSegmentDate(once, "2026-09-11", once.id)).toBe("2000-01-01");
+    expect(previousSegmentDate(once, "2026-09-11", "other")).toBeNull();
+    expect(previousSegmentDate(segment, "2000-01-01")).toBeNull();
   });
 });

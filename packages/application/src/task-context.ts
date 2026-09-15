@@ -1,4 +1,4 @@
-import type { OccurrenceDTO, OccurrenceRef, TaskDTO } from "@family-todo/contracts";
+import type { OccurrenceDTO, OccurrenceRef, TaskDTO, TaskSummaryDTO } from "@family-todo/contracts";
 import { familyTaskRights, occurrenceSlot, scheduledInstant } from "@family-todo/domain";
 import type { CollaborativeTask, FamilyContext, Membership, ReminderPreference } from "@family-todo/domain";
 import type { FamilyStore, FamilyTransaction } from "@family-todo/ports";
@@ -10,7 +10,7 @@ export function taskVersion(actual: number, expected: number): void { if (actual
 export function checkTaskRef(task: CollaborativeTask, ref: OccurrenceRef): void {
   if (ref.id !== task.occurrenceId || ref.taskId !== task.id || ref.segmentId !== task.segmentId || ref.localDate !== task.date || ref.slot !== occurrenceSlot(task)) taskMissing();
 }
-export async function taskContext(store: FamilyStore, task: CollaborativeTask, roster?: FamilyContext): Promise<FamilyContext> {
+export async function taskContext(store: FamilyStore, task: CollaborativeTask, roster?: FamilyContext, actorId?: string): Promise<FamilyContext> {
   const binding = task.collaboration; if (!binding) taskMissing();
   const ids = [binding.creatorMembershipId, ...(binding.ownerBinding.kind === "membership" ? [binding.ownerBinding.membershipId] : [])];
   // Only reuse a roster containing both active bindings. Historical successor chains
@@ -22,9 +22,8 @@ export async function taskContext(store: FamilyStore, task: CollaborativeTask, r
   if (task.recurrence) {
     context.historicalTaskId = task.id;
     // The validated roster bounds this fan-out to at most 20 active members.
-    const members = context.members.filter(member => member.status === "active");
-    const access = await Promise.all(members.map(member => store.historicalSubjectAccess(task.id, member.id)));
-    context.historicalSubjectMembershipIds = members.filter((_, index) => access[index]).map(member => member.id);
+    const members = context.members.filter(member => member.status === "active" && (actorId === undefined || member.userId === actorId));
+    context.historicalSubjectMembershipIds = await store.historicalSubjects(task.id, members.map(member => member.id));
   }
   return context;
 }
@@ -58,12 +57,23 @@ export async function familyTaskDTO(tx: FamilyTransaction, task: CollaborativeTa
     participants.push({ membershipId: member.id, name: member.name, canView, canHelp: canView && binding.helperMembershipIds.includes(member.id), requiredViewer: rights.requiredIds.has(member.id), isCreatorManager: rights.creator.id === member.id,
       ...(rights.manager || member.userId === actorId ? { receivesReminder: canView && Boolean(preference?.enabled && !preference.selfDisabled && preference.membershipId === member.id), reminderSelfDisabled: preference?.selfDisabled ?? false } : {}) });
   }
+  return { ...familyTaskSummary(task, context, actorId), note: task.note, participants,
+    myReminder: { enabled: mineEnabled, selfDisabled: mine?.selfDisabled ?? false, version: mine?.version ?? 0 },
+    createdAt: task.createdAt, updatedAt: task.updatedAt };
+}
+
+export function familyTaskSummary(task: CollaborativeTask, context: FamilyContext, actorId: string): TaskSummaryDTO {
+  const binding = task.collaboration; if (!binding) taskMissing();
+  const rights = familyTaskRights(task, context, actorId); if (!rights.canView) taskMissing();
   const active = task.lifecycle !== "deleted";
   const subjectName = binding.subject.kind === "member" ? context.members.find(member => binding.subject.kind === "member" && member.id === binding.subject.membershipId)?.name : context.virtualMembers.find(member => binding.subject.kind === "virtual" && member.id === binding.subject.virtualMemberId)?.name;
-  return { id: task.id, version: task.version, title: task.title, note: task.note, familyId: context.family.id, familyName: context.family.name,
+  return { id: task.id, version: task.version, title: task.title, familyId: context.family.id, familyName: context.family.name,
     ownerUserId: rights.owner.userId, ownerName: rights.owner.name, createdByUserId: binding.createdByUserId,
     subject: binding.subject, subjectName: subjectName ?? binding.subjectName, schedule: task.recurrence?.schedule ?? { kind: "once", date: task.date, time: task.time }, lifecycle: task.lifecycle,
-    participants, myReminder: { enabled: mineEnabled, selfDisabled: mine?.selfDisabled ?? false, version: mine?.version ?? 0 },
-    capabilities: { canEdit: active && rights.manager, canRecord: rights.canRecord, canShare: active && rights.manager, canDelete: active && rights.manager, canRestore: !active && rights.manager, canResume: rights.manager && task.lifecycle === "paused" && !task.recurrence?.stopped },
-    createdAt: task.createdAt, updatedAt: task.updatedAt };
+    capabilities: { canEdit: active && rights.manager, canRecord: rights.canRecord, canShare: active && rights.manager, canDelete: active && rights.manager, canRestore: !active && rights.manager, canResume: rights.manager && task.lifecycle === "paused" && !task.recurrence?.stopped } };
+}
+
+export function summarizeTask(task: TaskDTO): TaskSummaryDTO {
+  const { note, participants, myReminder, createdAt, updatedAt, ...summary } = task;
+  return summary;
 }

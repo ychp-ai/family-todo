@@ -63,18 +63,35 @@ it("小程序仅引用目录内运行时代码，页面不直连云 SDK", () => 
 });
 
 it("已注册页面与组件具备完整的小程序资源，并排除测试上传", () => {
-  const app = JSON.parse(readFileSync("miniprogram/app.json", "utf8")) as { pages: Array<string> };
+  const app = JSON.parse(readFileSync("miniprogram/app.json", "utf8")) as { pages: Array<string>; useExtendedLib?: { weui?: boolean } };
   for (const page of app.pages) {
     for (const extension of ["ts", "json", "wxml", "wxss"]) {
       expect(existsSync(`miniprogram/${page}.${extension}`), `${page}.${extension}`).toBe(true);
     }
-    const config = JSON.parse(readFileSync(`miniprogram/${page}.json`, "utf8")) as { usingComponents: Record<string, string> };
-    for (const path of Object.values(config.usingComponents)) {
+  }
+  const visited = new Set<string>();
+  const extendedComponents = new Set([
+    "weui-miniprogram/cells/cells",
+    "weui-miniprogram/cell/cell",
+    "weui-miniprogram/half-screen-dialog/half-screen-dialog"
+  ]);
+  function checkComponents(configPath: string): void {
+    if (visited.has(configPath)) return;
+    visited.add(configPath);
+    const config = JSON.parse(readFileSync(configPath, "utf8")) as { usingComponents?: Record<string, string> };
+    for (const path of Object.values(config.usingComponents ?? {})) {
+      if (extendedComponents.has(path)) {
+        expect(app.useExtendedLib?.weui).toBe(true);
+        continue;
+      }
+      expect(path).toMatch(/^\//);
       for (const extension of ["ts", "json", "wxml", "wxss"]) {
         expect(existsSync(`miniprogram${path}.${extension}`), `${path}.${extension}`).toBe(true);
       }
+      checkComponents(`miniprogram${path}.json`);
     }
   }
+  for (const page of app.pages) checkComponents(`miniprogram/${page}.json`);
   const project = JSON.parse(readFileSync("project.config.json", "utf8")) as {
     packOptions: { ignore: Array<{ type: string; value: string }> };
   };

@@ -52,11 +52,15 @@ export interface FamilyStore {
   readTask(id: string): Promise<CollaborativeTask | null>;
   deriveOccurrenceId(identity: OccurrenceIdentity): string;
   readSegment(id: string): Promise<PersistedScheduleSegment | null>;
-  segments(taskId: string, after: string | null, limit: number): Promise<FamilyPage<PersistedScheduleSegment>>;
+  segments(taskId: string, after: string | null, limit: number, window?: { from: string; to: string; currentSegmentId: string }): Promise<FamilyPage<PersistedScheduleSegment>>;
   /** Strictly before boundary; descending effectiveAt then taskVersion, at most one row. */
   controlBefore(taskId: string, boundary: string): Promise<PersistedScheduleControl | null>;
   readOccurrenceState(id: string): Promise<PersistedOccurrenceState | null>;
+  readReminderReceipts(occurrenceIds: string[], userId: string): Promise<ReminderReceipt[]>;
+  previousSegmentEnd(taskId: string, before: string): Promise<string | null>;
+  readOccurrenceStates(ids: string[]): Promise<PersistedOccurrenceState[]>;
   historicalSubjectAccess(taskId: string, membershipId: string): Promise<boolean>;
+  historicalSubjects(taskId: string, membershipIds: string[]): Promise<string[]>;
   families(userId: string): Promise<Family[]>;
   members(query: FamilyListQuery, after: string | null, limit: number): Promise<FamilyPage<Membership>>;
   virtualMembers(query: FamilyListQuery, after: string | null, limit: number): Promise<FamilyPage<VirtualMember>>;

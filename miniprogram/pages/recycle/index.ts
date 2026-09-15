@@ -1,6 +1,6 @@
 import { patchData } from "../../services/patch-data";
 import { componentActions } from "../../services/component-events";
-import type { TaskDTO, FamilySummary } from "@family-todo/contracts";
+import type { TaskSummaryDTO, FamilySummary } from "@family-todo/contracts";
 import { PersonalApiError, personalApi, isAccessDenied } from "../../services/personal-api";
 import { listFamilies } from "../../services/family-api";
 import { listRecycle } from "../../services/personal-lists";
@@ -8,7 +8,7 @@ import { back, errorMessage, navigationMetrics, readySession } from "../../servi
 
 Page({
   onComponentAction: componentActions(["familyChange", "restore"]),
-  data: { statusHeight: 0, navHeight: 44, capsuleWidth: 100, status: "loading", error: "", scopedFamilyId: "", families:[] as FamilySummary[],familyOptions:["全部家庭","仅个人"],familyIndex:0,items: [] as TaskDTO[], writing: false, restoringId: "" },
+  data: { statusHeight: 0, navHeight: 44, capsuleWidth: 100, status: "loading", error: "", scopedFamilyId: "", families:[] as FamilySummary[],familyOptions:["全部家庭","仅个人"],familyIndex:0,items: [] as TaskSummaryDTO[], writing: false, restoringId: "" },
   visible: false, alive: true, epoch: 0,
   pendingRestore: null as { id: string; expectedVersion: number } | null,
   onLoad(query:Record<string,string|undefined> = {}) { patchData(this, {...navigationMetrics(),scopedFamilyId:query.familyId??""}); },

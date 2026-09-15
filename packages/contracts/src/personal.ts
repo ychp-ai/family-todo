@@ -38,7 +38,8 @@ export type TaskDTO = {
   capabilities: { canEdit: boolean; canRecord: boolean; canShare: boolean; canDelete: boolean; canRestore: boolean; canResume: boolean };
   createdAt: string; updatedAt: string;
 };
-export type TaskListItem = { task: TaskDTO; occurrence: OccurrenceDTO };
+export type TaskSummaryDTO = Omit<TaskDTO, "note" | "participants" | "myReminder" | "createdAt" | "updatedAt">;
+export type TaskListItem = { task: TaskSummaryDTO; occurrence: OccurrenceDTO };
 export type TaskEventDTO = { id: string; taskId: string; occurrenceId: string | null; kind: string; actorName: string; recordedAt: string; actualCompletedAt: string | null; note: string };
 export type ReminderDTO = { occurrence: OccurrenceRef; title: string; familyId: string | null; familyName: string | null; subjectName: string; scheduledAt: string; readAt: string | null; dismissedAt: string | null };
 export type Summary = { completed: number; pending: number; skipped: number; denominator: number };
@@ -46,7 +47,7 @@ export type Page<T> = { items: T[]; nextCursor: string | null; complete: boolean
 export type ScopeResult = { familyId: string | null; status: "ok" | "partial" | "failed"; errorCode?: ErrorCode };
 export type AggregatePage<T> = Page<T> & { scopes: ScopeResult[]; summary: Summary | null };
 export type PageInput = { limit?: number; cursor?: string };
-export type TaskListInput = PageInput & { familyId?: string | null; dateFrom?: string; dateTo?: string; unscheduled?: boolean; overdue?: boolean; status?: "pending" | "completed" | "skipped" };
+export type TaskListInput = PageInput & { view?: "summary"; familyId?: string | null; dateFrom?: string; dateTo?: string; unscheduled?: boolean; overdue?: boolean; status?: "pending" | "completed" | "skipped" };
 export type WriteRef = { id: string; expectedVersion: number };
 export type PersonalActionMap = {
   "task.previewSchedule": { payload: { schedule: Schedule; taskId?: string }; data: { now: string; nextOccurrences: SchedulePreviewSlot[]; excludedPastSlots: boolean; explanation: string } };
@@ -63,7 +64,7 @@ export type PersonalActionMap = {
   "task.setAccess": { payload: WriteRef & { access: AccessInput }; data: { task: TaskDTO } };
   "task.delete": { payload: WriteRef; data: { id: string; version: number; deleted: true } };
   "task.restore": { payload: WriteRef; data: { task: TaskDTO; removedParticipantCount: number } };
-  "task.recycleList": { payload: PageInput & { familyId?: string | null }; data: Page<TaskDTO> };
+  "task.recycleList": { payload: PageInput & { familyId?: string | null; view?: "summary" }; data: Page<TaskSummaryDTO> };
   "task.history": { payload: PageInput & { taskId: string }; data: Page<TaskEventDTO> };
   "occurrence.record": { payload: { occurrence: OccurrenceRef; expectedVersion: number; status: "completed" | "skipped"; actualCompletedAt?: string; note?: string }; data: { occurrence: OccurrenceDTO; taskVersion: number } };
   "occurrence.undo": { payload: { occurrence: OccurrenceRef; expectedVersion: number }; data: { occurrence: OccurrenceDTO; taskVersion: number } };
@@ -175,6 +176,12 @@ export function isTaskDTO(v: unknown): v is TaskDTO {
     && new Set(v.participants.map(p => p.membershipId.toLowerCase())).size === v.participants.length
     && (v.familyId === null ? v.participants.length === 0 && v.subject.kind === "user" : v.subject.kind !== "user") && isPreference(v.myReminder) && exact(v.capabilities, ["canEdit", "canRecord", "canShare", "canDelete", "canRestore", "canResume"]) && Object.values(v.capabilities).every(b => typeof b === "boolean") && instant(v.createdAt) && instant(v.updatedAt);
 }
+/** Full responses remain accepted for clients talking to an older server. */
+export function isTaskSummaryDTO(v: unknown): v is TaskSummaryDTO {
+  return exact(v, ["id", "version", "title", "familyId", "familyName", "ownerUserId", "ownerName", "createdByUserId", "subject", "subjectName", "schedule", "lifecycle", "capabilities"])
+    && isTaskDTO({ ...v, note: "", participants: [], myReminder: { enabled: false, selfDisabled: false, version: 0 }, createdAt: "2000-01-01T00:00:00.000Z", updatedAt: "2000-01-01T00:00:00.000Z" });
+}
+function isListTask(v: unknown): v is TaskSummaryDTO { return isTaskSummaryDTO(v) || isTaskDTO(v); }
 export function pageInput(v: Record<string,unknown>): boolean { return (v.limit === undefined || (integer(v.limit,1) && v.limit <= 50)) && (v.cursor === undefined || (string(v.cursor) && v.cursor.length > 0 && v.cursor.length <= 2048)); }
 export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknown): v is PersonalActionMap[A]["payload"] {
   switch (action) {
@@ -193,13 +200,13 @@ export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknow
     case "task.pause": case "task.resume": case "task.stop": case "task.delete": case "task.restore": return exact(v,["id","expectedVersion"]) && isUuid(v.id) && integer(v.expectedVersion,1);
     case "task.get": return exact(v,["id"],["occurrence"]) && isUuid(v.id) && (v.occurrence === undefined || isOccurrenceRef(v.occurrence));
     case "task.list": {
-      if (!exact(v,[],["familyId","dateFrom","dateTo","unscheduled","overdue","status","limit","cursor"]) || !pageInput(v) || !(v.familyId === undefined || v.familyId === null || isUuid(v.familyId))) return false;
+      if (!exact(v,[],["familyId","dateFrom","dateTo","unscheduled","overdue","status","limit","cursor","view"]) || !(v.view === undefined || v.view === "summary") || !pageInput(v) || !(v.familyId === undefined || v.familyId === null || isUuid(v.familyId))) return false;
       if ((v.unscheduled !== undefined && typeof v.unscheduled !== "boolean") || (v.overdue !== undefined && typeof v.overdue !== "boolean") || (v.status !== undefined && v.status !== "pending" && v.status !== "completed" && v.status !== "skipped")) return false;
       if (v.overdue === true) return v.dateFrom === undefined && v.dateTo === undefined && v.unscheduled !== true && (v.status === undefined || v.status === "pending");
       if (v.unscheduled === true) return v.dateFrom === undefined && v.dateTo === undefined;
       return (v.dateFrom === undefined && v.dateTo === undefined) || (localDate(v.dateFrom) && localDate(v.dateTo) && v.dateTo >= v.dateFrom && (Date.parse(v.dateTo)-Date.parse(v.dateFrom))/86400000 < 31);
     }
-    case "task.recycleList": return exact(v,[],["familyId","limit","cursor"]) && pageInput(v) && (v.familyId === undefined || v.familyId === null || isUuid(v.familyId));
+    case "task.recycleList": return exact(v,[],["familyId","limit","cursor","view"]) && (v.view === undefined || v.view === "summary") && pageInput(v) && (v.familyId === undefined || v.familyId === null || isUuid(v.familyId));
     case "task.history": return exact(v,["taskId"],["limit","cursor"]) && isUuid(v.taskId) && pageInput(v);
     case "occurrence.record": return exact(v,["occurrence","expectedVersion","status"],["actualCompletedAt","note"]) && isOccurrenceRef(v.occurrence) && integer(v.expectedVersion) && (v.status === "completed" || v.status === "skipped") && (v.actualCompletedAt === undefined || (v.status === "completed" && instant(v.actualCompletedAt))) && (v.note === undefined || text(v.note,0,1000));
     case "occurrence.undo": return exact(v,["occurrence","expectedVersion"]) && isOccurrenceRef(v.occurrence) && integer(v.expectedVersion);
@@ -251,8 +258,8 @@ export function isPersonalData<A extends PersonalAction>(action: A, v: unknown):
     case "task.pause": case "task.stop": case "task.setAccess": return exact(v,["task"]) && isTaskDTO(v.task);
     case "task.delete": return exact(v,["id","version","deleted"]) && isUuid(v.id) && integer(v.version,1) && v.deleted === true;
     case "task.restore": return exact(v,["task","removedParticipantCount"]) && isTaskDTO(v.task) && integer(v.removedParticipantCount);
-    case "task.list": return page(v, x => exact(x,["task","occurrence"]) && isTaskDTO(x.task) && isOccurrenceDTO(x.occurrence),true);
-    case "task.recycleList": return page(v,isTaskDTO);
+    case "task.list": return page(v, x => exact(x,["task","occurrence"]) && isListTask(x.task) && isOccurrenceDTO(x.occurrence),true);
+    case "task.recycleList": return page(v,isListTask);
     case "task.history": return page(v,isTaskEvent);
     case "occurrence.record": case "occurrence.undo": return exact(v,["occurrence","taskVersion"]) && isOccurrenceDTO(v.occurrence) && integer(v.taskVersion,1);
     case "reminder.list": return page(v,isReminder,true);

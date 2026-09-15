@@ -135,7 +135,7 @@ describe("visible subject progress", () => {
       if (typeof payload !== "object" || payload === null) throw new Error("Invalid source query");
       const offset = "cursor" in payload && typeof payload.cursor === "string" ? Number(payload.cursor) : 0;
       const items = rows.slice(offset, offset + 20); const done = offset + items.length === rows.length;
-      return { items, complete: done, nextCursor: done ? null : String(offset + items.length), asOf: f.creator.now, scopes: [{ familyId: f.family.id, status: done ? "ok" : "partial" }], summary: done ? { completed: 0, pending: 301, skipped: 0, denominator: 301 } : null };
+      return { items: items.map(row => row.occurrence), complete: done, nextCursor: done ? null : String(offset + items.length), asOf: f.creator.now, failed: false };
     });
     const input = { familyId: f.family.id, date: "2026-09-11" }; const first = await call(f.creator, "progress.get", input); if (!first.nextCursor) throw new Error("Missing cursor");
     const result = await complete(f.creator, { ...input, cursor: first.nextCursor }); expect(result.members).toHaveLength(301);

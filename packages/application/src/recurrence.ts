@@ -1,8 +1,8 @@
 import { isPersonalData, isPersonalPayload } from "@family-todo/contracts";
 import type { OccurrenceDTO, PersonalAction, TaskDTO, TaskDraft } from "@family-todo/contracts";
 import { enumerateSlots, familyTaskRights, isValidActualCompletedAt, localDateAt, splitSchedule, transitionLifecycle } from "@family-todo/domain";
-import type { CollaborativeTask, FamilyContext, PersistedOccurrenceState, PersistedScheduleSegment, ProjectedOccurrence } from "@family-todo/domain";
-import type { Clock, FamilyStore, FamilyTransaction, UuidGenerator } from "@family-todo/ports";
+import type { CollaborativeTask, FamilyContext, PersistedOccurrenceState, PersistedScheduleSegment, ProjectedOccurrence, User } from "@family-todo/domain";
+import type { Clock, FamilyReceipt, FamilyStore, FamilyTransaction, UuidGenerator } from "@family-todo/ports";
 import { ApplicationError } from "./errors";
 import { taskDTO } from "./personal";
 import { resolveTaskSubject, setTaskAccess } from "./task-access";
@@ -37,11 +37,11 @@ function setFirstEligible(task: CollaborativeTask, segment: PersistedScheduleSeg
 }
 export class RecurrenceService {
   public constructor(private readonly store: FamilyStore, private readonly clock: Clock, private readonly uuids: UuidGenerator) {}
-  public async execute(action: PersonalAction, payload: unknown, requestId: string): Promise<unknown> {
+  public async execute(action: PersonalAction, payload: unknown, requestId: string, snapshot?: CollaborativeTask | null, dispatchPrior?: { actor: User; receipt: FamilyReceipt | null }): Promise<unknown> {
     if (!isPersonalPayload(action, payload)) throw new ApplicationError("VALIDATION_ERROR", "请检查日程参数。");
-    if (action === "task.previewSchedule" && isPersonalPayload(action, payload)) return this.preview(payload);
-    let existing = targetId(payload, action) ? await this.store.readTask(targetId(payload, action) ?? "") : null;
-    const prior = await this.store.transaction(async tx => { const actor = await tx.actor(); return { actor, receipt: await tx.receipt(actor.id, requestId) }; });
+    if (action === "task.previewSchedule" && isPersonalPayload(action, payload)) return this.preview(payload, snapshot);
+    let existing = snapshot === undefined ? (targetId(payload, action) ? await this.store.readTask(targetId(payload, action) ?? "") : null) : snapshot;
+    const prior = dispatchPrior ?? await this.store.transaction(async tx => { const actor = await tx.actor(); return { actor, receipt: action === "task.get" || action === "task.history" ? null : await tx.receipt(actor.id, requestId) }; });
     const fingerprint = this.store.fingerprint({ action, payload });
     if (prior.receipt) {
       if (prior.receipt.fingerprint !== fingerprint) throw new ApplicationError("IDEMPOTENCY_CONFLICT", "请求标识已用于其他操作，请重新发起。");
@@ -64,8 +64,8 @@ export class RecurrenceService {
     if (existing && "occurrence" in payload && payload.occurrence) occurrence = await resolveOccurrence(this.store, existing, payload.occurrence, this.clock.now().toISOString());
     if (action === "task.get" && isPersonalPayload(action, payload)) {
       if (!existing || existing.lifecycle === "deleted") taskMissing();
-      const segment = await this.currentSegment(existing);
-      const next = nextProjected(existing, segment, this.clock.now().toISOString(), 1)[0];
+      const segment = occurrence ? null : await this.currentSegment(existing);
+      const next = segment ? nextProjected(existing, segment, this.clock.now().toISOString(), 1)[0] : null;
       const currentOccurrence = occurrence ?? (next ? await overlayOccurrence(this.store, existing, next) : null);
       return this.store.transaction(async tx => {
         if (context) await verifyContext(tx, context, prior.actor.id);
@@ -80,10 +80,10 @@ export class RecurrenceService {
     if (!task.recurrence) return legacySegment(task);
     const segment = await this.store.readSegment(task.recurrence.currentSegmentId); if (!segment || segment.taskId !== task.id) throw new Error("Missing current schedule segment."); return segment;
   }
-  private async preview(payload: { schedule: TaskDraft["schedule"]; taskId?: string }): Promise<unknown> {
+  private async preview(payload: { schedule: TaskDraft["schedule"]; taskId?: string }, snapshot?: CollaborativeTask | null): Promise<unknown> {
     const now = this.clock.now().toISOString();
     if (payload.taskId) {
-      const task = await this.store.readTask(payload.taskId); if (!task) taskMissing();
+      const task = snapshot === undefined ? await this.store.readTask(payload.taskId) : snapshot; if (!task) taskMissing();
       const context = task.collaboration ? await taskContext(this.store, task) : null;
       await this.store.transaction(async tx => { const actor = await tx.actor(); if (context) await verifyContext(tx, context, actor.id); const current = await tx.task(task.id); if (!current) taskMissing(); visible(current, context, actor.id, true); });
     }
@@ -216,7 +216,7 @@ export class RecurrenceService {
           if (action === "reminder.markRead") reminder.readAt ??= now; else reminder.dismissedAt ??= now;
           reminder.version++; await tx.saveReminderReceipt(reminder);
         } else throw new Error("Unsupported recurrence action.");
-        task.version++; task.updatedAt = now;
+        if (action !== "reminder.markRead" && action !== "reminder.dismiss") { task.version++; task.updatedAt = now; }
       }
       if (scope.personalTaskCount < 0) throw new Error("Invalid personal quota.");
       let removedParticipantCount = 0;
@@ -225,8 +225,10 @@ export class RecurrenceService {
         removedParticipantCount = new Set([...task.collaboration.viewerMembershipIds, ...task.collaboration.helperMembershipIds].filter(id => !active.has(id))).size;
         task.collaboration.viewerMembershipIds = task.collaboration.viewerMembershipIds.filter(id => active.has(id)); task.collaboration.helperMembershipIds = task.collaboration.helperMembershipIds.filter(id => active.has(id));
       }
-      await tx.saveTask(task);
-      if (context) { context.family.version++; context.family.authEpoch++; context.family.updatedAt = now; await tx.saveFamily(context.family); }
+      if (action !== "reminder.markRead" && action !== "reminder.dismiss") await tx.saveTask(task);
+      const receiptOnly = action === "reminder.markRead" || action === "reminder.dismiss";
+      if (context && !receiptOnly) { context.family.version++; if (eventKind.startsWith("task.")) context.family.authEpoch++; context.family.updatedAt = now; await tx.saveFamily(context.family); }
+      if (receiptOnly) scopeChanged = true;
       if (scopeChanged) { scope.revision++; await tx.saveScope(scope); }
       if (eventKind) await tx.addEvent({ id: eventId, taskId: task.id, occurrenceId: outputOccurrence?.id ?? null, kind: eventKind, actorUserId: actor.id, actorName: member?.name ?? actor.displayName, recordedAt: now, actualCompletedAt: outputOccurrence?.actualCompletedAt ?? null, note: eventNote });
       let result: unknown;
@@ -234,10 +236,15 @@ export class RecurrenceService {
       else if (action === "task.update" && context && !familyTaskRights(task, context, actor.id).canView) result = { id: task.id, version: task.version, updated: true, accessLost: true };
       else if (action === "reminder.markRead" || action === "reminder.dismiss") result = { occurrenceId: candidate ? this.store.deriveOccurrenceId(candidate.identity) : "", ...(action === "reminder.markRead" ? { read: true } : { dismissed: true }) };
       else if (outputOccurrence) result = { occurrence: outputOccurrence, taskVersion: task.version };
-      else {
+      else if (action === "reminder.setMine") {
+        const preference = context ? await tx.preference(task.id, actor.id) : null;
+        result = { preference: context ? {
+          enabled: Boolean(preference?.enabled && !preference.selfDisabled && preference.membershipId === member?.id),
+          selfDisabled: preference?.selfDisabled ?? false, version: preference?.version ?? 0
+        } : { enabled: task.reminderEnabled && !task.reminderSelfDisabled, selfDisabled: task.reminderSelfDisabled, version: task.reminderVersion } };
+      } else {
         const taskDto = await dto(tx, task, context, actor.id);
-        if (action === "reminder.setMine") result = { preference: taskDto.myReminder };
-        else if (action === "task.restore") result = { task: taskDto, removedParticipantCount };
+        if (action === "task.restore") result = { task: taskDto, removedParticipantCount };
         else if (action === "task.pause" || action === "task.stop" || action === "task.setAccess") result = { task: taskDto };
         else {
           const nextOccurrences: OccurrenceDTO[] = [];

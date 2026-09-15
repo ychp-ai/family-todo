@@ -36,5 +36,8 @@
         "selectedIconPath": "assets/tab-family-active.png"
       }
     ]
+  },
+  "useExtendedLib": {
+    "weui": true
   }
 }

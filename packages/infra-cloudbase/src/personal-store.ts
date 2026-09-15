@@ -6,6 +6,8 @@ import type { PersonalEvent, PersonalScope, PersonalTask, User } from "@family-t
 import type { PersonalQuery, PersonalReceipt, PersonalStore, PersonalTransaction, QueryCheckpoint } from "@family-todo/ports";
 
 import { readTaskRecurrence } from "./scheduling-codecs";
+import { FamilyBudgetExceededError } from "@family-todo/ports";
+import { budgetTransaction } from "./transaction-budget";
 import { retryTransaction } from "./transaction-retry";
 import { identityDocumentKey, readDocument, readUser } from "./identity-store";
 import type { IdentityDocument, IdentityTransaction } from "./identity-store";
@@ -95,12 +97,20 @@ function checkpoint(v: unknown): QueryCheckpoint | null {
   return {actorId:v.actorId,fingerprint:v.fingerprint,revision:v.revision,asOf:v.asOf,after:v.after,expiresAt:v.expiresAt,summary:{completed:s.completed,pending:s.pending,skipped:s.skipped,denominator:s.denominator}};
 }
 export class CloudBasePersonalStore implements PersonalStore {
-  public constructor(private readonly db: PersonalDatabase,private readonly identity: WechatIdentity,private readonly cursorSecret: string) { if (cursorSecret.length < 32) throw new Error("Cursor secret unavailable."); }
+  private budget(minimum = 1): void { if (this.deadline - this.nowMs() < minimum) throw new FamilyBudgetExceededError(); }
+  public constructor(private readonly db: PersonalDatabase,private readonly identity: WechatIdentity,private readonly cursorSecret: string, private readonly deadline = Date.now() + 8000, private readonly nowMs: () => number = Date.now) { if (cursorSecret.length < 32) throw new Error("Cursor secret unavailable."); }
   public transaction<T>(work: (tx: PersonalTransaction) => Promise<T>): Promise<T> {
-    return retryTransaction(() => this.db.runTransaction(tx => work(new Transaction(tx,this.identity)),0));
+    return retryTransaction(() => {
+      this.budget(2000);
+      return this.db.runTransaction(async tx => {
+        const result = await work(new Transaction(budgetTransaction(tx, () => this.budget()), this.identity));
+        this.budget(); return result;
+      }, 0);
+    }, { maxRetries: 2 });
   }
   public fingerprint(value: unknown): string { return createHash("sha256").update(canonical(value)).digest("hex"); }
   public async scan(userId: string,query: PersonalQuery,asOf: string,after: string | null,limit: number) {
+    this.budget();
     const command = this.db.command;
     const filter: Record<string,unknown> = query.mode === "history" ? {taskId:query.taskId} : {ownerUserId:userId,lifecycle:query.mode === "recycle" ? "deleted" : "active"};
     let order = query.mode === "history" ? "eventOrder" : query.mode === "recycle" || query.unscheduled ? "createdOrder" : query.overdueBefore || query.mode === "reminders" ? "recentOrder" : "scheduleOrder";
@@ -114,6 +124,7 @@ export class CloudBasePersonalStore implements PersonalStore {
     }
     if (after) filter[order] = command.gt(after);
     const response = await this.db.collection(query.mode === "history" ? "task_events" : "tasks").where(filter).orderBy(order,"asc").limit(limit+1).get();
+    this.budget();
     if (!isRecord(response) || !Array.isArray(response.data)) malformed();
     const rows: unknown[] = response.data; const more = rows.length > limit; const selected = rows.slice(0,limit);
     const tasks: PersonalTask[] = []; const events: PersonalEvent[] = []; let next = after;
@@ -129,15 +140,19 @@ export class CloudBasePersonalStore implements PersonalStore {
   }
   private signature(id: string): string { return createHmac("sha256",this.cursorSecret).update(id).digest("base64url"); }
   public async saveCheckpoint(value: QueryCheckpoint): Promise<string> {
+    this.budget();
     const id = randomBytes(24).toString("base64url");
     await this.db.collection("query_sessions").doc(id).set({data:{schemaVersion:1,...value}});
+    this.budget();
     return `${id}.${this.signature(id)}`;
   }
   public async readCheckpoint(token: string): Promise<QueryCheckpoint | null> {
     if (!/^[A-Za-z0-9_-]{32}\.[A-Za-z0-9_-]{43}$/.test(token)) return null;
     const [id,signature] = token.split("."); if (!id || !signature) return null;
     const expected = this.signature(id); if (!timingSafeEqual(Buffer.from(expected),Buffer.from(signature))) return null;
+    this.budget();
     const v = readDocument(await this.db.collection("query_sessions").doc(id).get());
+    this.budget();
     return v?.schemaVersion === 1 ? checkpoint(v) : null;
   }
 }

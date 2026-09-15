@@ -80,7 +80,7 @@ describe("batch append visibility", () => {
 });
 
 describe("batch durable continuation and failure recovery", () => {
-  it("advances pending suffix under sustained 2100ms transactions before authorizing old successes", async () => {
+  it("completes two new items within 8000ms under sustained 2100ms transactions", async () => {
     const f = await progressBatchFixture();
     const a = await call(f.creator, "task.create", { draft: taskDraft(f.family.id) });
     const b = await call(f.creator, "task.create", { draft: taskDraft(f.family.id) });
@@ -93,10 +93,9 @@ describe("batch durable continuation and failure recovery", () => {
       finally { f.database.afterCommit = undefined; }
     };
     const first = await attempt();
-    expect(first).toMatchObject({ complete: false, results: [{ taskId: a.task.id, status: "succeeded" }, { taskId: b.task.id, status: "pending" }] });
+    expect(first).toMatchObject({ complete: true, results: [{ taskId: a.task.id, status: "succeeded" }, { taskId: b.task.id, status: "succeeded" }] });
     const second = await attempt();
-    expect(second).toMatchObject({ complete: false, results: [{ taskId: a.task.id, status: "pending" }, { taskId: b.task.id, status: "succeeded" }] });
-    expect(second.results[0]).not.toHaveProperty("version");
+    expect(second).toEqual(first);
     expect((await f.creator.store().readTask(b.task.id))?.version).toBe(2);
     const third = await attempt();
     expect(third).toMatchObject({ complete: true, results: [{ status: "succeeded", version: 2 }, { status: "succeeded", version: 2 }] });
@@ -167,7 +166,7 @@ describe("batch durable continuation and failure recovery", () => {
     const payload: Input = { items: [{ taskId: created.task.id, expectedVersion: 2, viewerMembershipIds: [f.viewer.member.id] }] }, requestId = randomUUID();
     await expect(call(f.creator, "task.batchAddViewers", payload, createId)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
     const first = await call(f.creator, "task.batchAddViewers", payload, requestId); expect(first.results[0]).toMatchObject({ status: "failed", error: { code: "VERSION_CONFLICT" } });
-    await call(f.creator, "task.batchAddViewers", { items: [{ ...payload.items[0], taskId: created.task.id, expectedVersion: 1, viewerMembershipIds: [] }] });
+    await call(f.creator, "task.batchAddViewers", { items: [{ ...payload.items[0], taskId: created.task.id, expectedVersion: 1, viewerMembershipIds: [f.owner.member.id] }] });
     expect(await call(f.creator, "task.batchAddViewers", payload, requestId)).toEqual(first);
     const next = await call(f.creator, "task.batchAddViewers", payload); expect(next.results[0]).toMatchObject({ status: "succeeded", version: 3 });
     await expect(call(f.creator, "task.delete", { id: created.task.id, expectedVersion: 3 }, requestId)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });

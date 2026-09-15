@@ -62,14 +62,16 @@ class Accumulator {
   }
   public async members(root: string | null): Promise<MemberProgress[]> {
     const result: MemberProgress[] = [];
-    const visit = async (token: string): Promise<void> => {
-      // The final API envelope is intentionally all-or-nothing. Never pretend a non-progressing final read is a continuation.
+    const pending = root ? [root] : [];
+    while (pending.length) {
+      // Bound total concurrent reads across the tree, regardless of depth.
       if (this.store.remainingBudgetMs() < 3000) unavailable();
-      const node = await this.read(token);
-      if ("members" in node) result.push(...node.members);
-      else for (const child of node.children) await visit(child.token);
-    };
-    if (root) await visit(root);
+      const nodes = await Promise.all(pending.splice(0, 4).map(token => this.read(token)));
+      for (const node of nodes) {
+        if ("members" in node) result.push(...node.members);
+        else pending.push(...node.children.map(child => child.token));
+      }
+    }
     return result.sort((a, b) => key(a.subject).localeCompare(key(b.subject)));
   }
 }
@@ -100,15 +102,17 @@ export class ProgressService {
       await this.fence(payload, state);
       return { members, complete: true, nextCursor: null, asOf: state.asOf };
     }
-    const page = await new OccurrenceLists(this.store, this.clock).execute("task.list", { familyId: payload.familyId, dateFrom: payload.date, dateTo: payload.date, limit: PAGE_SIZE, ...(state.listCursor ? { cursor: state.listCursor } : {}) }, payload.subject);
-    if (!isPersonalData("task.list", page)) throw new Error("Invalid progress occurrence page.");
-    if (page.scopes.some(scope => scope.status === "failed")) unavailable();
+    const page = await new OccurrenceLists(this.store, this.clock).execute("task.list", { familyId: payload.familyId, dateFrom: payload.date, dateTo: payload.date, limit: PAGE_SIZE, ...(state.listCursor ? { cursor: state.listCursor } : {}) }, payload.subject, true);
+    if (!isRecord(page) || typeof page.failed !== "boolean") throw new Error("Invalid progress occurrence page.");
+    const source = { items: page.items, complete: page.complete, nextCursor: page.nextCursor, asOf: page.asOf };
+    if (!isRecord(page) || typeof page.failed !== "boolean" || !isPersonalData("occurrence.list", source)) throw new Error("Invalid progress occurrence page.");
+    if (page.failed) unavailable();
     // The first source call owns the frozen instant. Every later page must agree with it.
-    if (state.listCursor && page.asOf !== state.asOf) expired();
-    state.asOf = page.asOf;
-    const changes: MemberProgress[] = page.items.map(({ occurrence }) => ({ subject: occurrence.subject, name: occurrence.subjectName, completed: occurrence.status === "completed" ? 1 : 0, pending: occurrence.status === "pending" ? 1 : 0, skipped: occurrence.status === "skipped" ? 1 : 0, denominator: occurrence.status === "skipped" ? 0 : 1 }));
+    if (state.listCursor && source.asOf !== state.asOf) expired();
+    state.asOf = source.asOf;
+    const changes: MemberProgress[] = source.items.map(occurrence => ({ subject: occurrence.subject, name: occurrence.subjectName, completed: occurrence.status === "completed" ? 1 : 0, pending: occurrence.status === "pending" ? 1 : 0, skipped: occurrence.status === "skipped" ? 1 : 0, denominator: occurrence.status === "skipped" ? 0 : 1 }));
     // A complete first page is bounded by PAGE_SIZE; no persisted tree is needed.
-    if (!payload.cursor && page.complete && this.store.remainingBudgetMs() > 4000) {
+    if (!payload.cursor && source.complete && this.store.remainingBudgetMs() > 4000) {
       const totals = new Map<string, MemberProgress>();
       for (const value of changes) {
         const previous = totals.get(key(value.subject));
@@ -119,7 +123,7 @@ export class ProgressService {
       return { members: [...totals.values()].sort((a, b) => key(a.subject).localeCompare(key(b.subject))), complete: true, nextCursor: null, asOf: state.asOf };
     }
     state.root = await new Accumulator(this.store, state).add(state.root, changes);
-    state.listCursor = page.nextCursor; state.ready = page.complete;
+    state.listCursor = source.nextCursor; state.ready = source.complete;
     await this.fence(payload, state);
     if (state.ready && !state.root) return { members: [], complete: true, nextCursor: null, asOf: state.asOf };
     // Publish completed aggregates before final materialization, giving that read a fresh invocation budget.

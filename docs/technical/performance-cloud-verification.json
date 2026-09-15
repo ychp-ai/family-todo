@@ -1,0 +1,152 @@
+[
+  {
+    "action": "task.list",
+    "payload": {
+      "view": "summary",
+      "limit": 20
+    },
+    "at": "2026-09-15T08:03:26.922Z",
+    "durationMs": 2787,
+    "ok": true,
+    "requestId": "e4588b75-1842-4193-b9f1-4238050352a6",
+    "items": 5,
+    "complete": true,
+    "hasCursor": false,
+    "responseBytes": 5936,
+    "scopes": [
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      }
+    ],
+    "representationValid": true
+  },
+  {
+    "action": "task.list",
+    "payload": {
+      "limit": 20
+    },
+    "at": "2026-09-15T08:03:29.066Z",
+    "durationMs": 2142,
+    "ok": true,
+    "requestId": "494d2caf-8dc5-42b0-be0c-de65118ff648",
+    "items": 5,
+    "complete": true,
+    "hasCursor": false,
+    "responseBytes": 8109,
+    "scopes": [
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      }
+    ],
+    "representationValid": true
+  },
+  {
+    "action": "task.list",
+    "payload": {
+      "view": "summary",
+      "unscheduled": true,
+      "limit": 20
+    },
+    "at": "2026-09-15T08:03:30.445Z",
+    "durationMs": 1379,
+    "ok": true,
+    "requestId": "47f31076-7204-44cc-9b3b-51da85f92aed",
+    "items": 2,
+    "complete": true,
+    "hasCursor": false,
+    "responseBytes": 2506,
+    "scopes": [
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      }
+    ],
+    "representationValid": true
+  },
+  {
+    "action": "task.recycleList",
+    "payload": {
+      "view": "summary",
+      "limit": 20
+    },
+    "at": "2026-09-15T08:03:31.954Z",
+    "durationMs": 1508,
+    "ok": true,
+    "requestId": "34ae4e4c-022e-4c80-bc47-47e796e3def3",
+    "items": 19,
+    "complete": true,
+    "hasCursor": false,
+    "responseBytes": 11518,
+    "representationValid": true
+  },
+  {
+    "action": "reminder.list",
+    "payload": {
+      "limit": 20
+    },
+    "at": "2026-09-15T08:03:34.450Z",
+    "durationMs": 2495,
+    "ok": true,
+    "requestId": "b9be6637-c39c-48a0-b2b5-6052523b78c3",
+    "items": 1,
+    "complete": true,
+    "hasCursor": false,
+    "responseBytes": 807,
+    "scopes": [
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      }
+    ]
+  },
+  {
+    "action": "task.list",
+    "payload": {
+      "view": "summary",
+      "overdue": true,
+      "limit": 20
+    },
+    "at": "2026-09-15T08:03:35.867Z",
+    "durationMs": 1415,
+    "ok": true,
+    "requestId": "c92bd776-46f8-4195-8859-c12c664166b7",
+    "items": 0,
+    "complete": true,
+    "hasCursor": false,
+    "responseBytes": 391,
+    "scopes": [
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      },
+      {
+        "status": "ok"
+      }
+    ],
+    "representationValid": true
+  }
+]

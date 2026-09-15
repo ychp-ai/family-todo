@@ -42,6 +42,16 @@ App 中已装配 `globalData.session`，仅创建协调器，不在启动时调�
 
 上传规则排除测试、类型声明、文档和配置示例。local.ts 会编译进客户端，只能包含公开配置。
 
+## 家庭页 WeUI 适配
+
+家庭列表使用官方 `mp-cells` / `mp-cell`，家庭页共用的半屏容器使用 `mp-half-screen-dialog`。通过 `app.json` 的 `useExtendedLib.weui: true` 加载平台提供的扩展库，无需安装 npm 包或构建 npm。npm 包版本不等于平台支持的扩展库版本；本次指定 `1.5.6` 时开发者工具无法加载组件，改用平台内置版本并重新打开项目后恢复。
+
+`pages/families/index.wxss` 通过带前缀的 `ext-class` 覆盖 WeUI 的默认边距、背景、边框和容器尺寸，继续复用现有 tokens、图标与表单样式。修改此适配层或升级基础库后，需对照现有设计复查家庭卡片、短/长弹窗、滚动和安全区。其他页面的弹窗保持原实现。
+
+弹窗标题和内容分别使用 `title` / `desc` 插槽。关闭按钮与遮罩由页面统一调用 `closeSheet`，禁用 WeUI 内置遮罩：避免组件内部先隐藏，再触发关闭事件而绕过保存中、未决写入及交接预览中的关闭保护。
+
+2026-09-15 完整构建、类型检查及 514 项测试通过；开发者工具验证家庭列表点击、创建家庭和添加无账号成员弹窗的显示与关闭。未提交家庭数据，未上传或发布，iOS/Android 真机和键盘、安全区适配仍需验证。接入方式参见 [WeUI 官方快速上手](https://wechat-miniprogram.github.io/weui/docs/quickstart.html)。
+
 ## 接入自己的云环境
 
 当前工作区的 `miniprogram/config/local.ts` 和 `cloudbaserc.json` 已配置环境 `family-todo-d3g28fx1c314f8638`，调用与部署目标均为 `api` 云函数。这两个本地文件不提交到 Git，新检出仓库仍需按下方步骤配置。2026-09-11 已通过 CLI 创建 api 并验证真实云端健康调用；AppID 与环境关联及开发者工具真实云调用已验证，小程序真机调用尚未验证。
@@ -65,7 +75,7 @@ SDK 初始化成功不保证函数存在或网络可用。邀请密钥环与游�
 
 提交源码、package-lock.json、配置模板和 project.config.json 的公共默认值。
 
-不提交 node_modules、云函数 index.js/map、共享 contracts.js、local.ts、cloudbaserc.json 和开发者工具私有配置。不需要额外执行小程序“构建 npm”，客户端依赖由共享 bundle 提供。
+不提交 node_modules、云函数 index.js/map、共享 contracts.js、local.ts、cloudbaserc.json 和开发者工具私有配置。不需要额外执行小程序“构建 npm”，客户端共享契约由 bundle 提供，WeUI 组件由平台扩展库提供。
 
 `miniprogram/shared/package.json` 是须提交的 CommonJS 格式声明，不是依赖安装清单；共享目录内不需要 node_modules。它防止根目录的 `type: module` 将生成的 contracts.js 误识别为 ES Module。
 

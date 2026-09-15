@@ -1,19 +1,20 @@
+import { listContexts } from "./list-contexts";
 import { instant, integer, isPersonalData, isPersonalPayload, isRecord, isUuid } from "@family-todo/contracts";
-import type { PersonalActionMap, Summary, TaskDTO } from "@family-todo/contracts";
+import type { PersonalActionMap, Summary, TaskSummaryDTO } from "@family-todo/contracts";
 import { familyTaskRights, occurrenceSlot, scheduledInstant, shanghaiDate } from "@family-todo/domain";
 import type { CollaborativeTask, FamilyContext } from "@family-todo/domain";
 import type { Clock, FamilyStore, PersonalQuery } from "@family-todo/ports";
 import { ApplicationError } from "./errors";
 import { taskDTO as personalTaskDTO } from "./personal";
-import { familyTaskDTO, occurrenceDTO, taskContext, taskMissing, verifyContext } from "./task-context";
+import { familyTaskDTO, familyTaskSummary, summarizeTask, occurrenceDTO, taskContext, taskMissing, verifyContext } from "./task-context";
 import { nextProjected, overlayOccurrence, projectedDTO } from "./recurrence-projection";
 
 type ListAction = "task.list" | "task.recycleList" | "reminder.list";
-type Stream = { familyId: string | null; version: number; after: string | null; headId: string | null; done: boolean; failed: boolean };
+type Stream = { familyId: string | null; version: number; after: string | null; headId: string | null; pendingIds?: string[]; done: boolean; failed: boolean };
 type Checkpoint = { actorId: string; fingerprint: string; asOf: string; expiresAt: string; userRevision: number; streams: Stream[]; summary: Summary };
 function expired(): never { throw new ApplicationError("CURSOR_EXPIRED", "列表已更新，请重新加载。"); }
 function nullableString(v: unknown): v is string | null { return v === null || typeof v === "string"; }
-function stream(v: unknown): v is Stream { return isRecord(v) && (v.familyId === null || isUuid(v.familyId)) && integer(v.version, 1) && nullableString(v.after) && (v.headId === null || isUuid(v.headId)) && typeof v.done === "boolean" && typeof v.failed === "boolean"; }
+function stream(v: unknown): v is Stream { return isRecord(v) && (v.familyId === null || isUuid(v.familyId)) && integer(v.version, 1) && nullableString(v.after) && (v.headId === null || isUuid(v.headId)) && (v.pendingIds === undefined || (Array.isArray(v.pendingIds) && v.pendingIds.length <= 20 && v.pendingIds.every(isUuid))) && typeof v.done === "boolean" && typeof v.failed === "boolean"; }
 function readCheckpoint(v: unknown): Checkpoint {
   if (!isRecord(v) || !isUuid(v.actorId) || typeof v.fingerprint !== "string" || !instant(v.asOf) || !instant(v.expiresAt) || !integer(v.userRevision, 1)
     || !Array.isArray(v.streams) || v.streams.length > 11 || !v.streams.every(stream) || !isRecord(v.summary)) expired();
@@ -44,14 +45,10 @@ export class CollaborativeLists {
       query = { mode: "reminders", includeDismissed: payload.includeDismissed ?? false }; limit = payload.limit ?? 20; cursor = payload.cursor;
     } else throw new Error("Invalid list action.");
     const start = await this.store.transaction(async tx => { const actor = await tx.actor(); return { actor, scope: await tx.scope(actor.id) }; });
-    const families = requestedFamily === null ? [] : await this.store.families(start.actor.id);
-    if (requestedFamily && !families.some(family => family.id === requestedFamily)) taskMissing();
-    const selected = requestedFamily ? families.filter(family => family.id === requestedFamily) : families;
+    const selected = await listContexts(this.store, start.actor.id, requestedFamily);
     const streams: Stream[] = requestedFamily === undefined || requestedFamily === null ? [{ familyId: null, version: start.scope.revision, after: null, headId: null, done: false, failed: false }] : [];
     const contexts = new Map<string, FamilyContext>();
-    for (const family of selected) {
-      let context: FamilyContext | null = null;
-      try { context = await this.store.context(family.id); } catch { /* A verified family may fail independently; expose a stable scope failure only. */ }
+    for (const { family, context } of selected) {
       if (context && !context.members.some(member => member.userId === start.actor.id && member.status === "active")) expired();
       if (context) contexts.set(family.id, context);
       streams.push({ familyId: family.id, version: context?.family.version ?? family.version, after: null, headId: null, done: !context, failed: !context });
@@ -75,6 +72,7 @@ export class CollaborativeLists {
         query.dateTo = payload.dateTo ?? snapshotDay;
       }
     }
+    const summaryView = (action === "task.list" && isPersonalPayload(action, payload) || action === "task.recycleList" && isPersonalPayload(action, payload)) && "view" in payload && payload.view === "summary";
     const cache = new Map<string, { task: CollaborativeTask; context: FamilyContext | null }>();
     async function unavailable(): Promise<never> { throw new ApplicationError("TEMPORARILY_UNAVAILABLE", "部分家庭暂时无法加载，请稍后重试。", true); }
     const prepare = async (task: CollaborativeTask, scope: Stream) => {
@@ -85,7 +83,7 @@ export class CollaborativeLists {
         cache.set(task.id, { task, context: null }); return true;
       }
       if (task.collaboration?.familyId !== scope.familyId) taskMissing();
-      const context = await taskContext(this.store, task, contexts.get(scope.familyId));
+      const context = await taskContext(this.store, task, contexts.get(scope.familyId), summaryView ? start.actor.id : undefined);
       if (context.family.version !== scope.version) expired();
       const rights = familyTaskRights(task, context, start.actor.id);
       if (!rights.canView || (query.mode === "recycle" && !rights.manager)) return false;
@@ -104,16 +102,23 @@ export class CollaborativeLists {
         const task = await this.store.readTask(scope.headId); if (!task || !await prepare(task, scope)) expired();
       }
     }
+    const prefetched = new Map<string, CollaborativeTask>();
     const items: unknown[] = []; let candidateReads = 0;
     while (items.length < limit) {
       let ready = true;
       for (const scope of checkpoint.streams) {
-        while (!scope.headId && !scope.done) {
-          // Each one-row stream fetch may read one lookahead row as well.
-          if (candidateReads + 2 > 200 || this.store.remainingBudgetMs() <= 4000) { ready = false; break; }
-          const page = await this.store.scanTasks(start.actor.id, scope.familyId, query, checkpoint.asOf, scope.after, 1); candidateReads += 2;
-          scope.after = page.after; scope.done = !page.more;
-          const task = page.items[0]; if (task && await prepare(task, scope)) scope.headId = task.id;
+        while (!scope.headId && (!scope.done || scope.pendingIds?.length)) {
+          if (candidateReads >= 200 || this.store.remainingBudgetMs() <= 4000) { ready = false; break; }
+          if (!scope.pendingIds?.length) {
+            const page = await this.store.scanTasks(start.actor.id, scope.familyId, query, checkpoint.asOf, scope.after, 20);
+            candidateReads += 21; scope.after = page.after; scope.done = !page.more;
+            scope.pendingIds = page.items.map(task => task.id);
+            for (const task of page.items) prefetched.set(task.id, task);
+          }
+          const id = scope.pendingIds.shift(); if (!id) continue;
+          const task = prefetched.get(id) ?? await this.store.readTask(id); prefetched.delete(id); candidateReads++;
+          if (!task) expired();
+          if (await prepare(task, scope)) scope.headId = task.id;
         }
       }
       if (!ready) break;
@@ -124,8 +129,9 @@ export class CollaborativeLists {
         if (!l || !r) throw new Error("Missing sorted stream head."); return order(l, query).localeCompare(order(r, query));
       });
       const chosen = heads[0]; const entry = chosen?.headId ? cache.get(chosen.headId) : null; if (!chosen || !entry) return unavailable();
-      const { task, context } = entry; let dto: TaskDTO;
-      if (context) dto = await this.store.transaction(async tx => { await verifyContext(tx, context, start.actor.id); return familyTaskDTO(tx, task, context, start.actor.id); });
+      const { task, context } = entry; let dto: TaskSummaryDTO;
+      if (summaryView) dto = context ? familyTaskSummary(task, context, start.actor.id) : summarizeTask(personalTaskDTO(task));
+      else if (context) dto = await this.store.transaction(async tx => { await verifyContext(tx, context, start.actor.id); return familyTaskDTO(tx, task, context, start.actor.id); });
       else dto = personalTaskDTO(task);
       if (action === "task.list") {
         let occurrence = occurrenceDTO(task, dto.capabilities.canRecord);
@@ -156,10 +162,10 @@ export class CollaborativeLists {
         if (!family || !slot?.activeMembershipId || family.version !== scope.version) expired();
       }
     });
-    const complete = checkpoint.streams.every(scope => scope.done && !scope.headId);
+    const complete = checkpoint.streams.every(scope => scope.done && !scope.headId && !scope.pendingIds?.length);
     const nextCursor = complete ? null : await this.store.saveSession({ ...checkpoint });
     const base = { items, complete, nextCursor, asOf: checkpoint.asOf };
-    const result = action === "task.recycleList" ? base : { ...base, scopes: checkpoint.streams.map(scope => ({ familyId: scope.familyId, status: scope.failed ? "failed" : scope.done && !scope.headId ? "ok" : "partial", ...(scope.failed ? { errorCode: "TEMPORARILY_UNAVAILABLE" } : {}) })), summary: complete && checkpoint.streams.every(scope => !scope.failed) ? checkpoint.summary : null };
+    const result = action === "task.recycleList" ? base : { ...base, scopes: checkpoint.streams.map(scope => ({ familyId: scope.familyId, status: scope.failed ? "failed" : scope.done && !scope.headId && !scope.pendingIds?.length ? "ok" : "partial", ...(scope.failed ? { errorCode: "TEMPORARILY_UNAVAILABLE" } : {}) })), summary: complete && checkpoint.streams.every(scope => !scope.failed) ? checkpoint.summary : null };
     if (!isPersonalData(action, result)) throw new Error("Invalid collaborative list result."); return result;
   }
   public async history(payload: PersonalActionMap["task.history"]["payload"], context: FamilyContext | null): Promise<unknown> {

@@ -6,8 +6,8 @@ import { resolveTaskSubject, setTaskAccess } from "./task-access";
 import { isPersonalData, isPersonalPayload, PERSONAL_ACTIONS } from "@family-todo/contracts";
 import type { PersonalAction } from "@family-todo/contracts";
 import { familyTaskRights, scheduledInstant } from "@family-todo/domain";
-import type { CollaborativeTask, FamilyContext, ReminderPreference } from "@family-todo/domain";
-import type { Clock, FamilyStore, FamilyTransaction, PersonalStore, UuidGenerator } from "@family-todo/ports";
+import type { CollaborativeTask, FamilyContext, ReminderPreference, User } from "@family-todo/domain";
+import type { Clock, FamilyReceipt, FamilyStore, FamilyTransaction, PersonalStore, UuidGenerator } from "@family-todo/ports";
 import { ApplicationError } from "./errors";
 import { PersonalService } from "./personal";
 import type { ActionHandler, ActionRouter } from "./router";
@@ -23,9 +23,9 @@ function writeId(action: PersonalAction, payload: unknown): string | null {
 }
 
 export class CollaborativeTaskService {
-  private readonly personal: PersonalService;
-  public constructor(private readonly store: FamilyStore, personalStore: PersonalStore, private readonly clock: Clock, private readonly uuids: UuidGenerator) {
-    this.personal = new PersonalService(personalStore, clock, uuids);
+  private personal: Promise<PersonalService> | undefined;
+  public constructor(private readonly store: FamilyStore, private readonly personalStore: PersonalStore | (() => Promise<PersonalStore>), private readonly clock: Clock, private readonly uuids: UuidGenerator) {
+
   }
   public async execute(action: PersonalAction, payload: unknown, requestId: string): Promise<unknown> {
     if (!isPersonalPayload(action, payload)) throw new ApplicationError("VALIDATION_ERROR", "请检查事项内容、日期和参数。");
@@ -34,9 +34,11 @@ export class CollaborativeTaskService {
     if (action === "task.batchAddViewers") return new BatchViewers(this.store, this.clock, this.uuids).execute(payload, requestId);
     if (action === "progress.get") return new ProgressService(this.store, this.clock).execute(payload);
     const id = writeId(action, payload); let existing = id ? await this.store.readTask(id) : null;
+    let dispatchPrior: { actor: User; receipt: FamilyReceipt | null } | undefined;
     // A lost personal-create response may be retried after that same task has joined a family.
     if (action === "task.create" || action === "task.update") {
-      const receipt = await this.store.transaction(async tx => { const actor = await tx.actor(); return tx.receipt(actor.id, requestId); });
+      dispatchPrior = await this.store.transaction(async tx => { const actor = await tx.actor(); return { actor, receipt: await tx.receipt(actor.id, requestId) }; });
+      const { receipt } = dispatchPrior;
       if (receipt && action === "task.update" && receipt.minimumConfirmation) {
         if (receipt.fingerprint !== this.store.fingerprint({ action, payload })) throw new ApplicationError("IDEMPOTENCY_CONFLICT", "请求标识已用于其他操作，请重新发起。");
         if (!isPersonalData("task.update", receipt.result) || !("accessLost" in receipt.result)) throw new Error("Invalid minimal update receipt.");
@@ -45,8 +47,11 @@ export class CollaborativeTaskService {
       if (receipt && action === "task.create") existing = await this.store.readTask(receipt.taskId);
     }
     const draft = "draft" in payload ? payload.draft : undefined;
-    if (action === "task.previewSchedule" || action === "task.pause" || action === "task.resume" || action === "task.stop" || existing?.recurrence || (draft && draft.schedule.kind !== "once")) return new RecurrenceService(this.store, this.clock, this.uuids).execute(action, payload, requestId);
-    if (!existing?.collaboration && !draft?.familyId) return this.personal.execute(action, payload, requestId);
+    if (action === "task.previewSchedule" || action === "task.pause" || action === "task.resume" || action === "task.stop" || existing?.recurrence || (draft && draft.schedule.kind !== "once")) return new RecurrenceService(this.store, this.clock, this.uuids).execute(action, payload, requestId, existing, dispatchPrior);
+    if (!existing?.collaboration && !draft?.familyId) {
+      this.personal ??= Promise.resolve(typeof this.personalStore === "function" ? this.personalStore() : this.personalStore).then(store => new PersonalService(store, this.clock, this.uuids));
+      return (await this.personal).execute(action, payload, requestId);
+    }
     const context = existing?.collaboration ? await taskContext(this.store, existing) : draft?.familyId ? await this.store.context(draft.familyId) : null;
     if (!context) taskMissing();
     let result: unknown;
@@ -168,20 +173,25 @@ export class CollaborativeTaskService {
         task.collaboration.viewerMembershipIds = task.collaboration.viewerMembershipIds.filter(id => active.has(id));
         task.collaboration.helperMembershipIds = task.collaboration.helperMembershipIds.filter(id => active.has(id));
       }
-      context.family.version++; context.family.updatedAt = now;
-      if (["task.created", "task.updated", "task.accessChanged", "task.deleted", "task.restored"].includes(kind)) context.family.authEpoch++;
-      await tx.saveTask(task); await tx.saveFamily(context.family);
+      const receiptOnly = action === "reminder.markRead" || action === "reminder.dismiss";
+      if (!receiptOnly) {
+        context.family.version++; context.family.updatedAt = now;
+        if (["task.created", "task.updated", "task.accessChanged", "task.deleted", "task.restored"].includes(kind)) context.family.authEpoch++;
+        await tx.saveTask(task); await tx.saveFamily(context.family);
+      } else scopeChanged = true;
       if (scopeChanged) { if (scope.personalTaskCount < 0) throw new Error("Invalid personal quota."); scope.revision++; await tx.saveScope(scope); }
       if (kind) await tx.addEvent({ id: eventId, taskId: task.id, occurrenceId: kind.startsWith("occurrence.") ? task.occurrenceId : null, kind, actorUserId: actor.id, actorName: actorMember.name, recordedAt: now, actualCompletedAt: kind === "occurrence.completed" ? task.actualCompletedAt : null, note: eventNote });
       if (action === "task.delete") result = { id: task.id, version: task.version, deleted: true };
       else if (action === "task.update" && !familyTaskRights(task, context, actor.id).canView) result = { id: task.id, version: task.version, updated: true, accessLost: true };
       else if (action === "reminder.markRead") result = { occurrenceId: task.occurrenceId, read: true };
       else if (action === "reminder.dismiss") result = { occurrenceId: task.occurrenceId, dismissed: true };
-      else {
+      else if (action === "occurrence.record" || action === "occurrence.undo") result = { occurrence: occurrenceDTO(task, familyTaskRights(task, context, actor.id).canRecord), taskVersion: task.version };
+      else if (action === "reminder.setMine") {
+        const preference = await tx.preference(task.id, actor.id);
+        result = { preference: { enabled: Boolean(preference?.enabled && !preference.selfDisabled && preference.membershipId === actorMember.id), selfDisabled: preference?.selfDisabled ?? false, version: preference?.version ?? 0 } };
+      } else {
         const dto = await familyTaskDTO(tx, task, context, actor.id);
-        if (action === "occurrence.record" || action === "occurrence.undo") result = { occurrence: occurrenceDTO(task, dto.capabilities.canRecord), taskVersion: task.version };
-        else if (action === "reminder.setMine") result = { preference: dto.myReminder };
-        else if (action === "task.restore") result = { task: dto, removedParticipantCount };
+        if (action === "task.restore") result = { task: dto, removedParticipantCount };
         else if (action === "task.setAccess") result = { task: dto };
         else result = { task: dto, nextOccurrences: [occurrenceDTO(task, dto.capabilities.canRecord)] };
       }
@@ -194,7 +204,7 @@ export function registerCollaborativeTaskHandlers(router: ActionRouter, resolveS
   for (const action of PERSONAL_ACTIONS) {
     const handler: ActionHandler = { action, async handle(payload, context) {
       if (!isPersonalPayload(action, payload)) throw new ApplicationError("VALIDATION_ERROR", "请检查事项内容、日期和参数。");
-      return new CollaborativeTaskService(await resolveStore(), await resolvePersonalStore(), clock, uuids).execute(action, payload, context.requestId);
+      return new CollaborativeTaskService(await resolveStore(), resolvePersonalStore, clock, uuids).execute(action, payload, context.requestId);
     } }; router.register(handler);
   }
 }

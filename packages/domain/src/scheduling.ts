@@ -223,3 +223,29 @@ export function isValidActualCompletedAt(occurrence: Pick<ProjectedOccurrence, "
     return canRecordOccurrence(occurrence, now) && actualCompletedAt >= earliest && actualCompletedAt <= now;
   } catch { return false; }
 }
+
+/** Inclusive UTC bounds for one local calendar day; also valid at the supported final date. */
+export function localDayBounds(date: string): { from: string; to: string } {
+  const from = toInstant(date);
+  return { from, to: new Date(Date.parse(from) + DAY_MS - 1).toISOString() };
+}
+
+/** Conservative upper bound for this segment before a window; controls may remove slots.
+ * Ignoring time-of-day at segment edges can scan one extra day, never omit a due slot.
+ */
+export function previousSegmentDate(segment: ScheduleSegment, before: string, activeOnceSegmentId?: string | null): string | null {
+  parseLocalDate(before);
+  const schedule = segment.schedule;
+  if (schedule.kind === "once") return segment.id === activeOnceSegmentId && schedule.date !== null && schedule.date < before ? schedule.date : null;
+  if (before === "2000-01-01") return null;
+  let to = addDays(before, -1);
+  if (schedule.endDate !== null && schedule.endDate < to) to = schedule.endDate;
+  if (segment.effectiveUntil !== null && localDateAt(segment.effectiveUntil) < to) to = localDateAt(segment.effectiveUntil);
+  const from = schedule.startDate > localDateAt(segment.effectiveFrom) ? schedule.startDate : localDateAt(segment.effectiveFrom);
+  for (let i = 0; i < 7 && to >= from; i++) {
+    if (schedule.kind === "daily" || schedule.weekdays.includes(isoWeekday(to))) return to;
+    if (to === "2000-01-01") break;
+    to = addDays(to, -1);
+  }
+  return null;
+}

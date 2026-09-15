@@ -1,0 +1,100 @@
+{
+  "envId": "family-todo-d3g28fx1c314f8638",
+  "databaseName": "tnt-5up4jdfvg",
+  "apply": true,
+  "startedAt": "2026-09-15T08:01:05.809Z",
+  "operations": [
+    {
+      "action": "DescribeTable",
+      "collection": "schedule_segments",
+      "requestId": "c5ca3125-eca7-47fc-8b52-d8ff3bab3436",
+      "at": "2026-09-15T08:01:06.953Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "schedule_segments",
+      "requestId": "f43c6df4-9faf-4bbf-aaa6-44468bd46940",
+      "at": "2026-09-15T08:01:08.132Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "schedule_segments",
+      "requestId": "47e1d1c6-a473-4536-a00b-b0da13f7d8ec",
+      "at": "2026-09-15T08:01:09.075Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "query_sessions",
+      "requestId": "56217c53-3fce-4cb4-9a79-e632ff7b24a6",
+      "at": "2026-09-15T08:01:10.274Z"
+    },
+    {
+      "action": "UpdateTable",
+      "collection": "query_sessions",
+      "requestId": "af86293b-ae3b-4670-9572-38f761a3c83f",
+      "at": "2026-09-15T08:01:11.312Z"
+    },
+    {
+      "action": "DescribeTable",
+      "collection": "query_sessions",
+      "requestId": "c8d978ef-3a2a-4c73-960a-81f0436b5372",
+      "at": "2026-09-15T08:01:12.406Z"
+    }
+  ],
+  "verified": [
+    {
+      "collection": "schedule_segments",
+      "name": "task_segment_window",
+      "keys": [
+        {
+          "Name": "taskId",
+          "Direction": "1"
+        },
+        {
+          "Name": "effectiveUntil",
+          "Direction": "1"
+        },
+        {
+          "Name": "effectiveFrom",
+          "Direction": "1"
+        },
+        {
+          "Name": "listOrder",
+          "Direction": "1"
+        }
+      ],
+      "unique": false
+    },
+    {
+      "collection": "schedule_segments",
+      "name": "task_segment_previous_end",
+      "keys": [
+        {
+          "Name": "taskId",
+          "Direction": "1"
+        },
+        {
+          "Name": "effectiveUntil",
+          "Direction": "1"
+        }
+      ],
+      "unique": false
+    },
+    {
+      "collection": "query_sessions",
+      "name": "session_expiry",
+      "keys": [
+        {
+          "Name": "expiresAt",
+          "Direction": "1"
+        },
+        {
+          "Name": "_id",
+          "Direction": "1"
+        }
+      ],
+      "unique": false
+    }
+  ],
+  "completedAt": "2026-09-15T08:01:12.407Z"
+}

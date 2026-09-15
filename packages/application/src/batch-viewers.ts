@@ -101,8 +101,6 @@ export class BatchViewers {
     catch (error) { if (error instanceof ApplicationError && error.code === "NOT_FOUND") return failed(item.taskId, error); throw error; }
   }
   private async item(item: Item, actorId: string, requestId: string, fingerprint: string): Promise<BatchItemResult> {
-    const previous = await this.store.transaction(tx => tx.batchReceipt(actorId, requestId, item.taskId));
-    if (previous) return this.replay(item, actorId, resultOf(previous, fingerprint, item.taskId));
     const snapshot = await this.context(item, actorId); const eventId = this.uuids.generate();
     if (this.store.remainingBudgetMs() < 2000) return { taskId: item.taskId, status: "pending" };
     return this.store.transaction(async tx => {
@@ -115,9 +113,10 @@ export class BatchViewers {
       }
       const { task, actor } = await this.authorize(tx, context, item, actorId); if (!context) taskMissing();
       taskVersion(task.version, item.expectedVersion);
-      const scope = await tx.scope(actorId); const now = this.clock.now().toISOString(); const promotion = !task.collaboration;
+      const now = this.clock.now().toISOString(); const promotion = !task.collaboration;
       if (!promotion && item.targetFamilyId !== undefined) taskInvalid("已归属家庭的事项不能更换家庭。");
       if (promotion) {
+        const scope = await tx.scope(actorId);
         if (!item.targetFamilyId || context.family.id !== item.targetFamilyId) taskMissing();
         if (context.family.taskCount >= 500) throw new ApplicationError("LIMIT_EXCEEDED", "家庭事项已达500条，请先整理。");
         const original = occurrenceDTO(task, false);
@@ -133,10 +132,12 @@ export class BatchViewers {
         }
         scope.revision++; await tx.saveScope(scope);
       }
-      appendTaskViewers(task, context, actorId, item.viewerMembershipIds);
+      const changed = appendTaskViewers(task, context, actorId, item.viewerMembershipIds);
+      if (changed || promotion) {
       task.version++; task.updatedAt = now; context.family.version++; context.family.authEpoch++; context.family.updatedAt = now;
       await tx.saveTask(task); await tx.saveFamily(context.family);
       await tx.addEvent({ id: eventId, taskId: task.id, occurrenceId: null, kind: "task.accessChanged", actorUserId: actorId, actorName: actor.name, recordedAt: now, actualCompletedAt: null, note: "" });
+      }
       const result: BatchItemResult = { taskId: task.id, status: "succeeded", version: task.version };
       await tx.saveBatchReceipt(actorId, requestId, task.id, { fingerprint, taskId: task.id, familyId: context.family.id, resourceKind: "task", result }); return result;
     });

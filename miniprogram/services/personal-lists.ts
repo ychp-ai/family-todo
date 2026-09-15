@@ -3,7 +3,7 @@ import type {
   Page,
   ReminderDTO,
   ScopeResult,
-  TaskDTO,
+  TaskSummaryDTO,
   TaskEventDTO,
   TaskListInput,
   TaskListItem,
@@ -59,7 +59,7 @@ export function authorizedItems<T>(
 
 export async function listTasks(input: TaskListInput, active?: ActiveCheck) {
   const result = await collect<TaskListItem, AggregatePage<TaskListItem>>(
-    cursor => personalApi.read("task.list", { ...input, limit: 50, ...(cursor ? { cursor } : {}) }),
+    cursor => personalApi.read("task.list", { ...input, view: "summary", limit: 50, ...(cursor ? { cursor } : {}) }),
     active,
   );
   return {
@@ -80,9 +80,9 @@ export async function listReminders(includeDismissed = false, active?: ActiveChe
 }
 
 export function listRecycle(familyId?: string | null) {
-  return collect<TaskDTO, Page<TaskDTO>>(cursor => personalApi.read("task.recycleList", {
+  return collect<TaskSummaryDTO, Page<TaskSummaryDTO>>(cursor => personalApi.read("task.recycleList", {
     ...(familyId === undefined ? {} : { familyId }),
-    limit: 50,
+    view: "summary", limit: 50,
     ...(cursor ? { cursor } : {}),
   }));
 }

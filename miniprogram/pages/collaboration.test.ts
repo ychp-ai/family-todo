@@ -335,3 +335,15 @@ describe("家庭成员删除", () => {
     expect(read.mock.calls.map(([action]) => action).sort()).toEqual(["family.get", "progress.get"]);
   });
 });
+
+describe("家庭半屏弹窗关闭保护", () => {
+  it.each(["profileSaving", "writing", "uncertain", "previewLoading"])("%s 时保留弹窗及错误上下文", async flag => {
+    await import("./families/index");
+    page().setData({ sheet: "create", error: "待处理", [flag]: true });
+    await invoke("closeSheet");
+    expect(page().data).toMatchObject({ sheet: "create", error: "待处理" });
+    page().setData({ [flag]: false });
+    await invoke("closeSheet");
+    expect(page().data).toMatchObject({ sheet: "", error: "" });
+  });
+});

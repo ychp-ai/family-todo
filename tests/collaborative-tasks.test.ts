@@ -35,6 +35,24 @@ function draft(familyId: string | null): TaskDraft & { schedule: { kind: "once";
 function access(task: TaskDTO) { return { viewerMembershipIds: task.participants.filter(p => p.canView && !p.requiredViewer).map(p => p.membershipId), helperMembershipIds: task.participants.filter(p => p.canHelp).map(p => p.membershipId), reminderMembershipIds: task.participants.filter(p => p.receivesReminder).map(p => p.membershipId), remindMe: task.myReminder.enabled }; }
 
 describe("collaborative once tasks", () => {
+  it("skips participant preference reads for summary lists while preserving permissions", async () => {
+    const f = await setup(); await call(f.creator, "task.create", { draft: draft(f.family.id) });
+    const store = f.creator.store(); let reads = 0;
+    const transaction = store.transaction.bind(store);
+    vi.spyOn(store, "transaction").mockImplementation(work => transaction(tx => {
+      const preference = tx.preference.bind(tx);
+      tx.preference = (...args) => { reads++; return preference(...args); };
+      return work(tx);
+    }));
+    const lists = new OccurrenceLists(store, { now: () => new Date(f.creator.now) });
+    const compact = await lists.execute("task.list", { familyId: f.family.id, view: "summary" });
+    expect(reads).toBe(0);
+    const full = await lists.execute("task.list", { familyId: f.family.id });
+    expect(reads).toBe(3);
+    if (!isPersonalData("task.list", compact) || !isPersonalData("task.list", full)) throw new Error("Invalid list");
+    expect(compact.items[0]?.task.capabilities).toEqual(full.items[0]?.task.capabilities);
+    expect((await call(f.owner, "task.list", { familyId: f.family.id, view: "summary" })).items).toEqual([]);
+  });
   it("reuses one roster for unscheduled tasks without exposing private tasks", async () => {
     const f = await setup(); const ids: string[] = [];
     for (let i = 0; i < 3; i++) {
@@ -48,21 +66,21 @@ describe("collaborative once tasks", () => {
     expect(contexts).toHaveBeenCalledTimes(1);
     expect((await call(f.owner, "task.list", { familyId: f.family.id, unscheduled: true })).items).toEqual([]);
   });
-  it("overlaps historical access reads while isolating per-task permissions", async () => {
+  it("batches historical access reads while isolating per-task permissions", async () => {
     const f = await setup();
     const created = await call(f.creator, "task.create", { draft: { ...draft(f.family.id), schedule: { kind: "daily", startDate: "2026-09-11", endDate: null, times: [] } } });
     const store = f.creator.store(); const task = await store.readTask(created.task.id); const roster = await store.context(f.family.id);
     if (!task || !roster) throw new Error("Missing fixture");
     let release = () => {}; const gate = new Promise<void>(resolve => { release = resolve; });
-    const reads = vi.spyOn(store, "historicalSubjectAccess").mockImplementation(async (_, memberId) => {
-      await gate; return memberId === f.viewer.member.id;
+    const reads = vi.spyOn(store, "historicalSubjects").mockImplementation(async (_, memberIds) => {
+      await gate; return memberIds.filter(id => id === f.viewer.member.id);
     });
     const pending = taskContext(store, task, roster);
-    expect(reads).toHaveBeenCalledTimes(3);
+    expect(reads).toHaveBeenCalledTimes(1);
     release();
     expect((await pending).historicalSubjectMembershipIds).toEqual([f.viewer.member.id]);
     expect(roster.historicalSubjectMembershipIds).toBeUndefined();
-    reads.mockResolvedValue(false);
+    reads.mockResolvedValue([]);
     expect((await taskContext(store, task, roster)).historicalSubjectMembershipIds).toEqual([]);
     reads.mockRejectedValue(new Error("Read failed"));
     await expect(taskContext(store, task, roster)).rejects.toThrow("Read failed");

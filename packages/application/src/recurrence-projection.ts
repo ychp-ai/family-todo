@@ -70,3 +70,35 @@ export async function resolveOccurrence(store: FamilyStore, task: CollaborativeT
   }
   taskInvalid("该次安排已失效，请刷新。");
 }
+
+/** Reuse each control across the candidates it governs, then overlay one exact-ID state batch. */
+export async function overlayOccurrences(store: FamilyStore, task: CollaborativeTask, candidates: ProjectedOccurrence[]): Promise<(ProjectedOccurrence | null)[]> {
+  if (candidates.length > 20) throw new Error("Invalid projection batch.");
+  if (!task.recurrence) return candidates;
+  const disabled = new Set<number>();
+  const controls = async () => {
+    let pending = candidates.flatMap((candidate, index) => candidate.recurring && candidate.eligibilityBoundary ? [{ boundary: candidate.eligibilityBoundary, index }] : []);
+    pending.sort((a, b) => a.boundary.localeCompare(b.boundary));
+    while (pending.length) {
+      const last = pending[pending.length - 1]; if (!last) break;
+      const control = await store.controlBefore(task.id, last.boundary);
+      if (!control) break; // No earlier control exists either.
+      const earlier = [];
+      for (const item of pending) {
+        // Control semantics are strictly before the occurrence boundary.
+        if (item.boundary <= control.effectiveAt) earlier.push(item);
+        else if (!control.enabled || control.stopped) disabled.add(item.index);
+      }
+      pending = earlier;
+    }
+  };
+  const [persisted] = await Promise.all([
+    store.readOccurrenceStates(candidates.map(candidate => store.deriveOccurrenceId(candidate.identity))), controls()
+  ]);
+  const states = new Map(persisted.map(state => [state.id, state]));
+  return candidates.map((candidate, index) => {
+    if (disabled.has(index)) return null;
+    const state = states.get(store.deriveOccurrenceId(candidate.identity));
+    return state ? { ...candidate, status: state.status, version: state.version, actualCompletedAt: state.actualCompletedAt, recordedAt: state.recordedAt, operatorName: state.operatorName } : candidate;
+  });
+}

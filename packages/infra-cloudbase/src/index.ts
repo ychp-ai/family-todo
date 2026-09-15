@@ -10,12 +10,14 @@ export async function loadIdentityStore(identity: WechatIdentity): Promise<Ident
   return createCloudBaseIdentityStore(identity);
 }
 
-export async function loadPersonalStore(identity: WechatIdentity): Promise<PersonalStore> {
+export async function loadPersonalStore(identity: WechatIdentity, deadline?: number): Promise<PersonalStore> {
   const { createCloudBasePersonalStore } = await import("./identity-sdk");
-  return createCloudBasePersonalStore(identity);
+  return createCloudBasePersonalStore(identity, deadline);
 }
 
-export async function loadFamilyStore(identity: WechatIdentity): Promise<FamilyStore> {
+export async function loadFamilyStore(identity: WechatIdentity, deadline?: number): Promise<FamilyStore> {
   const { createCloudBaseFamilyStore } = await import("./identity-sdk");
-  return createCloudBaseFamilyStore(identity);
+  return createCloudBaseFamilyStore(identity, deadline);
 }
+
+export { measureApi } from "./api-metrics";

@@ -9,6 +9,7 @@ const env = { EnvId: config.envId };
 const connector = { ...env, MongoConnector: { DatabaseName: databaseName, InstanceId: 'flexdb' } };
 const collections = ['users', 'identities', 'user_scopes', 'tasks', 'task_events', 'idempotency_receipts', 'query_sessions'];
 const indexes = {
+  query_sessions: [['session_expiry', 'expiresAt', '_id']],
   tasks: [
     ['personal_schedule', 'ownerUserId', 'lifecycle', 'scheduleOrder'],
     ['personal_created', 'ownerUserId', 'lifecycle', 'createdOrder'],

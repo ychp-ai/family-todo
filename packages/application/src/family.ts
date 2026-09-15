@@ -181,7 +181,14 @@ export class FamilyService {
     if (!session || session.kind !== "confirmation" || session.actorId !== actorId || session.fingerprint !== fingerprint || session.familyVersion !== familyVersion || familyVersion !== expectedVersion || !instant(session.expiresAt) || session.expiresAt <= now) stale(true);
   }
   private async read(action: FamilyAction, payload: unknown): Promise<unknown> {
-    const actor = await this.store.transaction(tx => tx.actor());
+    const start = await this.store.transaction(async tx => {
+      const actor = await tx.actor();
+      let current: Awaited<ReturnType<typeof access>> | null = null;
+      if (action === "family.get" && isFamilyPayload(action, payload)) current = await access(tx, payload.id, actor.id);
+      if ((action === "member.list" || action === "virtualMember.list" || action === "invitation.list") && isFamilyPayload(action, payload)) current = await access(tx, payload.familyId, actor.id, action === "invitation.list");
+      return { actor, current, scope: action === "family.list" ? await tx.scope(actor.id) : null };
+    });
+    const { actor } = start;
     if (action === "family.previewExit" && isFamilyPayload(action, payload)) return this.preview(actor, action, payload);
     if (action === "family.previewTransfer" && isFamilyPayload(action, payload)) return this.preview(actor, action, payload);
     if (action === "invitation.preview" && isFamilyPayload(action, payload)) {
@@ -195,34 +202,37 @@ export class FamilyService {
       });
     }
     if (action === "family.get" && isFamilyPayload(action, payload)) {
-      await this.store.transaction(tx => access(tx, payload.id, actor.id));
       const context = await this.store.context(payload.id); if (!context) missing();
       const current = await this.store.transaction(tx => access(tx, payload.id, actor.id));
       if (current.family.version !== context.family.version) stale();
       return { family: familyDTO(current.family, current.member), members: context.members.filter(m => m.status === "active").map(m => memberDTO(m, current.family, actor.id)), virtualMembers: context.virtualMembers.map(virtualDTO) };
     }
     if (action === "family.list" && isFamilyPayload(action, payload)) {
-      const scope = await this.store.transaction(tx => tx.scope(actor.id));
+      const scope = start.scope; if (!scope) missing();
       const families = await this.store.families(actor.id); const signature = this.store.fingerprint(families.map(f => [f.id, f.version]));
       const fingerprint = this.store.fingerprint({ action, limit: payload.limit ?? 20 }); const now = this.clock.now().toISOString();
       const checkpoint = payload.cursor ? await this.store.readSession(payload.cursor) : null;
       if (payload.cursor && (!this.validCheckpoint(checkpoint, actor.id, fingerprint, now) || checkpoint.revision !== scope.revision || checkpoint.signature !== signature || typeof checkpoint.offset !== "number" || !Number.isSafeInteger(checkpoint.offset) || checkpoint.offset < 0)) stale();
       const offset = checkpoint && typeof checkpoint.offset === "number" ? checkpoint.offset : 0; const limit = payload.limit ?? 20;
-      const items: FamilySummary[] = [];
-      for (const family of families.slice(offset, offset + limit)) {
-        items.push(await this.store.transaction(async tx => { const current = await access(tx, family.id, actor.id); if (family.version !== current.family.version) stale(); const ownerMember = await tx.member(family.ownerMembershipId); if (!ownerMember || ownerMember.status !== "active") throw new Error("Missing family owner."); return { id: family.id, name: family.name, version: family.version, ownerName: ownerMember.name, myMembershipId: current.member.id, myRole: current.member.id === family.ownerMembershipId ? "owner" : "member" }; }));
-      }
-      const end = await this.store.transaction(tx => tx.scope(actor.id));
-      const endFamilies = await this.store.families(actor.id);
-      if (end.revision !== scope.revision || this.store.fingerprint(endFamilies.map(f => [f.id, f.version])) !== signature) stale();
+      const items = await this.store.transaction(async tx => {
+        const result: FamilySummary[] = [];
+        if ((await tx.scope(actor.id)).revision !== scope.revision) stale();
+        for (const family of families) {
+          const current = await access(tx, family.id, actor.id); if (family.version !== current.family.version) stale();
+          if (!families.slice(offset, offset + limit).some(selected => selected.id === family.id)) continue;
+          const ownerMember = await tx.member(family.ownerMembershipId); if (!ownerMember || ownerMember.status !== "active") throw new Error("Missing family owner.");
+          result.push({ id: family.id, name: family.name, version: family.version, ownerName: ownerMember.name, myMembershipId: current.member.id, myRole: current.member.id === family.ownerMembershipId ? "owner" : "member" });
+        }
+        return result;
+      });
       const asOf = checkpoint && instant(checkpoint.asOf) ? checkpoint.asOf : now;
       const complete = offset + limit >= families.length;
       const nextCursor = complete ? null : await this.store.saveSession({ kind: "list", actorId: actor.id, fingerprint, revision: scope.revision, signature, offset: offset + limit, asOf, expiresAt: checkpoint?.expiresAt ?? new Date(this.clock.now().getTime() + 900000).toISOString() });
       return { items, complete, nextCursor, asOf };
     }
     if ((action === "member.list" || action === "virtualMember.list" || action === "invitation.list") && isFamilyPayload(action, payload)) {
-      const current = await this.store.transaction(tx => access(tx, payload.familyId, actor.id, action === "invitation.list"));
-      const status = "status" in payload ? payload.status ?? "active" : "active";
+      const current = start.current; if (!current) missing();
+      const status = "status" in payload && typeof payload.status === "string" ? payload.status : "active";
       const fingerprint = this.store.fingerprint({ action, familyId: payload.familyId, status, limit: payload.limit ?? 20 }); const now = this.clock.now().toISOString();
       const checkpoint = payload.cursor ? await this.store.readSession(payload.cursor) : null;
       if (payload.cursor && (!this.validCheckpoint(checkpoint, actor.id, fingerprint, now) || checkpoint.familyVersion !== current.family.version || (checkpoint.after !== null && typeof checkpoint.after !== "string"))) stale();
@@ -261,7 +271,7 @@ export class FamilyService {
       // Historical ownership and creator chains are loaded outside transactions without a depth truncation.
       const ids = new Set<string>();
       for (const task of page.items) { const binding = task.collaboration; if (!binding) throw new Error("Missing task collaboration."); ids.add(binding.creatorMembershipId); if (binding.ownerBinding.kind === "membership") ids.add(binding.ownerBinding.membershipId); }
-      const resolved = await this.store.context(payload.familyId, [...ids]); if (!resolved || resolved.family.version !== context.family.version) stale(true);
+      const resolved = action === "family.previewTransfer" ? context : await this.store.context(payload.familyId, [...ids]); if (!resolved || resolved.family.version !== context.family.version) stale(true);
       for (const task of page.items) {
         const binding = task.collaboration; if (!binding) throw new Error("Missing task collaboration.");
         if (action === "family.previewTransfer") { if (binding.ownerBinding.kind === "familyOwner") counts.virtualTaskCount++; continue; }

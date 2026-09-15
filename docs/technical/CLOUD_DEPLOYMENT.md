@@ -220,3 +220,77 @@ node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli
 本地上传 bundle SHA-256：`78b861a3e5243cbe8c495df57edc9245c49a946a5461636194f64fa6c0047bbb`。
 
 本次部署包含事项/周期片段每批 20 条扫描、未消费批次续读、单次列表请求内的事项及家庭上下文复用。未变更数据库或发布小程序；健康检查证明函数可调用，业务性能仍需同一账号和数据集复测，不能据此宣称线上提速比例。实现与优化前基线见 [性能诊断](PERFORMANCE_DIAGNOSIS.md)。
+
+
+## 2026-09-15 task.list 串行读取优化部署
+
+用户本次明确授权部署。部署前核对环境 `family-todo-d3g28fx1c314f8638` 为 NORMAL，同名函数 `api` / `lam-d4wj80fb` 为 Active。本地 `npm run check` 通过：41 个测试文件、502 项测试，严格类型及构建通过。
+
+实际命令（CloudBase CLI）：
+
+```sh
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js env list --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn deploy api -e family-todo-d3g28fx1c314f8638 --force --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn invoke api -e family-todo-d3g28fx1c314f8638 -d @docs/examples/system-health.json --json
+```
+
+COS 上传退出码 0，返回 `Cloud function deployed successfully!`。部署包含家庭资料与历史权限的独立读取并行化、未安排列表的请求内家庭上下文复用。
+
+| 项目 | 结果 |
+| --- | --- |
+| 更新时间（上海）/ 状态 | 2026-09-15 14:57:45 / Active |
+| 云端代码包大小 | 1,699,640 字节 |
+| 详情 RequestId | 3e603bfc-f93b-46f1-af37-52ab6249dc96 |
+| 健康检查 | ok=true，status=ok，2026-09-15T06:58:06.025Z |
+| 健康云调用 RequestId | c6b64f9b-b72e-4196-9812-fb1ec49b6174 |
+| 本地上传 bundle SHA-256 | 6d66922fc47fcd50bfd9131b196723f43ce90f49d6dd82d8fb4f9ac77b75b913 |
+
+仅部署既有云函数，未调整数据库或发布小程序。健康检查不代表 task.list 的业务性能验证；实际同账号列表耗时、真机体验尚未复测。
+
+
+## 2026-09-15 API 性能优化与索引部署
+
+用户明确授权“部署”。环境查询确认 `family-todo-d3g28fx1c314f8638` 为 NORMAL，数据库 `tnt-5up4jdfvg` 为 RUNNING；发布前同名函数仍为 `api / lam-d4wj80fb`。Node 20.19.0 下重新运行 `npm run check`，43 个测试文件、521 项测试通过。
+
+本次通过仅新增索引的脚本执行迁移，不覆盖历史迁移记录，不改 ACL、不新建集合、不删除业务数据：
+
+```sh
+TCB_CLI=/Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js TCB_DATABASE=tnt-5up4jdfvg node tools/migration/provision-performance.mjs
+TCB_CLI=/Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js TCB_DATABASE=tnt-5up4jdfvg node tools/migration/provision-performance.mjs --apply
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn deploy api -e family-todo-d3g28fx1c314f8638 --force --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn invoke api -e family-todo-d3g28fx1c314f8638 -d @docs/examples/system-health.json --json
+```
+
+命令使用已缓存 Node 20.19.0。实际新增并回读校验 `task_segment_window`、`task_segment_previous_end`、`session_expiry` 的字段顺序及非唯一属性；证据见 [性能索引迁移记录](../../database/performance-provision-result.json)。COS 上传退出码为 0，返回部署成功。
+
+| 项目 | 实际结果 |
+| --- | --- |
+| 函数 / ID | api / lam-d4wj80fb |
+| 更新时间（上海） | 2026-09-15 16:01:32 |
+| 状态 | Active / Available |
+| 运行配置 | Nodejs20.19 / index.main / 10 秒 / 256 MB / InstallDependency FALSE |
+| 云端代码包大小 | 1717812 字节 |
+| 详情 RequestId | 77257ab4-e140-4085-bc04-863671ed50fd |
+| 健康结果 | ok=true / status=ok / 2026-09-15T08:02:11.874Z |
+| 健康云调用 RequestId | bf715a9b-d52f-421e-85e3-3466c73ab071 |
+| 本地上传 bundle SHA-256 | 9b7cfe8db2787bd0ee022e5a814dd4d0abc2f36a7033a2c7e2e891da4fbe5c8e |
+
+本次部署包含 [性能落地记录](API_PERFORMANCE_IMPLEMENTATION.md) 中的本地实现，包含精简列表、历史空窗跳跃及批量提醒回执。未上传体验版或发布小程序，未运行过期会话删除，未创建定时任务。索引定义验证不等于完整查询计划或性能分位验收。
+
+### 部署后真实云端回读
+
+通过微信开发者工具 automator 连接现有项目，以当前微信账号调用已部署的云函数。2026-09-15 上海 16:03:26–16:03:35，以下 6 组查询均返回成功、complete=true；所有返回的 scope 状态均为 ok，列表完整/精简表示检查通过。
+
+| 查询 | 返回条数 | 响应字节数 | 单次客户端调用耗时 |
+| --- | ---: | ---: | ---: |
+| task.list，summary | 5 | 5936 | 2787 ms |
+| task.list，兼容完整 DTO | 5 | 8109 | 2142 ms |
+| task.list，summary + unscheduled | 2 | 2506 | 1379 ms |
+| task.recycleList，summary | 19 | 11518 | 1508 ms |
+| reminder.list | 1 | 807 | 2495 ms |
+| task.list，summary + overdue | 0 | 391 | 1415 ms |
+
+[实际请求与聚合结果](performance-cloud-verification.json)不含业务内容和账号身份。此次仅调用读取接口，未创建或修改验收事项。耗时为单次观测，包含客户端调用开销，没有优化前同条件基线，不能据此认定延迟下降；逾期空结果也不代表真实历史大数据场景已验收。分页重放、并发边界由本地回归覆盖，目标容量压测、双账号及真机验收仍待执行。

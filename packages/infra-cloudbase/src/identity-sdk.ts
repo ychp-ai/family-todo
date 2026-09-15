@@ -1,3 +1,4 @@
+import { observeDatabase } from "./api-metrics";
 import * as cloud from "wx-server-sdk";
 
 import { CloudBasePersonalStore } from "./personal-store";
@@ -13,22 +14,22 @@ export function createCloudBaseIdentityStore(identity: WechatIdentity): CloudBas
   cloud.init({ env });
   // 4.0.2 运行时支持 throwOnNotFound，但声明遗漏；保留额外配置且不使用类型断言。
   const config = { env, throwOnNotFound: false };
-  const database = cloud.database(config);
+  const database = observeDatabase(cloud.database(config));
   return new CloudBaseIdentityStore(database, identity);
 }
 
-export function createCloudBasePersonalStore(identity: WechatIdentity): CloudBasePersonalStore {
+export function createCloudBasePersonalStore(identity: WechatIdentity, deadline?: number): CloudBasePersonalStore {
   const env = process.env.SCF_NAMESPACE;
   if (!env) throw new Error("Cloud function environment is unavailable.");
   cloud.init({env});
   const config = {env,throwOnNotFound:false};
-  return new CloudBasePersonalStore(cloud.database(config),identity,process.env.FAMILY_TODO_CURSOR_SECRET ?? "");
+  return new CloudBasePersonalStore(observeDatabase(cloud.database(config)),identity,process.env.FAMILY_TODO_CURSOR_SECRET ?? "", deadline);
 }
 
-export function createCloudBaseFamilyStore(identity: WechatIdentity): CloudBaseFamilyStore {
+export function createCloudBaseFamilyStore(identity: WechatIdentity, deadline?: number): CloudBaseFamilyStore {
   const env = process.env.SCF_NAMESPACE;
   if (!env) throw new Error("Cloud function environment is unavailable.");
   cloud.init({ env });
   const config = { env, throwOnNotFound: false };
-  return new CloudBaseFamilyStore(cloud.database(config), identity, process.env.FAMILY_TODO_CURSOR_SECRET ?? "", invitationKeyringFromEnvironment(process.env.FAMILY_TODO_INVITATION_KEYRING));
+  return new CloudBaseFamilyStore(observeDatabase(cloud.database(config)), identity, process.env.FAMILY_TODO_CURSOR_SECRET ?? "", invitationKeyringFromEnvironment(process.env.FAMILY_TODO_INVITATION_KEYRING), Date.now, deadline);
 }

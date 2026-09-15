@@ -1,3 +1,4 @@
+import { countMetric } from "./api-metrics";
 import { isRecord } from "@family-todo/contracts";
 
 function conflict(error: unknown): boolean {
@@ -12,7 +13,8 @@ export async function retryTransaction<T>(run: () => Promise<T>, options: { maxR
     try { return await run(); }
     catch (error) {
       if (attempt >= (options.maxRetries ?? 3) || !conflict(error)) throw error;
-      await new Promise(resolve => setTimeout(resolve, 50 * 2 ** attempt));
+      countMetric("retries");
+      await new Promise(resolve => setTimeout(resolve, Math.floor((0.5 + Math.random() * 0.5) * 100 * 2 ** attempt)));
     }
   }
 }

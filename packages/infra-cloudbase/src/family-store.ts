@@ -1,6 +1,7 @@
+import { budgetTransaction } from "./transaction-budget";
 import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { instant, isRecord, isTaskEvent, isUuid } from "@family-todo/contracts";
-import { occurrenceIdentityKey } from "@family-todo/domain";
+import { occurrenceIdentityKey, localDayBounds } from "@family-todo/domain";
 import type { HistoricalSubjectAccess, OccurrenceIdentity, PersistedOccurrenceState, PersistedScheduleControl, PersistedScheduleSegment, CollaborativeTask, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
 import { FamilyBudgetExceededError } from "@family-todo/ports";
 import type { FamilyListQuery, FamilyPage, FamilyReceipt, FamilyStore, FamilyTransaction, PersonalQuery } from "@family-todo/ports";
@@ -17,19 +18,6 @@ function key(...parts: string[]): string { return createHash("sha256").update(JS
 function bad(): never { throw new Error("Invalid collaboration storage record."); }
 function reverseTime(value: string): string { return String(9999999999999 - Date.parse(value)).padStart(13, "0"); }
 function ordered(value: { id: string; createdAt: string }, reverse = false): string { return `${reverse ? reverseTime(value.createdAt) : value.createdAt}/${value.id}`; }
-function budgetTransaction(tx: IdentityTransaction, budget: () => void): IdentityTransaction {
-  let operations = 0;
-  const cache = new Map<string, unknown>();
-  function count() { budget(); if (++operations > 80) throw new Error("Transaction document budget exceeded."); }
-  return { collection(name) { return { doc(id) { const doc = tx.collection(name).doc(id); return {
-    async get() {
-      budget(); const key = `${name}/${id}`; if (cache.has(key)) return structuredClone(cache.get(key));
-      count(); const value = await doc.get(); budget(); cache.set(key, structuredClone(value)); return value;
-    }, async set(options) {
-      count(); const value = await doc.set(options); budget(); cache.set(`${name}/${id}`, { data: { ...structuredClone(options.data), _id: id } }); return value;
-    }
-  }; } }; } };
-}
 class FamilyTransactionAdapter extends Transaction implements FamilyTransaction {
   private async read<T>(collection: string, id: string, parse: (v: unknown) => T): Promise<T | null> {
     const value = readDocument(await this.doc(collection, id).get());
@@ -123,9 +111,10 @@ export class CloudBaseFamilyStore implements FamilyStore {
   private readonly legacy: CloudBasePersonalStore;
   private readonly keyring: InvitationKeyring;
   private readonly deadline: number;
-  public constructor(private readonly db: PersonalDatabase, private readonly identity: WechatIdentity, private readonly secret: string, keyring: InvitationKeyring, private readonly nowMs: () => number = Date.now) {
-    this.deadline = nowMs() + 8000;
-    this.legacy = new CloudBasePersonalStore(db, identity, secret);
+  private readonly contexts = new Map<string, FamilyContext>();
+  public constructor(private readonly db: PersonalDatabase, private readonly identity: WechatIdentity, private readonly secret: string, keyring: InvitationKeyring, private readonly nowMs: () => number = Date.now, deadline = nowMs() + 8000) {
+    this.deadline = deadline;
+    this.legacy = new CloudBasePersonalStore(db, identity, secret, deadline, nowMs);
     this.keyring = parseInvitationKeyring(keyring);
   }
   public remainingBudgetMs(): number { return Math.max(0, this.deadline - this.nowMs()); }
@@ -166,8 +155,63 @@ export class CloudBaseFamilyStore implements FamilyStore {
     const hex = bytes.toString("hex"); return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
   public readSegment(id: string) { return this.read("schedule_segments", id, readScheduleSegment); }
-  public segments(taskId: string, after: string | null, limit: number) { return this.page("schedule_segments", { taskId }, after, limit, readScheduleSegment); }
+  public async segments(taskId: string, after: string | null, limit: number, window?: { from: string; to: string; currentSegmentId: string }) {
+    if (!window) return this.page("schedule_segments", { taskId }, after, limit, readScheduleSegment);
+    if (limit < 2) throw new Error("Window segment batch must allow a current segment.");
+    // Closed segments overlap the window. The current open segment is fetched separately,
+    // including a current once scheduled before creation; it deliberately ignores these bounds.
+    const current = after === null ? await this.readSegment(window.currentSegmentId) : null;
+    if (after === null && (!current || current.taskId !== taskId)) bad();
+    const page = await this.page("schedule_segments", { taskId, effectiveFrom: this.db.command.lte(localDayBounds(window.to).to), effectiveUntil: this.db.command.gte(localDayBounds(window.from).from) }, after, limit - (current ? 1 : 0), readScheduleSegment);
+    return { ...page, items: current ? [current, ...page.items.filter(segment => segment.id !== current.id)] : page.items };
+  }
+  public async readReminderReceipts(occurrenceIds: string[], userId: string): Promise<ReminderReceipt[]> {
+    if (occurrenceIds.length > 20 || !occurrenceIds.every(isUuid) || !isUuid(userId)) throw new Error("Invalid reminder receipt batch.");
+    if (!occurrenceIds.length) return [];
+    const ids = [...new Set(occurrenceIds.map(id => key(id, userId)))];
+    this.budget();
+    const response = await this.db.collection("reminder_receipts").where({ _id: this.db.command.in(ids) }).limit(20).get();
+    this.budget(); if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > ids.length) bad();
+    return response.data.map(value => {
+      if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string" || !ids.includes(value._id)) bad();
+      const receipt = readReminderReceipt(value);
+      if (receipt.userId !== userId || !occurrenceIds.includes(receipt.occurrenceId) || value._id !== key(receipt.occurrenceId, userId)) bad();
+      return receipt;
+    });
+  }
+  public async previousSegmentEnd(taskId: string, before: string): Promise<string | null> {
+    this.budget();
+    const response = await this.db.collection("schedule_segments").where({ taskId, effectiveUntil: this.db.command.lt(localDayBounds(before).from) }).orderBy("effectiveUntil", "desc").limit(1).get();
+    this.budget(); if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > 1) bad();
+    const value: unknown = response.data[0]; if (value === undefined) return null;
+    if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string") bad();
+    const segment = readScheduleSegment({ ...value, id: value._id });
+    if (segment.taskId !== taskId || (segment.effectiveUntil !== null && segment.effectiveUntil >= localDayBounds(before).from)) bad();
+    return segment.effectiveUntil;
+  }
   public readOccurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState); }
+  public async readOccurrenceStates(ids: string[]): Promise<PersistedOccurrenceState[]> {
+    if (ids.length > 100 || !ids.every(isUuid)) throw new Error("Invalid occurrence batch.");
+    if (!ids.length) return [];
+    this.budget();
+    const response = await this.db.collection("occurrence_states").where({ _id: this.db.command.in([...new Set(ids)]) }).limit(100).get();
+    this.budget(); if (!isRecord(response) || !Array.isArray(response.data)) bad();
+    return response.data.map(value => {
+      if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string" || !ids.includes(value._id)) bad();
+      return readOccurrenceState({ ...value, id: value._id });
+    });
+  }
+  public async historicalSubjects(taskId: string, membershipIds: string[]): Promise<string[]> {
+    if (membershipIds.length > 20 || !membershipIds.every(isUuid)) throw new Error("Invalid historical access batch.");
+    if (!membershipIds.length) return [];
+    this.budget();
+    const response = await this.db.collection("historical_subject_access").where({ _id: this.db.command.in(membershipIds.map(id => key(taskId, id))) }).limit(20).get();
+    this.budget(); if (!isRecord(response) || !Array.isArray(response.data)) bad();
+    return response.data.map(value => {
+      if (!isRecord(value) || value.schemaVersion !== 1 || value.taskId !== taskId || typeof value.membershipId !== "string" || !membershipIds.includes(value.membershipId) || value._id !== key(taskId, value.membershipId)) bad();
+      return value.membershipId;
+    });
+  }
   public async historicalSubjectAccess(taskId: string, membershipId: string): Promise<boolean> {
     const value = await this.read("historical_subject_access", key(taskId, membershipId), v => {
       if (!isRecord(v) || v.taskId !== taskId || v.membershipId !== membershipId) bad(); return true;
@@ -217,11 +261,13 @@ export class CloudBaseFamilyStore implements FamilyStore {
   }
   public async context(familyId: string, membershipIds: string[] = []): Promise<FamilyContext | null> {
     const family = await this.read("families", familyId, readFamily); if (!family) return null;
-    const [active, virtual] = await Promise.all([
+    const cached = this.contexts.get(familyId);
+    const roster = cached?.family.version === family.version ? structuredClone(cached) : null;
+    const [active, virtual] = roster ? [{ items: roster.members, more: false }, { items: roster.virtualMembers, more: false }] : await Promise.all([
       this.members({ familyId, status: "active" }, null, 20),
       this.virtualMembers({ familyId, status: "active" }, null, 20)
     ]);
-    if (active.more || virtual.more || active.items.length !== family.memberCount || virtual.items.length !== family.virtualMemberCount) throw new Error("Family roster changed.");
+    if (active.more || virtual.more || active.items.filter(member => member.status === "active").length !== family.memberCount || virtual.items.length !== family.virtualMemberCount) throw new Error("Family roster changed.");
     const members = active.items;
     for (const start of membershipIds) {
       const seen = new Set<string>(); let id: string | null = start;
@@ -236,13 +282,15 @@ export class CloudBaseFamilyStore implements FamilyStore {
     }
     const end = await this.read("families", familyId, readFamily);
     if (!end || end.version !== family.version) throw new Error("Family roster changed.");
-    return { family, members, virtualMembers: virtual.items };
+    const context = { family, members, virtualMembers: virtual.items };
+    this.contexts.set(familyId, structuredClone(context));
+    return context;
   }
   public async scanTasks(userId: string, familyId: string | null, query: PersonalQuery, asOf: string, after: string | null, limit: number): Promise<FamilyPage<CollaborativeTask>> {
     if (query.mode === "history") throw new Error("Use task event scanner for history.");
     const c = this.db.command;
     const management = query.mode === "tasks" && !query.dateFrom && !query.dateTo && !query.unscheduled && !query.overdueBefore && !query.status;
-    const filter: Record<string, unknown> = { ...(familyId ? { familyId } : { ownerUserId: userId }), ...(query.mode === "projection" ? {} : { lifecycle: management ? c.in(["active", "paused", "stopped"]) : query.mode === "recycle" ? "deleted" : "active" }) };
+    const filter: Record<string, unknown> = { ...(familyId ? { familyId } : { ownerUserId: userId }), ...({ lifecycle: management || query.mode === "projection" ? c.in(["active", "paused", "stopped"]) : query.mode === "recycle" ? "deleted" : "active" }) };
     const order = query.mode === "projection" || management || query.mode === "recycle" || query.unscheduled ? "createdOrder" : query.overdueBefore || query.mode === "reminders" ? "recentOrder" : "scheduleOrder";
     if (query.status) filter.status = query.status;
     if (query.unscheduled) filter.date = null;

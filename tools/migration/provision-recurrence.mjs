@@ -9,7 +9,7 @@ const env = { EnvId: envId };
 const connector = { ...env, MongoConnector: { DatabaseName: databaseName, InstanceId: 'flexdb' } };
 const collections = ['schedule_segments', 'schedule_controls', 'occurrence_states', 'historical_subject_access', 'tasks'];
 const indexes = {
-  schedule_segments: [['task_segments', 'taskId', 'listOrder']],
+  schedule_segments: [['task_segments', 'taskId', 'listOrder'], ['task_segment_previous_end', 'taskId', 'effectiveUntil'], ['task_segment_window', 'taskId', 'effectiveUntil', 'effectiveFrom', 'listOrder']],
   schedule_controls: [['task_control_boundary', 'taskId', 'controlOrder']],
   tasks: [['personal_projection', 'ownerUserId', 'createdOrder'], ['family_projection', 'familyId', 'createdOrder']],
 };
