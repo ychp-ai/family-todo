@@ -17,3 +17,17 @@ export async function previewTransfer(input: TransferInput): Promise<TransferPre
   let cursor: string | undefined; const seen = new Set<string>();
   for (;;) { const result = await familyApi.read("family.previewTransfer", {...input,...(cursor ? {cursor} : {})}); if (result.complete) return result.preview; if (seen.has(result.nextCursor)) throw new Error("交接范围未完整加载，请重试。"); cursor=result.nextCursor; seen.add(cursor); }
 }
+
+/** The list contract is unchanged; counts come from the authorized family roster. */
+export type FamilyOverview = FamilySummary & { memberCount?: number };
+export async function familyOverviews(families: FamilySummary[]): Promise<FamilyOverview[]> {
+  return Promise.all(families.map(async family => {
+    try {
+      const detail = await familyApi.read("family.get", { id: family.id });
+      return { ...family, memberCount: detail.members.length + detail.virtualMembers.filter(member => member.status === "active").length };
+    } catch {
+      // A count failure must not turn a real family into an empty list or a zero count.
+      return family;
+    }
+  }));
+}

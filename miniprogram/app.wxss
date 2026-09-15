@@ -5,3 +5,4 @@
 
 @import "./styles/weui-adapters.wxss";
 @import "./styles/actions.wxss";
+@import "./styles/redesign.wxss";

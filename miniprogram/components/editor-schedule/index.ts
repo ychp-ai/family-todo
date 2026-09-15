@@ -19,5 +19,11 @@ Component({
     scheduleLocked: { type: Boolean, value: false },
     shareOnly: { type: Boolean, value: false }
   },
-  methods: componentMethods(["addTime", "another", "clearDate", "clearEndDate", "clearTime", "dateChange", "endDateChange", "removeTime", "repeatChange", "slotChange", "timeChange", "weekdaysChange"]),
+  methods: {
+    selectRepeat(event: WechatMiniprogram.TouchEvent) {
+      if (this.data.scheduleLocked || this.data.shareOnly || this.data.saving || this.data.uncertain) return;
+      this.triggerEvent("action", { handler: "repeatChange", detail: { value: event.currentTarget.dataset.index }, dataset: {} });
+    },
+    ...componentMethods(["addTime", "another", "clearDate", "clearEndDate", "clearTime", "dateChange", "endDateChange", "removeTime", "repeatChange", "slotChange", "timeChange", "weekdaysChange"]),
+  },
 });

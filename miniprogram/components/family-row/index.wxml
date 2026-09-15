@@ -1,7 +1,1 @@
-<mp-cells ext-class="family-weui-cells">
-  <mp-cell ext-class="family-weui-row" aria-role="button" data-id="{{item.id}}" bindtap="select" aria-label="查看 {{item.name}} 的家人与管理操作">
-    <view slot="icon" class="family-symbol"><image class="icon" src="/assets/home-brand.svg"/></view>
-    <view class="family-row-copy"><text class="strong">{{item.name}}</text><text class="paragraph">{{item.myRole === 'owner' ? '我管理的家庭' : '我加入的家庭'}} · 拥有人 {{item.ownerName}}</text></view>
-    <image slot="footer" class="icon" src="/assets/chevron.svg"/>
-  </mp-cell>
-</mp-cells>
+<button class="family-summary-card" data-id="{{item.id}}" bindtap="select" aria-label="查看 {{item.name}} 的家人与管理操作"><view class="family-summary-heading"><text>{{item.name}}</text><image class="icon" src="/assets/chevron.svg"/></view><view class="family-summary-meta"><text>{{item.memberCount === undefined ? '人数暂未加载' : item.memberCount + ' 位家人'}}</text><text class="family-role">{{item.myRole === 'owner' ? '我管理的家庭' : '我加入的家庭'}}</text></view></button>

@@ -294,3 +294,35 @@ node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli
 | task.list，summary + overdue | 0 | 391 | 1415 ms |
 
 [实际请求与聚合结果](performance-cloud-verification.json)不含业务内容和账号身份。此次仅调用读取接口，未创建或修改验收事项。耗时为单次观测，包含客户端调用开销，没有优化前同条件基线，不能据此认定延迟下降；逾期空结果也不代表真实历史大数据场景已验收。分页重放、并发边界由本地回归覆盖，目标容量压测、双账号及真机验收仍待执行。
+
+
+## 2026-09-15 家庭必选规则部署
+
+用户授权“部署”，核对现有环境 `family-todo-d3g28fx1c314f8638` 为 NORMAL、同名函数 `api / lam-d4wj80fb` 为 Active 后，部署提交 `68c6024` 的家庭必选实现。Node 20.19.0 下重新执行 `npm run check`，构建及 43 个测试文件、536 项测试通过。无数据库结构变更或数据迁移。
+
+实际使用已缓存 CloudBase CLI，命令如下（node 为 Node 20.19.0）：
+
+```sh
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js env list --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn deploy api -e family-todo-d3g28fx1c314f8638 --force --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn invoke api -e family-todo-d3g28fx1c314f8638 -d @docs/examples/system-health.json --json
+```
+
+环境预检使用系统 Node，构建和部署、部署后详情及调用使用 Node 20.19.0。COS 上传退出码 0，返回 `Cloud function deployed successfully!`。
+
+| 项目 | 实际结果 |
+| --- | --- |
+| 函数 / ID | api / lam-d4wj80fb |
+| 更新时间（上海） / 状态 | 2026-09-15 17:59:11 / Active |
+| 运行配置 | Nodejs20.19 / index.main / 10 秒 / 256 MB |
+| 云端代码包大小 | 1718050 字节 |
+| 详情 RequestId | 2788031c-f5c6-4cc0-bd95-cba047f675be |
+| 健康结果 | ok=true / status=ok / 2026-09-15T09:59:36.463Z |
+| 健康云调用 RequestId | a03dc6c0-b8db-46a4-bd63-74849c6c6f52 |
+| 本地上传 bundle SHA-256 | e5abe167dfaf4e925700b6792346e259da3416bb7dc3f3d24bc8309a9202e4c7 |
+
+开发者工具重新启用 automator 后，在当前微信账号可信上下文调用目标环境：一次性、每日、每周三种 `task.create` 的 `familyId=null` 均返回不可重试 `VALIDATION_ERROR`，文案为“请先创建或加入家庭，再选择所属家庭创建事项。”。验证时间为上海 18:00:32–18:00:33，[实际结果](family-only-cloud-verification.json)已保存，未创建验收事项。该验证覆盖云端新建拦截，不代表客户端页面或真机验收。
+
+未上传体验版或发布小程序。历史个人事项迁移仍待提供目标家庭及账号范围，未自动迁移或删除历史数据。

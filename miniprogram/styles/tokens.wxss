@@ -1,5 +1,5 @@
 page {
-  --brand:#5860b5;--brand-dark:#444b92;--paper:#fff;--canvas:#f4f5fa;--ink:#292735;--muted:#72717f;--line:#e8e8ef;--lavender:#ececf8;--green:#45705b;--green-light:#e8f0eb;--peach:#f5e5d9;--rose:#f2e2e6;--display:"Kaiti SC","STKaiti","KaiTi",serif;--body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;--utility:"Avenir Next","PingFang SC",sans-serif;
-  --warning:#95602f;--warning-light:#faf0e5;
-  --color-brand:var(--brand);--color-page:var(--canvas);--color-surface:var(--paper);--color-text-primary:var(--ink);--color-text-secondary:var(--muted);--color-border:var(--line);--radius-card:24rpx;--radius-control:16rpx;--space-page:32rpx;
+  --brand:#5059ad;--brand-dark:#3f478f;--paper:#fff;--canvas:#f5f6fa;--ink:#292b40;--muted:#696c80;--line:#e4e6ef;--lavender:#eceefa;--green:#376a55;--green-light:#eaf3ee;--peach:#f5e5d9;--rose:#f2e2e6;--display:"Kaiti SC","STKaiti","KaiTi",serif;--body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;--utility:"Avenir Next","PingFang SC",sans-serif;
+  --danger:#a43d48;--readonly:#f2f4f7;--warning:#865b20;--warning-light:#fff2db;
+  --color-brand:var(--brand);--color-page:var(--canvas);--color-surface:var(--paper);--color-text-primary:var(--ink);--color-text-secondary:var(--muted);--color-border:var(--line);--radius-card:18px;--radius-control:12px;--space-page:18px;
 }

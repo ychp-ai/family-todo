@@ -56,3 +56,10 @@ button.profile-avatar-picker{margin:8px auto}.profile-avatar-hint{display:block;
   .family-weui-row.weui-cell { transition:none; }
   .family-weui-row:active { transform:none; }
 }
+
+@import "../../styles/redesign.wxss";
+
+.profile-header{padding:18px;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:18px;margin-bottom:24px}
+button.profile-avatar{width:56px;min-width:56px;max-width:56px;height:56px;flex-basis:56px;border-radius:19px;font:22px var(--body)}
+.profile-name{font-size:20px}.profile-copy .paragraph{font-size:12px}
+.family-list-heading .h3{font-size:18px}.family-transfer-action{margin-top:16px}.family-management{margin-top:24px}

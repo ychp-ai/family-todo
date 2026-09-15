@@ -46,3 +46,15 @@
 .family-flow .family-footnote{margin:24px 0 16px;align-items:flex-start}
 .family-footnote .icon{width:16px;height:16px;margin-top:3px}
 .family-heading{gap:12px}
+
+@import "../../styles/redesign.wxss";
+
+.family-heading .h3{font:650 26px/1.35 var(--body)}.family-heading .overline{font-size:12px}
+.family-flow .family-card{min-height:0;padding:18px;background:var(--lavender);border-radius:18px}
+.family-card-copy{padding-right:58px}.family-card .h3{font:650 20px/1.35 var(--body)}
+.family-card .paragraph,.family-card-copy>.small{font-size:12px;color:var(--muted)}
+.progress-mark{position:absolute;right:18px;top:18px}.family-portrait{display:none}
+.family-flow .member-card{padding:18px;border:1px solid var(--line);border-radius:18px;flex-wrap:wrap;gap:12px}
+.member-card .avatar{width:40px;height:40px}.member-copy .strong{font-size:16px}.member-copy .paragraph{font-size:12px}
+.member-meter{width:48px;height:48px}.member-meter .meter-image{width:48px;height:48px}.member-meter text{font-size:12px}
+.family-footnote{font-size:12px}

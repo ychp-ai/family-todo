@@ -1,0 +1,35 @@
+[
+  {
+    "kind": "once",
+    "at": "2026-09-15T10:00:32.778Z",
+    "ok": false,
+    "requestId": "7bbaa6e3-04ff-427b-b33d-9c961bd047ec",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "请先创建或加入家庭，再选择所属家庭创建事项。",
+      "retryable": false
+    }
+  },
+  {
+    "kind": "daily",
+    "at": "2026-09-15T10:00:33.341Z",
+    "ok": false,
+    "requestId": "c54e6229-43d8-43ee-a060-7654b9103c65",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "请先创建或加入家庭，再选择所属家庭创建事项。",
+      "retryable": false
+    }
+  },
+  {
+    "kind": "weekly",
+    "at": "2026-09-15T10:00:33.890Z",
+    "ok": false,
+    "requestId": "8890e098-fbf6-4e9c-a149-82d564ec249d",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "请先创建或加入家庭，再选择所属家庭创建事项。",
+      "retryable": false
+    }
+  }
+]

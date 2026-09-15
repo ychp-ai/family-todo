@@ -3,3 +3,5 @@
 .permission-row{display:grid;grid-template-columns:minmax(60px,1fr) repeat(3,44px);align-items:center;gap:4px;font-size:12px;padding:8px 0;border-bottom:1px solid var(--line)}.permission-row label{display:flex;min-height:44px;align-items:center;justify-content:center}.permission-row.header{color:var(--muted)}
 
 .weekdays{display:flex;flex-wrap:wrap;gap:8px}.weekdays label{min-width:72px}.time-row picker{flex:1}.flow-card>.paragraph{display:block}
+
+@import "../../styles/redesign.wxss";

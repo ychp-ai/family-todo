@@ -1,0 +1,102 @@
+/* 2026-09-15 design/styles.css native presentation baseline. */
+page{font-size:15px;line-height:1.55}
+.appbar{border-bottom:1px solid var(--line)}
+.scroll-inner,.detail-scroll .scroll-inner{padding:22px 18px 24px}
+.home-greeting{margin-bottom:16px;gap:12px}
+.home-greeting .h3{font:650 26px/1.35 var(--body);letter-spacing:-.6px}
+.overline{font-size:12px;margin-bottom:6px}
+.hero-mark{display:flex;align-items:center;justify-content:center;width:46px;height:46px;flex:none;border:1px solid #cdd2e4;border-radius:16px;background:var(--paper);color:var(--brand);font:25px var(--display);transform:rotate(6deg)}
+button.reminder-banner{min-height:64px;padding:12px 14px;border-radius:12px;margin-bottom:16px;background:var(--lavender)}
+button.reminder-banner .strong{font-size:14px;color:var(--brand)}
+button.reminder-banner .small{font-size:11px;color:var(--muted)}
+.filter-row{margin:0 0 16px;gap:8px}
+.family-filter{padding:0 44px 0 12px;font-size:13px;border-color:var(--line);position:relative}
+.family-filter .tiny{position:absolute;right:14px;width:20px;height:20px}
+.date-tabs{gap:3px;border-bottom:1px solid var(--line);padding-bottom:7px;margin-bottom:6px}
+.date-tabs button{flex:1;padding:8px 7px;border:0;border-radius:10px;background:transparent;font-size:13px}
+.date-tabs button.active,.form-pills button.active,.family-switch button.active{color:var(--paper);background:var(--brand);border-color:var(--brand)}
+.list-summary,.list-summary button.text-button{font-size:12px}
+.progress-track{height:6px;margin:12px 0;background:var(--lavender)}
+.task-group{margin-bottom:16px}
+.group-label{font-size:12px;margin:18px 0 8px;gap:8px}
+.group-label:after{content:"";flex:1;height:1px;background:var(--line)}
+.group-label>text{font-size:12px}
+.readonly-group{margin-top:28px;padding-top:18px;border-top:1px solid #cdd2df}
+.readonly-group .group-label{margin-top:0;font-size:13px;font-weight:600}
+.task-list{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--paper)}
+.task-card{border:0;border-radius:0;min-height:86px;margin:0;padding:12px 8px 12px 2px;align-items:center;gap:2px}
+.task-card+.task-card{border-top:1px solid var(--line)}
+.task-card.selected{background:var(--lavender);box-shadow:inset 3px 0 var(--brand)}
+.task-readonly{background:var(--readonly)}
+button.check-button{height:44px;width:44px}
+.check-circle{width:23px;height:23px;border:2px solid var(--brand)}
+.is-done .check-circle{background:var(--green);border-color:var(--green);color:var(--paper)}
+.view-symbol{width:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center}
+.view-symbol image{width:23px;height:23px}
+button.task-main{padding:4px 26px 4px 2px;min-height:60px}
+button.task-main .strong{font-size:16px;line-height:1.55;font-weight:550}
+.task-meta{font-size:11px;margin-top:5px;gap:5px}
+.house-tag{font-size:11px;background:var(--lavender);color:var(--brand);border-radius:5px;padding:2px 6px}
+.task-open-arrow,.chevron{width:20px;height:20px}
+.task-warning{font-size:11px}
+.record-note{font-size:12px}
+button.primary-button{min-height:48px;border-radius:12px;font-size:15px;font-weight:600;padding:10px 16px}
+button.outline-button{min-height:46px;border-radius:12px;font-size:14px;background:var(--lavender);border-color:#dce0f1;color:var(--brand);padding:10px 12px}
+button.text-button,view.text-button,button.sheet-secondary{font-size:13px;background:transparent;border-color:transparent;color:var(--brand)}
+.phone-bottom{padding:10px 18px calc(10px + env(safe-area-inset-bottom));background:var(--paper);border-top:1px solid var(--line)}
+.flow-card,.family-flow .flow-card{padding:18px;border-radius:18px;border:1px solid var(--line);margin-bottom:16px;background:var(--paper)}
+.flow-card .h3,.family-flow .flow-card .h3{font-size:18px;font-weight:650;line-height:1.35;margin-bottom:12px}
+.flow-card .paragraph,.family-flow .flow-card .paragraph{font-size:13px;line-height:1.8;color:var(--muted)}
+.field-label,.family-flow .field-label{font-size:13px;color:var(--ink);font-weight:550;margin:14px 0 6px}
+.form-input,.form-select{font-size:15px;min-height:46px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.form-select{position:relative;padding-right:44px}
+.form-select:after,.family-flow .form-select:after{content:"";position:absolute;right:18px;top:17px;width:8px;height:8px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg)}
+.form-helper,.form-error,.sheet-message,.flow-notice,.family-flow .flow-notice,.privacy-note{font-size:12px;line-height:1.8}
+.form-error,.flow-error,.sheet-error{color:var(--danger)}
+.flow-choice,.checkbox-label{font-size:14px;min-height:44px}
+.permission-person{padding:12px 0;border-top:1px solid var(--line);margin-top:12px}
+.permission-name{display:block;font-size:15px;font-weight:550;overflow-wrap:anywhere}
+.permission-subchoices{padding-left:28px}
+.form-pills button{font-size:13px;background:var(--canvas);border-color:var(--line)}
+.title-input{font-size:21px}
+.section-title{margin:24px 0 12px}
+.section-title .h4{font-size:18px;font-weight:650}
+.section-title>text,.detail-family,.detail-subtitle{font-size:12px}
+.detail-title{font-size:28px;font-weight:650;line-height:1.5;letter-spacing:0}
+.detail-family{margin-bottom:12px}
+.completion-card{padding:18px;margin-top:16px;border-radius:18px;border-left:3px solid var(--green);gap:12px}
+.completion-card.pending{border-left-color:var(--brand)}
+.completion-copy .strong{font-size:16px}
+.completion-copy .paragraph{font-size:12px}
+.detail-info{padding:4px 18px;border:1px solid var(--line);border-radius:18px}
+.app-weui-info.weui-cell{font-size:13px;border-color:var(--line)}
+.detail-note{font-size:13px;padding:18px;border:1px solid var(--line);border-radius:18px}
+.history-item .strong{font-size:14px}.history-item .paragraph,.history-item .time{font-size:12px}
+.state-box,.family-flow .state-box{border:0;border-radius:18px;padding:45px 16px;background:var(--paper);margin-top:16px}
+.state-box .h4{font-size:18px}.state-box .paragraph{font-size:13px}
+.end-note{font:12px/1.8 var(--body)}
+.reminder-item{border:1px solid var(--line);border-radius:18px;padding:18px}
+.reminder-item .h3{font-size:16px}.reminder-item .paragraph{font-size:12px}
+.mask{padding:0;background:#262b4666}
+.app-weui-sheet.weui-half-screen-dialog{left:0;right:0;bottom:0;max-height:86vh;padding:15px 18px calc(22px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0}
+.sheet-scroll{max-height:calc(86vh - 100px - env(safe-area-inset-bottom))}
+.sheet-header .h2{font-size:20px}.sheet-handle{display:none}
+.avatar{width:40px;height:40px;border-radius:14px;font:16px var(--body);background:var(--lavender);color:var(--brand)}
+.family-summary-card{display:block;width:100%;padding:20px;text-align:left;background:var(--paper);border:1px solid var(--line);border-radius:18px;margin-bottom:16px}
+button.family-summary-card:not([size=mini]){width:100%;margin-bottom:16px}
+.family-summary-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:20px;font-weight:650}
+.family-summary-heading>text{min-width:0;overflow-wrap:anywhere}
+.family-summary-heading .icon{width:20px;height:20px}
+.family-summary-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:12px;color:var(--muted)}
+.family-role{border-left:1px solid #cdd2df;padding-left:12px}
+.family-tools{border-radius:18px;padding:0 18px}
+.flow-danger,button.family-exit-action,button.family-transfer-action{color:var(--danger);background:#fae9ec}
+@media(max-width:360px){.scroll-inner{padding-left:16px;padding-right:16px}.home-greeting .h3{font-size:23px}.date-tabs button{padding:8px 4px;font-size:12px}.permission-subchoices{padding-left:12px}.detail-buttons{flex-wrap:wrap}.detail-buttons>button{min-width:120px}}
+
+.repeat-segments { display:flex; gap:4px; padding:4px; border-radius:12px; background:var(--lavender); margin-bottom:16px; }
+.repeat-segment { display:flex; align-items:center; justify-content:center; flex:1; min-width:0; min-height:44px; padding:8px; margin:0; background:transparent; color:var(--muted); font-size:14px; line-height:1.5; border-radius:9px; }
+.repeat-segment.active { background:var(--brand); color:#fff; }
+.member-manage { margin-left:auto; flex:none; }
+
+.outline-button.flow-danger { color:var(--danger); background:#fae9ec; border-color:#f0cbd0; }
+.family-entry { display:flex; align-items:center; justify-content:center; min-height:48px; margin-top:16px; border-radius:12px; background:var(--brand); color:#fff; font-size:15px; }

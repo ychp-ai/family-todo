@@ -457,3 +457,15 @@ it("快速切换丢弃旧日期响应，日期失败保留独立提醒", async (
   await vi.waitFor(() => expect(page().data.status).toBe("error"));
   expect(page().data).toMatchObject({reminders:[{id:"keep"}],reminderCount:1});
 });
+
+
+it("recycle family picker has no personal option and keeps selected family after reordering", async () => {
+  await import("./recycle/index");
+  const oldFamilies = [{ id: "a", name: "甲" }, { id: "b", name: "乙" }].map(family => ({ ...family, ownerName: "家人", myMembershipId: "me", myRole: "owner" as const, version: 1 }));
+  vi.spyOn(await import("../services/family-api"), "listFamilies").mockResolvedValue({ items: [...oldFamilies].reverse(), last });
+  const list = vi.spyOn(await import("../services/personal-lists"), "listRecycle").mockResolvedValue({ items: [], last });
+  page().visible = true; page().setData({ families: oldFamilies, familyIndex: 1 });
+  await invoke("refresh");
+  expect(list).toHaveBeenCalledExactlyOnceWith("a");
+  expect(page().data).toMatchObject({ familyOptions: ["全部家庭", "乙", "甲"], familyIndex: 2 });
+});

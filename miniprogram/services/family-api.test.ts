@@ -15,3 +15,12 @@ describe("家庭服务与分页",()=>{
   it("转交预览循环游标会报错，不以零项代替未完成扫描",async()=>{vi.spyOn(personalApi,"read").mockResolvedValue({preview:null,complete:false,nextCursor:"same"});await expect(previewTransfer({familyId:randomUUID(),toMembershipId:randomUUID()})).rejects.toThrow("未完整加载");});
   it("列表收集器追完空 continuation，缺少游标时拒绝假空态",async()=>{const fetch=vi.fn().mockResolvedValueOnce({items:[],nextCursor:"next",complete:false,asOf:"now"}).mockResolvedValueOnce({items:["family"],nextCursor:null,complete:true,asOf:"now"});await expect(collect(fetch)).resolves.toMatchObject({items:["family"]});expect(fetch.mock.calls[1]).toEqual(["next"]);await expect(collect(async()=>({items:[],nextCursor:null,complete:false,asOf:"now"}))).rejects.toThrow("列表未完整加载");});
 });
+
+it("家庭概览人数包含真实与在用无账号成员，失败时不伪造零人数", async () => {
+  const { familyOverviews } = await import("./family-api");
+  const summaries = ["a", "b"].map(id => ({ id, name: id, ownerName: "家人", myMembershipId: "me", myRole: "owner" as const, version: 1 }));
+  vi.spyOn(personalApi, "read").mockResolvedValueOnce({ family: { id: "a", name: "家", version: 1, myMembershipId: "me", ownerMembershipId: "me", authEpoch: 1 }, members: ["me", "other"].map(id => ({ id, familyId: "a", name: id, status: "active" as const, role: "member" as const, version: 1, isMe: id === "me" })), virtualMembers: ["active", "inactive"].map(status => ({ id: status, familyId: "a", name: status, status: status === "active" ? "active" as const : "inactive" as const, version: 1 })) }).mockRejectedValueOnce(new Error("unavailable"));
+  const result = await familyOverviews(summaries);
+  expect(result[0]).toMatchObject({ id: "a", memberCount: 3 });
+  expect(result[1]).toEqual(summaries[1]);
+});

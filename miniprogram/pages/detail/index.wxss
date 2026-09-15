@@ -4,3 +4,5 @@ button.settings-action{margin-top:12px}
 .occurrence-section-title{margin:12px 0 4px}
 .occurrence-row{margin-bottom:6px}
 .occurrence-row button.text-button{display:flex;width:100%;min-height:44px;justify-content:space-between;text-align:left;padding:8px 12px;background:var(--paper)}
+
+@import "../../styles/redesign.wxss";

@@ -8,7 +8,7 @@ import { back, errorMessage, navigationMetrics, readySession } from "../../servi
 
 Page({
   onComponentAction: componentActions(["familyChange", "restore"]),
-  data: { statusHeight: 0, navHeight: 44, capsuleWidth: 100, status: "loading", error: "", scopedFamilyId: "", families:[] as FamilySummary[],familyOptions:["全部家庭","仅个人"],familyIndex:0,items: [] as TaskSummaryDTO[], writing: false, restoringId: "" },
+  data: { statusHeight: 0, navHeight: 44, capsuleWidth: 100, status: "loading", error: "", scopedFamilyId: "", families:[] as FamilySummary[],familyOptions:["全部家庭"],familyIndex:0,items: [] as TaskSummaryDTO[], writing: false, restoringId: "" },
   visible: false, alive: true, epoch: 0,
   pendingRestore: null as { id: string; expectedVersion: number } | null,
   onLoad(query:Record<string,string|undefined> = {}) { patchData(this, {...navigationMetrics(),scopedFamilyId:query.familyId??""}); },
@@ -27,8 +27,8 @@ Page({
         if(this.visible&&epoch===this.epoch)patchData(this, {status:result.items.length?"ready":"empty",items:result.items});
         return;
       }
-      const selected=this.data.familyIndex>1?this.data.families[this.data.familyIndex-2]?.id:undefined;const personalOnly=this.data.familyIndex===1;const familiesPromise=listFamilies();const recyclePromise=selected?familiesPromise.then(families=>listRecycle(families.items.some(f=>f.id===selected)?selected:undefined)):listRecycle(personalOnly?null:undefined);const [families,result]=await Promise.all([familiesPromise,recyclePromise]);const index=personalOnly?1:selected&&families.items.some(f=>f.id===selected)?families.items.findIndex(f=>f.id===selected)+2:0;
-      if (this.visible && epoch === this.epoch) patchData(this, { status: result.items.length ? "ready" : "empty", items: result.items,families:families.items,familyOptions:["全部家庭","仅个人",...families.items.map(f=>f.name)],familyIndex:index });
+      const selected=this.data.familyIndex>0?this.data.families[this.data.familyIndex-1]?.id:undefined;const familiesPromise=listFamilies();const recyclePromise=selected?familiesPromise.then(families=>listRecycle(families.items.some(f=>f.id===selected)?selected:undefined)):listRecycle(undefined);const [families,result]=await Promise.all([familiesPromise,recyclePromise]);const index=selected&&families.items.some(f=>f.id===selected)?families.items.findIndex(f=>f.id===selected)+1:0;
+      if (this.visible && epoch === this.epoch) patchData(this, { status: result.items.length ? "ready" : "empty", items: result.items,families:families.items,familyOptions:["全部家庭",...families.items.map(f=>f.name)],familyIndex:index });
     } catch (error) {
       if (this.visible && epoch === this.epoch) patchData(this, { status: "error", error: errorMessage(error),items:[] });
     }

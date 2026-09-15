@@ -1,3 +1,5 @@
 .flow-section-title{display:block;font-size:16px;margin:20px 0 12px}.flow-inline-actions{flex-wrap:wrap}.flow-card .outline-button{margin-top:12px}.sheet .primary-button{margin-top:16px}.flow-card .h3{overflow-wrap:break-word}
 
 .family-flow .invitation-token{padding:12px;margin-top:12px;border-radius:10px;background:var(--canvas);font-family:var(--utility);letter-spacing:1px;overflow-wrap:anywhere}
+
+@import "../../styles/redesign.wxss";

@@ -31,4 +31,4 @@ python3 -m http.server 4397 --bind 127.0.0.1 --directory design
 
 保留仍在使用的 [应用图标](assets/app-icon.png)、[生成提示词](assets/app-icon.prompt.md) 和 `assets/tabbar/generate.py`。这些是共享资产，不属于被替代的页面稿。设计原图不应直接加入小程序包，应沿用适合显示尺寸的派生资源。
 
-本次未修改原生代码、API 或云环境，未部署。已完成和未完成的验证范围以 [验证记录](VALIDATION.md) 为准。
+设计原型的验证范围见 [验证记录](VALIDATION.md)。2026-09-15 已同步改造原生 7 个页面，实现映射、模拟器验证与真机限制见 [原生页面改版落地](../docs/miniprogram/page-redesign.md)。未部署。
