@@ -47,6 +47,10 @@ export class CollaborativeTaskService {
       if (receipt && action === "task.create") existing = await this.store.readTask(receipt.taskId);
     }
     const draft = "draft" in payload ? payload.draft : undefined;
+    // Keep old receipts replayable, but never create another task outside a family.
+    if (action === "task.create" && !draft?.familyId && !dispatchPrior?.receipt) {
+      throw new ApplicationError("VALIDATION_ERROR", "请先创建或加入家庭，再选择所属家庭创建事项。");
+    }
     if (action === "task.previewSchedule" || action === "task.pause" || action === "task.resume" || action === "task.stop" || existing?.recurrence || (draft && draft.schedule.kind !== "once")) return new RecurrenceService(this.store, this.clock, this.uuids).execute(action, payload, requestId, existing, dispatchPrior);
     if (!existing?.collaboration && !draft?.familyId) {
       this.personal ??= Promise.resolve(typeof this.personalStore === "function" ? this.personalStore() : this.personalStore).then(store => new PersonalService(store, this.clock, this.uuids));

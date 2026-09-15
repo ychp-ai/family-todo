@@ -1,3 +1,4 @@
+import { seedLegacyTask } from "./support/legacy-task";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { isFamilyData, isPersonalData } from "@family-todo/contracts";
@@ -19,7 +20,7 @@ async function client(database?: Fixture["database"], name = "家人") {
     },
     async task<A extends PersonalAction>(action: A, payload: PersonalActionMap[A]["payload"], requestId = randomUUID()): Promise<PersonalActionMap[A]["data"]> {
       const service = new CollaborativeTaskService(f.store(), new CloudBasePersonalStore(f.database, f.identity, "test-family-secret-32-characters-long"), clock, { generate: randomUUID });
-      const result = await service.execute(action, payload, requestId); if (!isPersonalData(action, result)) throw new Error("Invalid task test response"); return result;
+      const result = action === "task.create" && "draft" in payload && !payload.draft.familyId ? await seedLegacyTask(f.store(), new CloudBasePersonalStore(f.database, f.identity, "test-family-secret-32-characters-long"), clock, { generate: randomUUID }, payload.draft, requestId) : await service.execute(action, payload, requestId); if (!isPersonalData(action, result)) throw new Error("Invalid task test response"); return result;
     }
   };
 }

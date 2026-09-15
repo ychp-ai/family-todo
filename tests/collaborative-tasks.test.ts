@@ -1,3 +1,4 @@
+import { seedLegacyTask } from "./support/legacy-task";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { isPersonalData } from "@family-todo/contracts";
@@ -28,11 +29,36 @@ async function setup() {
 }
 async function call<K extends PersonalAction>(actor: Actor, action: K, payload: PersonalActionMap[K]["payload"], requestId = randomUUID()) {
   const service = new CollaborativeTaskService(actor.store(), new CloudBasePersonalStore(actor.database, actor.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(actor.now) }, { generate: randomUUID });
-  const result = await service.execute(action, payload, requestId);
+  const result = action === "task.create" && "draft" in payload && !payload.draft.familyId
+    ? await seedLegacyTask(actor.store(), new CloudBasePersonalStore(actor.database, actor.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(actor.now) }, { generate: randomUUID }, payload.draft, requestId)
+    : await service.execute(action, payload, requestId);
   if (!isPersonalData(action, result)) throw new Error("Invalid response"); return result;
 }
 function draft(familyId: string | null): TaskDraft & { schedule: { kind: "once"; date: string; time: string } } { return { title: "家庭安排", note: "", familyId, subject: { kind: "self" }, schedule: { kind: "once", date: "2026-09-11", time: "20:00" }, access: { viewerMembershipIds: [], helperMembershipIds: [], reminderMembershipIds: [], remindMe: true } }; }
 function access(task: TaskDTO) { return { viewerMembershipIds: task.participants.filter(p => p.canView && !p.requiredViewer).map(p => p.membershipId), helperMembershipIds: task.participants.filter(p => p.canHelp).map(p => p.membershipId), reminderMembershipIds: task.participants.filter(p => p.receivesReminder).map(p => p.membershipId), remindMe: task.myReminder.enabled }; }
+
+describe("family-only creation", () => {
+  it.each(["once", "daily", "weekly"] as const)("rejects a new %s task without a family and writes nothing", async kind => {
+    const f = await familyFixture();
+    const service = new CollaborativeTaskService(f.store(), new CloudBasePersonalStore(f.database, f.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(f.now) }, { generate: randomUUID });
+    const input = draft(null);
+    const schedule: TaskDraft["schedule"] = kind === "once" ? input.schedule : kind === "daily"
+      ? { kind, startDate: "2026-09-11", endDate: null, times: ["20:00"] }
+      : { kind, startDate: "2026-09-11", endDate: null, times: ["20:00"], weekdays: [1] };
+    const before = structuredClone([...f.database.documents]);
+    await expect(service.execute("task.create", { draft: { ...input, schedule } }, randomUUID())).rejects.toMatchObject({ code: "VALIDATION_ERROR", retryable: false });
+    expect([...f.database.documents]).toEqual(before);
+  });
+  it("joining a family still requires choosing it, and another account's family is rejected", async () => {
+    const f = await setup();
+    const service = new CollaborativeTaskService(f.creator.store(), new CloudBasePersonalStore(f.creator.database, f.creator.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(f.creator.now) }, { generate: randomUUID });
+    await expect(service.execute("task.create", { draft: draft(null) }, randomUUID())).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    const outsider = await familyFixture(f.owner.database, "外部账号");
+    const outsideService = new CollaborativeTaskService(outsider.store(), new CloudBasePersonalStore(outsider.database, outsider.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(outsider.now) }, { generate: randomUUID });
+    await expect(outsideService.execute("task.create", { draft: draft(f.family.id) }, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await call(f.creator, "task.create", { draft: draft(f.family.id) })).task.familyId).toBe(f.family.id);
+  });
+});
 
 describe("collaborative once tasks", () => {
   it("skips participant preference reads for summary lists while preserving permissions", async () => {

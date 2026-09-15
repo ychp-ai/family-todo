@@ -310,6 +310,8 @@ it("parallel progress merges roster and historical subjects after both resolve",
 
 it("完成事项的蒙层持续到列表刷新结束，并阻止重复操作", async () => {
   const tasks = await cachedHome();
+  vi.mocked((await import("../services/family-api")).listFamilies).mockResolvedValue({items:[{id:"family",name:"家",ownerName:"我",myMembershipId:"me",myRole:"owner",version:1}],last});
+  vi.spyOn((await import("../services/family-api")).familyApi,"read").mockResolvedValue({family:{id:"family",name:"家",myMembershipId:"me",version:1,ownerMembershipId:"me",authEpoch:1},members:[],virtualMembers:[]});
   const writing = deferred<void>();
   const reading = deferred<{ items: []; last: typeof last }>();
   tasks.mockReturnValue(reading.promise);
@@ -366,7 +368,7 @@ it.each(["pending", "completed"] as const)("首页切换 %s 状态后只刷新�
   const families = vi.mocked((await import("../services/family-api")).listFamilies);
   const reminders = vi.mocked((await import("../services/personal-lists")).listReminders);
   const occurrence: OccurrenceDTO = { id: "one", taskId: "task", segmentId: "segment", localDate: String(page().data.today), slot: "day", status, version: 2, canRecord: true, subject: { kind: "user", userId: "me" }, subjectName: "我", time: null, scheduledAt: null, actualCompletedAt: null, recordedAt: null, operatorName: null };
-  page().setData({ families: [{ id: "family", name: "家" }], familyIndex: 2, items: [{ task: { id: "task" }, occurrence }] });
+  page().setData({ families: [{ id: "family", name: "家" }], familyIndex: 1, items: [{ task: { id: "task" }, occurrence }] });
   const api = (await import("../services/personal-api")).personalApi;
   const write = vi.spyOn(api, "write").mockResolvedValue({ occurrence, taskVersion: 3 });
   tasks.mockClear(); families.mockClear(); reminders.mockClear();
@@ -376,7 +378,7 @@ it.each(["pending", "completed"] as const)("首页切换 %s 状态后只刷新�
   expect(families).not.toHaveBeenCalled();
   expect(tasks.mock.calls.map(([input]) => input)).toEqual([{ familyId: "family" }]);
   expect(reminders).toHaveBeenCalledOnce();
-  expect(page().data).toMatchObject({ familyIndex: 2, summaryText: "已完成 1 / 1 件", progress: 100, listRefreshing: false });
+  expect(page().data).toMatchObject({ familyIndex: 1, summaryText: "已完成 1 / 1 件", progress: 100, listRefreshing: false });
   await invoke("pullRefresh");
   expect(families).toHaveBeenCalledOnce();
 });

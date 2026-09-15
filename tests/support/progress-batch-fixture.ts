@@ -1,3 +1,4 @@
+import { seedLegacyTask } from "./legacy-task";
 import { randomUUID } from "node:crypto";
 import { isPersonalData } from "@family-todo/contracts";
 import type { PersonalAction, PersonalActionMap, TaskDraft } from "@family-todo/contracts";
@@ -46,7 +47,9 @@ export async function progressBatchFixture(memberCount = 3) {
 }
 export async function call<K extends PersonalAction>(actor: BatchActor, action: K, payload: PersonalActionMap[K]["payload"], requestId = randomUUID(), store: FamilyStore = actor.store()) {
   const service = new CollaborativeTaskService(store, new CloudBasePersonalStore(actor.database, actor.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(actor.now) }, { generate: randomUUID });
-  const result = await service.execute(action, payload, requestId);
+  const result = action === "task.create" && "draft" in payload && !payload.draft.familyId
+    ? await seedLegacyTask(actor.store(), new CloudBasePersonalStore(actor.database, actor.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(actor.now) }, { generate: randomUUID }, payload.draft, requestId)
+    : await service.execute(action, payload, requestId);
   if (!isPersonalData(action, result)) throw new Error("Invalid result"); return result;
 }
 export function taskDraft(familyId: string | null): TaskDraft {

@@ -1,3 +1,4 @@
+import { seedLegacyTask } from "./support/legacy-task";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { projectOccurrences } from "@family-todo/domain";
@@ -14,7 +15,9 @@ async function fixture() {
   const f = await familyFixture(); let now = "2026-09-11T10:30:00.000Z";
   const call = async <K extends PersonalAction>(action: K, payload: PersonalActionMap[K]["payload"], requestId = randomUUID()) => {
     const service = new CollaborativeTaskService(f.store(), new CloudBasePersonalStore(f.database, f.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(now) }, { generate: randomUUID });
-    const result = await service.execute(action, payload, requestId); if (!isPersonalData(action, result)) throw new Error("Invalid result"); return result;
+    const result = action === "task.create" && "draft" in payload && !payload.draft.familyId
+    ? await seedLegacyTask(f.store(), new CloudBasePersonalStore(f.database, f.identity, "test-family-cursor-and-encryption-secret"), { now: () => new Date(now) }, { generate: randomUUID }, payload.draft, requestId)
+    : await service.execute(action, payload, requestId); if (!isPersonalData(action, result)) throw new Error("Invalid result"); return result;
   };
   return { ...f, call, time: (value: string) => { now = value; } };
 }

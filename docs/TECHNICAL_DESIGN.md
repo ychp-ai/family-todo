@@ -144,3 +144,7 @@ interface TaskRepository {
 
 精简家庭列表只加载当前账号的历史可见权，不查询参与人的提醒偏好；输出前仍校验账号范围 revision、家庭版本与活跃成员资格。
 历史窗口跳跃和批量回执查询见 [日程存储约定](../database/recurrence.md) 与 [性能落地记录](technical/API_PERFORMANCE_IMPLEMENTATION.md)。
+
+### 家庭必选创建
+
+新建业务统一经 `CollaborativeTaskService` 校验 `draft.familyId`，无归属家庭且无既有回执时返回不可重试的 `VALIDATION_ERROR`，一次性和周期共用该限制。家庭成员资格仍在原业务事务内校验。旧回执优先保留幂等确认能力。契约中的可空家庭及内部个人服务保留，用于读取历史 DTO、恢复未决请求和迁移，不能据此认为线上新建允许个人事项。迁移状态与验证见 [家庭必选与历史迁移](technical/FAMILY_ONLY.md)。

@@ -191,15 +191,15 @@ describe("原生协作页面的授权边界", () => {
     const tasks = vi.spyOn(lists, "listTasks").mockImplementation(input => input.familyId === "a" ? old : Promise.resolve(result("b", 2)));
     const reminders = vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last: { items: [], nextCursor: null, complete: true, asOf, scopes: [], summary: null } });
     page().visible = true;
-    page().setData({ families: familyItems, familyIndex: 2 });
+    page().setData({ families: familyItems, familyIndex: 1 });
     const first = invoke("refresh");
     await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(1));
-    page().setData({ familyIndex: 3 });
+    page().setData({ familyIndex: 2 });
     await invoke("refresh");
     if (!finishOld) throw new Error("Missing deferred first page");
     finishOld(result("a", 1));
     await first;
-    expect(page().data).toMatchObject({ familyIndex: 3, summaryText: "已完成 2 / 2 件" });
+    expect(page().data).toMatchObject({ familyIndex: 2, summaryText: "已完成 2 / 2 件" });
     expect(reminders.mock.calls.map(call=>call[0])).toEqual([false, false]);
     await invoke("stop");
   });

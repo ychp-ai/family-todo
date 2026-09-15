@@ -7,12 +7,13 @@ type NativePage=Record<string,unknown>&{data:Record<string,unknown>;setData:(pat
 let page:NativePage;
 let storage:Map<string,unknown>;
 const user=randomUUID(),id=randomUUID();
+const defaultFamily={id:randomUUID(),name:"家",ownerName:"我",myMembershipId:randomUUID(),myRole:"owner" as const,version:1};
 const input:DraftInput={title:"",note:"未完成输入",familyId:null,subject:{kind:"self"},viewers:[],remindMe:false,repeat:"daily",date:"2026-09-14",time:"",endDate:"",times:[""],weekdays:[]};
 const task:TaskDTO={id,version:2,title:"最新标题",note:"最新备注",familyId:null,familyName:null,ownerUserId:user,ownerName:"我",createdByUserId:user,subject:{kind:"user",userId:user},subjectName:"我",schedule:{kind:"once",date:null,time:null},participants:[],myReminder:{enabled:false,version:2,selfDisabled:true},lifecycle:"active",createdAt:"2026-09-14T00:00:00.000Z",updatedAt:"2026-09-14T00:00:00.000Z",capabilities:{canEdit:true,canShare:true,canDelete:true,canRestore:false,canRecord:true,canResume:false}};
 async function invoke(name:string,...args:unknown[]){const fn=page[name];if(typeof fn!=="function")throw new Error(name);await fn.apply(page,args);}
-async function setup(){const api=(await import("../services/personal-api")).personalApi;api.bindRecovery("test",user);vi.spyOn(await import("../services/request-id"),"createRequestId").mockImplementation(async()=>randomUUID());vi.spyOn(await import("../services/family-api"),"listFamilies").mockResolvedValue({items:[],last:{items:[],nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});vi.spyOn(api,"read").mockImplementation((async(action:string)=>action==="task.get"?{task,occurrence:null}:action==="task.list"?{asOf:"2026-09-14T00:00:00.000Z"}:{nextOccurrences:[],explanation:"",excludedPastSlots:false}) as typeof api.read);return api;}
+async function setup(){const api=(await import("../services/personal-api")).personalApi;api.bindRecovery("test",user);vi.spyOn(await import("../services/request-id"),"createRequestId").mockImplementation(async()=>randomUUID());vi.spyOn(await import("../services/family-api"),"listFamilies").mockResolvedValue({items:[defaultFamily],last:{items:[defaultFamily],nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});vi.spyOn(api,"read").mockImplementation((async(action:string)=>action==="family.get"?{family:defaultFamily,members:[],virtualMembers:[]}:action==="task.get"?{task,occurrence:null}:action==="task.list"?{asOf:"2026-09-14T00:00:00.000Z"}:{nextOccurrences:[],explanation:"",excludedPastSlots:false}) as typeof api.read);return api;}
 async function seed(target="editor:new:0",value=input,version=0){const {InputRecovery}=await import("../services/input-recovery");const recovery=new InputRecovery(target);if(recovery.load())recovery.remove();await recovery.start();recovery.save(value,version);return recovery;}
-beforeEach(()=>{vi.resetModules();storage=new Map();vi.stubGlobal("wx",{getStorageSync:vi.fn((key:string)=>storage.get(key)),setStorageSync:vi.fn((key:string,value:unknown)=>storage.set(key,structuredClone(value))),removeStorageSync:vi.fn((key:string)=>storage.delete(key)),showModal:vi.fn().mockResolvedValue({confirm:true}),showToast:vi.fn(),navigateTo:vi.fn(),navigateBack:vi.fn(),reLaunch:vi.fn()});vi.stubGlobal("getCurrentPages",()=>[{},{}]);vi.stubGlobal("getApp",()=>({globalData:{session:{ensure:async()=>({id:user})}}}));vi.stubGlobal("Page",(value:NativePage)=>{page=value;page.setData=patch=>applyNativeData(page.data, patch);});});
+beforeEach(()=>{vi.resetModules();storage=new Map();vi.stubGlobal("wx",{getStorageSync:vi.fn((key:string)=>storage.get(key)),setStorageSync:vi.fn((key:string,value:unknown)=>storage.set(key,structuredClone(value))),removeStorageSync:vi.fn((key:string)=>storage.delete(key)),showModal:vi.fn().mockResolvedValue({confirm:true}),showToast:vi.fn(),switchTab:vi.fn(),navigateTo:vi.fn(),navigateBack:vi.fn(),reLaunch:vi.fn()});vi.stubGlobal("getCurrentPages",()=>[{},{}]);vi.stubGlobal("getApp",()=>({globalData:{session:{ensure:async()=>({id:user})}}}));vi.stubGlobal("Page",(value:NativePage)=>{page=value;page.setData=patch=>applyNativeData(page.data, patch);});});
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
 it("restores invalid raw fields after rebuilding modules without committing a task",async()=>{await setup();await seed();vi.resetModules();const api=await setup();const write=vi.spyOn(api,"write");await import("./editor/index");await invoke("load");expect(page.data).toMatchObject({title:"",note:"未完成输入",times:[""],repeat:"daily",remindMe:false});expect(write).not.toHaveBeenCalled();});
 it("input edits persist immediately, keep on back and discard on next entry",async()=>{await setup();await import("./editor/index");await invoke("load");await invoke("noteInput",{detail:{value:"只填写备注"}});expect([...storage.values()]).toContainEqual(expect.objectContaining({input:expect.objectContaining({title:"",note:"只填写备注"})}));await invoke("back");expect(wx.navigateBack).toHaveBeenCalled();vi.mocked(wx.showModal).mockResolvedValue({confirm:false,cancel:true,errMsg:"ok"});await invoke("load");expect([...storage.keys()].filter(k=>k.includes(":input:"))).toEqual([]);expect(page.data.note).toBe("");});
@@ -53,20 +54,47 @@ it("quick family preference survives discarded input and family list reordering"
   const {families,list}=await setupCreateFamilies();await import("./home/index");page.setData({today:"2026-09-14"});await invoke("openQuick");await invoke("quickFamilyChange",{detail:{value:"2"}});await invoke("discardQuick");
   list.mockResolvedValue({items:[...families].reverse(),last:{items:[],nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});
   await invoke("openQuick");expect(page.data.quickFamilyIndex).toBe(1);expect(page.quickRoster).toMatchObject({family:{id:families[1]?.id}});
-  await invoke("quickFamilyChange",{detail:{value:"0"}});await invoke("discardQuick");page.setData({familyIndex:2});await invoke("openQuick");expect(page.data.quickFamilyIndex).toBe(0);
+  await invoke("quickFamilyChange",{detail:{value:"0"}});await invoke("discardQuick");page.setData({familyIndex:2});await invoke("openQuick");expect(page.data.quickFamilyIndex).toBe(1);
 });
 it("new editor uses quick selection and shares its own selection back to quick add",async()=>{
   const {families}=await setupCreateFamilies();await import("./home/index");page.setData({today:"2026-09-14"});await invoke("openQuick");await invoke("quickFamilyChange",{detail:{value:"2"}});await invoke("discardQuick");const home=page;
   await import("./editor/index");await invoke("load");expect(page.roster).toMatchObject({family:{id:families[1]?.id}});await invoke("familyChange",{detail:{value:"1"}});await invoke("discardInput");
   page=home;await invoke("openQuick");expect(page.data.quickFamilyIndex).toBe(1);
 });
-it("personal drafts and existing personal tasks override remembered family",async()=>{
+it("legacy new drafts select a family while existing personal tasks await explicit migration",async()=>{
   const {families}=await setupCreateFamilies();const {rememberCreateFamily}=await import("../services/create-family");const {captureRecoveryIdentity}=await import("../services/input-recovery");rememberCreateFamily(captureRecoveryIdentity(),families[0]?.id??null);
-  await seed();await import("./editor/index");await invoke("load");expect(page.data.familyIndex).toBe(0);await invoke("discardInput");page.setData({id});await invoke("load");expect(page.data.familyIndex).toBe(0);
+  await seed();await import("./editor/index");await invoke("load");expect(page.data.familyIndex).toBe(1);await invoke("discardInput");page.setData({id});await invoke("load");expect(page.data.familyIndex).toBe(0);
 });
-it("inaccessible default falls back to personal and preferences are isolated by account and environment",async()=>{
+it("inaccessible default requires a family and preferences are isolated by account and environment",async()=>{
   const {api,families,list}=await setupCreateFamilies();const {rememberCreateFamily,readCreateFamily}=await import("../services/create-family");const {captureRecoveryIdentity}=await import("../services/input-recovery");const identity=captureRecoveryIdentity();rememberCreateFamily(identity,families[0]?.id??null);
-  list.mockResolvedValue({items:[],last:{items:[],nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});await import("./editor/index");await invoke("load");expect(page.data).toMatchObject({status:"ready",familyIndex:0});
+  list.mockResolvedValue({items:[],last:{items:[],nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});await import("./editor/index");await invoke("load");expect(page.data).toMatchObject({status:"needsFamily",familyIndex:0});
   api.bindRecovery("test",randomUUID());expect(readCreateFamily(captureRecoveryIdentity(),families)).toBeUndefined();rememberCreateFamily(identity,null);
   api.bindRecovery("other",user);expect(readCreateFamily(captureRecoveryIdentity(),families)).toBeUndefined();api.bindRecovery("test",user);expect(readCreateFamily(captureRecoveryIdentity(),families)).toBe(families[0]?.id);
+});
+
+it("without a family both entry points guide joining and cannot submit",async()=>{
+  const api=await setup();
+  vi.mocked((await import("../services/family-api")).listFamilies).mockResolvedValue({items:[],last:{items:[],complete:true,nextCursor:null,asOf:"2026-09-14T00:00:00.000Z"}});
+  const write=vi.spyOn(api,"write");
+  await import("./home/index");page.setData({today:"2026-09-14"});await invoke("openQuick");
+  expect(wx.switchTab).toHaveBeenCalledWith({url:"/pages/families/index"});expect(page.data.sheet).toBe("");
+  page.setData({quickTitle:"不能保存"});await invoke("saveQuick",{currentTarget:{dataset:{}}});expect(write).not.toHaveBeenCalled();
+  await import("./editor/index");await invoke("load");expect(page.data.status).toBe("needsFamily");
+  page.setData({title:"不能保存"});await invoke("save");expect(write).not.toHaveBeenCalled();
+});
+it("old personal preference falls back to an active family and never exposes personal creation",async()=>{
+  const {families}=await setupCreateFamilies();
+  const {captureRecoveryIdentity}=await import("../services/input-recovery");
+  const {rememberCreateFamily}=await import("../services/create-family");rememberCreateFamily(captureRecoveryIdentity(),null);
+  await import("./editor/index");await invoke("load");expect(page.data.familyIndex).toBe(1);expect(page.data.familyOptions).not.toContain("个人事项");
+  const write=vi.spyOn((await import("../services/personal-api")).personalApi,"write").mockResolvedValue({task});
+  await invoke("titleInput",{detail:{value:"家庭事项"}});await invoke("save");
+  expect(write).toHaveBeenCalledWith("task.create",expect.objectContaining({draft:expect.objectContaining({familyId:families[0]?.id})}),expect.anything());
+});
+
+it("quick add resolves the home family by ID when the refreshed list reorders",async()=>{
+  const {families,list}=await setupCreateFamilies();await import("./home/index");
+  page.setData({today:"2026-09-14",families,familyIndex:1});
+  list.mockResolvedValue({items:[...families].reverse(),last:{items:[],complete:true,nextCursor:null,asOf:"2026-09-14T00:00:00.000Z"}});
+  await invoke("openQuick");expect(page.quickRoster).toMatchObject({family:{id:families[0]?.id}});expect(page.data.quickFamilyIndex).toBe(2);
 });
