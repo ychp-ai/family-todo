@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyNativeData } from "../../tests/helpers/native-data";
-import type { TaskDTO } from "@family-todo/contracts";
+import type { OccurrenceDTO, TaskDTO } from "@family-todo/contracts";
 
 type NativePage = Record<string, unknown> & { data: Record<string, unknown>; setData(patch: Record<string, unknown>): void };
 let captured: NativePage | undefined;
@@ -313,7 +313,7 @@ it("完成事项的蒙层持续到列表刷新结束，并阻止重复操作", a
   const writing = deferred<void>();
   const reading = deferred<{ items: []; last: typeof last }>();
   tasks.mockReturnValue(reading.promise);
-  const item = { id: "one", group: "我来做", task: { id: "task-one" } };
+  const item = { id: "one", group: "我来做", task: { id: "task-one" }, occurrence: { id: "one", localDate: "2000-01-01" } };
   page().setData({ status: "ready", items: [item], visibleItems: [item] });
   const action = invoke("runWrite", "toggle:one", () => writing.promise);
   expect(page().data.listRefreshing).toBe(true);
@@ -359,4 +359,60 @@ it("结果待确认时撤下蒙层并保留重试入口", async () => {
   await invoke("runWrite", "toggle:one", async () => { throw new PersonalApiError("INTERNAL", "稍后重试", true); });
   expect(page().data).toMatchObject({ listRefreshing: false, writing: false, uncertain: true });
   expect(page().pendingWrite).not.toBeNull();
+});
+
+it.each(["pending", "completed"] as const)("首页切换 %s 状态后只刷新事项与提醒，复用家庭筛选", async status => {
+  const tasks = await cachedHome();
+  const families = vi.mocked((await import("../services/family-api")).listFamilies);
+  const reminders = vi.mocked((await import("../services/personal-lists")).listReminders);
+  const occurrence: OccurrenceDTO = { id: "one", taskId: "task", segmentId: "segment", localDate: String(page().data.today), slot: "day", status, version: 2, canRecord: true, subject: { kind: "user", userId: "me" }, subjectName: "我", time: null, scheduledAt: null, actualCompletedAt: null, recordedAt: null, operatorName: null };
+  page().setData({ families: [{ id: "family", name: "家" }], familyIndex: 2, items: [{ task: { id: "task" }, occurrence }] });
+  const api = (await import("../services/personal-api")).personalApi;
+  const write = vi.spyOn(api, "write").mockResolvedValue({ occurrence, taskVersion: 3 });
+  tasks.mockClear(); families.mockClear(); reminders.mockClear();
+  tasks.mockResolvedValue({ items: [], last: { ...last, summary: { completed: 1, pending: 0, skipped: 0, denominator: 1 } } });
+  await invoke("toggleTask", { currentTarget: { dataset: { id: "one" } } });
+  expect(write).toHaveBeenCalledWith(status === "pending" ? "occurrence.record" : "occurrence.undo", expect.objectContaining({ expectedVersion: 2 }));
+  expect(families).not.toHaveBeenCalled();
+  expect(tasks.mock.calls.map(([input]) => input)).toEqual([{ familyId: "family" }]);
+  expect(reminders).toHaveBeenCalledOnce();
+  expect(page().data).toMatchObject({ familyIndex: 2, summaryText: "已完成 1 / 1 件", progress: 100, listRefreshing: false });
+  await invoke("pullRefresh");
+  expect(families).toHaveBeenCalledOnce();
+});
+
+it("完成写入发生版本冲突时仍刷新家庭，未知结果不发读取请求", async () => {
+  const tasks = await cachedHome();
+  const families = vi.mocked((await import("../services/family-api")).listFamilies);
+  const { PersonalApiError } = await import("../services/personal-api");
+  families.mockClear();
+  await invoke("runWrite", "toggle:one", async () => { throw new PersonalApiError("VERSION_CONFLICT", "版本冲突", false); });
+  expect(families).toHaveBeenCalledOnce();
+  families.mockClear(); tasks.mockClear();
+  await invoke("runWrite", "toggle:one", async () => { throw new PersonalApiError("INTERNAL", "结果未知", true); });
+  expect(families).not.toHaveBeenCalled(); expect(tasks).not.toHaveBeenCalled();
+});
+
+
+it.each([
+  { name: "过期列表", inTasks: false, inBacklog: true, status: "pending" as const },
+  { name: "历史日期与过期列表重叠", inTasks: true, inBacklog: true, status: "pending" as const },
+  { name: "撤销历史完成重新进入过期列表", inTasks: true, inBacklog: false, status: "completed" as const },
+])("按次数归属刷新：$name", async ({ inTasks, inBacklog, status }) => {
+  const tasks = await cachedHome();
+  const families = vi.mocked((await import("../services/family-api")).listFamilies);
+  const reminders = vi.mocked((await import("../services/personal-lists")).listReminders);
+  const occurrence: OccurrenceDTO = { id: "past", taskId: "task", segmentId: "segment", localDate: "2000-01-01", slot: "day", status, version: 2, canRecord: true, subject: { kind: "user", userId: "me" }, subjectName: "我", time: null, scheduledAt: null, actualCompletedAt: null, recordedAt: null, operatorName: null };
+  const item = { id: "past", task: { id: "task" }, occurrence };
+  const untouched = { id: "today", task: { id: "task" }, occurrence: { ...occurrence, id: "today", localDate: String(page().data.today) } };
+  page().setData({ items: inTasks ? [item] : [untouched], visibleItems: inTasks ? [item] : [untouched], backlog: inBacklog ? [item] : [], summaryText: "原汇总", progress: 25, ...(inTasks ? { tab: "calendar", selectedDate: "2000-01-01" } : {}) });
+  vi.spyOn((await import("../services/personal-api")).personalApi, "write").mockResolvedValue({ occurrence, taskVersion: 3 });
+  tasks.mockClear(); families.mockClear(); reminders.mockClear();
+  await invoke("toggleTask", { currentTarget: { dataset: { id: "past" } } });
+  expect(tasks.mock.calls.map(([input]) => input)).toEqual(inTasks ? [{ dateFrom: "2000-01-01", dateTo: "2000-01-01" }, { overdue: true }] : [{ overdue: true }]);
+  expect(families).not.toHaveBeenCalled();
+  expect(reminders).toHaveBeenCalledOnce();
+  expect(page().data.backlog).toEqual([]);
+  if (!inTasks) expect(page().data).toMatchObject({ items: [untouched], visibleItems: [untouched], summaryText: "原汇总", progress: 25 });
+  expect(page().data.listRefreshing).toBe(false);
 });

@@ -1,1 +1,30 @@
 /* Visual tokens and page classes are inherited with apply-shared. */
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.time-row picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.time-row .form-input {
+  display: flex;
+  align-items: center;
+  font-family: var(--utility);
+  font-variant-numeric: tabular-nums;
+}
+
+.time-row .icon-button {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+}

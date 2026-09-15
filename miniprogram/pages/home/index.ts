@@ -47,8 +47,9 @@ Page({
   onHide() { this.persistQuick();this.stop();this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;patchData(this, {batchMode:false,sheet:"",refreshing:false,listRefreshing:false,items:this.data.items.map(i=>({...i,selected:false})),visibleItems:this.data.visibleItems.map(i=>({...i,selected:false})),groups:groups(this.data.visibleItems.map(i=>({...i,selected:false}))),backlog:this.data.backlog.map(i=>({...i,selected:false})),quickRows:[],quickSubjectOptions:[],selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[]}); }, onUnload() { this.persistQuick();this.alive=false; this.stop();this.batchEpoch++; },
   stop() { this.visible = false; this.epoch++; if (this.timer) clearTimeout(this.timer); },
   schedule(delay: number) { if (this.timer) clearTimeout(this.timer); if (this.visible) this.timer=setTimeout(() => {void this.refresh();},delay); },
-  async refresh() {
+  async refresh(mode: "all" | {tasks:boolean;backlog:boolean} = "all") {
     if (!this.visible || this.pendingWrite || this.data.writing || this.data.saving || this.data.batchBusy || this.data.batchMode) return; this.cacheAt=0;const epoch=++this.epoch;const reminderEpoch=this.reminderEpoch; this.lastRefresh=Date.now(); if (this.timer) clearTimeout(this.timer);
+    const completeData=["ready","empty"].includes(this.data.status)&&!this.data.error;
     patchData(this, {error:"",...(!["ready","empty"].includes(this.data.status)?{status:"loading"}:{})});
     try {
       const user=await readySession();
@@ -61,13 +62,17 @@ Page({
       const selectedId=this.data.familyIndex>1?this.data.families[this.data.familyIndex-2]?.id:undefined;
       const personalOnly=this.data.familyIndex===1;
       const input: TaskListInput = this.data.tab === "unscheduled" ? {unscheduled:true} : this.data.tab === "tomorrow" ? {dateFrom:dateAt(new Date().toISOString(),1),dateTo:dateAt(new Date().toISOString(),1)} : this.data.tab === "calendar" ? {dateFrom:this.data.selectedDate,dateTo:this.data.selectedDate} : {};
-      const familiesPromise=listFamilies();
-      // Only a selected family needs the refreshed membership list to resolve its scope.
+      // Recording an occurrence does not change families; business reads still check access.
+      const reuseFamilies=mode!=="all"&&this.cacheUserId===user.id&&completeData&&this.data.today===dateAt(new Date().toISOString());
+      const refreshTasks=!reuseFamilies||mode.tasks;
+      const refreshBacklog=!reuseFamilies||mode.backlog;
+      const familiesPromise=reuseFamilies?Promise.resolve({items:this.data.families}):listFamilies();
+      // Only a selected family needs the membership list to resolve its scope.
       const scopePromise=selectedId?familiesPromise.then(result=>result.items.some(f=>f.id===selectedId)?{familyId:selectedId}:{}):Promise.resolve(personalOnly?{familyId:null}:{});
       const reads=Promise.allSettled([
-        scopePromise.then(scope=>current()?listTasks({...input,...scope},current):Promise.reject(new Error("已切换查看范围。"))),
+        refreshTasks?scopePromise.then(scope=>current()?listTasks({...input,...scope},current):Promise.reject(new Error("已切换查看范围。"))):Promise.resolve(null),
         listReminders(this.data.includeDismissed,current),
-        scopePromise.then(scope=>current()?listTasks({overdue:true,...scope},current):Promise.reject(new Error("已切换查看范围。")))
+        refreshBacklog?scopePromise.then(scope=>current()?listTasks({overdue:true,...scope},current):Promise.reject(new Error("已切换查看范围。"))):Promise.resolve(null)
       ]);
       const familyResult=await familiesPromise;
       if(!current())return;
@@ -76,11 +81,17 @@ Page({
       const [tasks,reminders,backlog] = await reads;
       if (epoch !== this.epoch || !this.visible) return;
       if (tasks.status === "rejected") throw tasks.reason;
-      const failed=tasks.value.last.scopes.some(scope=>scope.status!=="ok");const items=cards(tasks.value.items,familyResult.items,user.id); const summary=tasks.value.last.summary; const today=dateAt(tasks.value.last.asOf); const tomorrow=dateAt(tasks.value.last.asOf,1);
-      patchData(this, {status:items.length ? "ready" : failed ? "error" : "empty",items,groups:groups(items.filter(i=>!this.data.hideCompleted||i.occurrence.status==="pending")),visibleItems:items.filter(i => !this.data.hideCompleted || i.occurrence.status === "pending"),today,tomorrow,greeting:dateCaption(today),
-        summaryText:summary ? `已完成 ${summary.completed} / ${summary.denominator} 件${summary.skipped ? ` · 跳过 ${summary.skipped}` : ""}` : "数据未完整加载 · 暂不汇总",progress:summary?.denominator ? summary.completed/summary.denominator*100 : 0,
+      const failed=tasks.value?.last.scopes.some(scope=>scope.status!=="ok")??false;
+      if(tasks.value){
+        const items=cards(tasks.value.items,familyResult.items,user.id),summary=tasks.value.last.summary;
+        const today=dateAt(tasks.value.last.asOf),tomorrow=dateAt(tasks.value.last.asOf,1);
+        const visibleItems=items.filter(i=>!this.data.hideCompleted||i.occurrence.status==="pending");
+        patchData(this, {status:items.length ? "ready" : failed ? "error" : "empty",items,groups:groups(visibleItems),visibleItems,today,tomorrow,greeting:dateCaption(today),
+          summaryText:summary ? `已完成 ${summary.completed} / ${summary.denominator} 件${summary.skipped ? ` · 跳过 ${summary.skipped}` : ""}` : "数据未完整加载 · 暂不汇总",progress:summary?.denominator ? summary.completed/summary.denominator*100 : 0});
+      }
+      patchData(this, {
         ...(reminderEpoch!==this.reminderEpoch?{}:reminders.status === "fulfilled" ? {reminders:reminders.value.items.map(item=>({...item,id:item.occurrence.id})),reminderCount:reminders.value.items.filter(i => !i.dismissedAt).length,reminderError:reminders.value.last.scopes.some(s=>s.status!=="ok")?"部分家庭提醒暂未加载，点击重试":""} : {reminders:[],reminderCount:0,reminderError:"提醒暂未加载，点击重试"}),
-        ...(backlog.status === "fulfilled" ? {backlog:cards(backlog.value.items,familyResult.items,user.id)} : {}),error:failed ? "部分家庭未完整加载，请重试。" : backlog.status === "rejected" || backlog.value.last.scopes.some(s=>s.status!=="ok") ? "过去未完成暂未完整加载，请重试。" : ""});
+        ...(backlog.status === "fulfilled" && backlog.value ? {backlog:cards(backlog.value.items,familyResult.items,user.id)} : {}),error:failed ? "部分家庭未完整加载，请重试。" : backlog.status === "rejected" || backlog.value?.last.scopes.some(s=>s.status!=="ok") ? "过去未完成暂未完整加载，请重试。" : ""});
       this.cacheUserId=user.id;this.cacheRevision=revision;this.cacheAt=failed||this.data.error||this.data.reminderError?0:Date.now();
       this.retries=0; this.schedule(30000);
     } catch (error) {
@@ -112,13 +123,23 @@ Page({
   async runWrite(key:string,run:()=>Promise<unknown>,done:()=>void=()=>{}) {
     if(this.data.writing || this.data.saving || this.data.listRefreshing)return;
     if(this.pendingWrite && this.pendingWrite.key!==key){wx.showToast({title:"请先重试上次操作，确认结果",icon:"none"});return;}
+    let succeeded=false;
     this.pendingWrite??={key,run,done};this.epoch++;if(this.timer)clearTimeout(this.timer);
     patchData(this, {writing:true,writingKey:key,listRefreshing:key.startsWith("toggle:"),quickError:""});
-    try{await this.pendingWrite.run();const finish=this.pendingWrite.done;this.pendingWrite=null;if(this.alive){patchData(this, {uncertain:false});finish();}}
+    try{await this.pendingWrite.run();succeeded=true;const finish=this.pendingWrite.done;this.pendingWrite=null;if(this.alive){patchData(this, {uncertain:false});finish();}}
     catch(error){const uncertain=error instanceof PersonalApiError&&error.retryable;if(!uncertain)this.pendingWrite=null;if(this.alive){if(isAccessDenied(error))this.clearSensitive();patchData(this, {quickError:errorMessage(error),uncertain});wx.showToast({title:errorMessage(error),icon:"none"});}}
-    finally{if(this.alive)patchData(this, {writing:false,writingKey:""});if(this.alive)patchData(this, {pendingCount:personalApi.pendingCount});if(!this.pendingWrite&&this.visible){if(key.startsWith("dismiss:")||key.startsWith("read:"))void this.refreshReminders();else await this.refresh();}else if(this.alive)patchData(this, {listRefreshing:false});}
+    finally{if(this.alive)patchData(this, {writing:false,writingKey:""});if(this.alive)patchData(this, {pendingCount:personalApi.pendingCount});if(!this.pendingWrite&&this.visible){if(key.startsWith("dismiss:")||key.startsWith("read:"))void this.refreshReminders();else await this.refresh(succeeded&&key.startsWith("toggle:")?this.occurrenceRefreshScope(key.slice("toggle:".length)):"all");}else if(this.alive)patchData(this, {listRefreshing:false});}
   },
   clearSensitive(){this.cacheAt=0;this.cacheUserId="";this.discardQuick();this.epoch++;this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {listRefreshing:false,status:"error",selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,items:[],visibleItems:[],groups:[],backlog:[],reminders:[],reminderCount:0,summaryText:"—",progress:0,sheet:"",quickTitle:"",quickNote:"",quickTime:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:["自己"],quickNotice:"",quickLoading:false});},
+  occurrenceRefreshScope(id:string): "all" | {tasks:boolean;backlog:boolean} {
+    const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===id);
+    if(!item)return "all";
+    return {
+      tasks:this.data.items.some(i=>i.occurrence.id===id),
+      // An undone historical occurrence returns to backlog even when it was absent before the write.
+      backlog:this.data.backlog.some(i=>i.occurrence.id===id)||(item.occurrence.localDate!==null&&item.occurrence.localDate<this.data.today)
+    };
+  },
   async toggleTask(event: WechatMiniprogram.TouchEvent) {
     if(this.data.batchMode){this.selectTask(event);return;}const id:unknown=event.currentTarget.dataset.id;const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===id);if(!item||!item.occurrence.canRecord)return;
     const payload={occurrence:occurrenceRef(item.occurrence),expectedVersion:item.occurrence.version};

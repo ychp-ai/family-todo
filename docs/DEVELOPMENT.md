@@ -28,6 +28,8 @@ check/build 自动执行 setup，首次生成 `miniprogram/config/local.ts`，�
 3. 工具原生编译 TS/WXML/WXSS；终端运行 `npm run dev` 同步共享契约变化。
 4. 如发生样式缓存异常，清除编译缓存后重新编译。
 
+事项编辑的时刻列表在 `components/editor-schedule/index.wxss` 中维护局部样式：标题位于列表上方，行间距 8px，删除按钮使用浅色圆角背景并保留 44px 点击区域。样式调整后需在开发者工具检查一次性、每日和每周安排，尤其是 6 个时刻及窄屏显示。
+
 编辑器使用项目安装的 TypeScript（`.vscode/settings.json` 指向 `node_modules/typescript/lib`）。打开 TS 文件后，点击状态栏的 TypeScript 版本并选择「使用工作区版本」。开发者工具 RC 2.02.2608031 内置的 4.1.2 无法识别本项目的现代配置，会连带报告模块找不到和隐式 any；2026-09-14 切换至工作区 5.9.3 后这些诊断消失。无需降级 tsconfig 或关闭校验。
 
 「代码质量」检查要求单张图片和音频不超过 200 KB。设计原图保留在 `design/`，小程序仅放适合显示尺寸的资源；首页进度条将百分号放在 WXML 插值内，避免编辑器把插值后的 `%` 误判为 CSS 语法错误。
