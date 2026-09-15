@@ -38,3 +38,35 @@ it("quick ignores a deferred old family list before creating the new account con
 it.each(["familyChange","loadLatest","keepDraft"])("editor %s discards deferred account-private read continuations",async method=>{const api=await setup();await import("./editor/index");await invoke("load");const familyId=randomUUID();let finish:((value:unknown)=>void)|undefined;const pending=new Promise<unknown>(resolve=>{finish=resolve;});vi.mocked(api.read).mockImplementation((()=>pending) as typeof api.read);page.setData({title:"旧账号",families:[{id:familyId,name:"旧家庭"}],latest:{...task,familyId},id});const loading=invoke(method,{detail:{value:"1"}});await Promise.resolve();api.bindRecovery("test",randomUUID());finish?.(method==="loadLatest"?{task,occurrence:null}:{family:{id:familyId,name:"旧家庭"},members:[],virtualMembers:[]});await loading;expect(page.data).toMatchObject({status:"error",title:"",families:[],rows:[],latest:null});});
 it("quick roster response cannot restore old names after an account switch",async()=>{const api=await setup();await import("./home/index");page.setData({today:"2026-09-14"});await invoke("openQuick");const familyId=randomUUID();let finish:((value:unknown)=>void)|undefined;vi.mocked(api.read).mockImplementation((()=>new Promise<unknown>(resolve=>{finish=resolve;})) as typeof api.read);page.setData({families:[{id:familyId,name:"旧家庭"}],quickFamilyIndex:1,quickTitle:"旧账号"});const loading=invoke("loadQuickFamily");await Promise.resolve();api.bindRecovery("test",randomUUID());finish?.({family:{id:familyId,name:"旧家庭"},members:[],virtualMembers:[]});await loading;expect(page.data).toMatchObject({quickTitle:"",families:[],quickRows:[],quickSubjectNames:[],status:"error"});});
 it("adding an empty time slot as the first edit persists and restores the incomplete schedule",async()=>{const api=await setup();const recurring={...task,schedule:{kind:"daily" as const,startDate:"2026-09-14",endDate:null,times:["08:00"]}};vi.mocked(api.read).mockImplementation((async(action:string)=>action==="task.get"?{task:recurring,occurrence:null}:{nextOccurrences:[],explanation:""}) as typeof api.read);await import("./editor/index");page.setData({id});await invoke("load");expect(page.dirty).toBe(false);await invoke("addTime");expect(page.dirty).toBe(true);expect([...storage.values()]).toContainEqual(expect.objectContaining({input:expect.objectContaining({times:["08:00",""]})}));await invoke("back");expect(wx.showModal).toHaveBeenCalledWith(expect.objectContaining({title:"保留未保存的输入？"}));await invoke("load");expect(page.data.times).toEqual(["08:00",""]);});
+
+async function setupCreateFamilies(){
+  const api=await setup();
+  const families=[randomUUID(),randomUUID()].map((id,index)=>({id,name:`家庭${index+1}`,ownerName:"我",myMembershipId:randomUUID(),myRole:"owner" as const,version:1}));
+  const familyService=await import("../services/family-api");
+  const list=vi.mocked(familyService.listFamilies);
+  list.mockResolvedValue({items:families,last:{items:families,nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});
+  const read=vi.mocked(api.read).getMockImplementation();
+  vi.spyOn(familyService.familyApi,"read").mockImplementation((async(action:string,payload:{id:string})=>action==="family.get"?{family:families.find(f=>f.id===payload.id),members:[],virtualMembers:[]}:read?.(action as "task.get",payload)) as typeof familyService.familyApi.read);
+  return {api,families,list};
+}
+it("quick family preference survives discarded input and family list reordering",async()=>{
+  const {families,list}=await setupCreateFamilies();await import("./home/index");page.setData({today:"2026-09-14"});await invoke("openQuick");await invoke("quickFamilyChange",{detail:{value:"2"}});await invoke("discardQuick");
+  list.mockResolvedValue({items:[...families].reverse(),last:{items:[],nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});
+  await invoke("openQuick");expect(page.data.quickFamilyIndex).toBe(1);expect(page.quickRoster).toMatchObject({family:{id:families[1]?.id}});
+  await invoke("quickFamilyChange",{detail:{value:"0"}});await invoke("discardQuick");page.setData({familyIndex:2});await invoke("openQuick");expect(page.data.quickFamilyIndex).toBe(0);
+});
+it("new editor uses quick selection and shares its own selection back to quick add",async()=>{
+  const {families}=await setupCreateFamilies();await import("./home/index");page.setData({today:"2026-09-14"});await invoke("openQuick");await invoke("quickFamilyChange",{detail:{value:"2"}});await invoke("discardQuick");const home=page;
+  await import("./editor/index");await invoke("load");expect(page.roster).toMatchObject({family:{id:families[1]?.id}});await invoke("familyChange",{detail:{value:"1"}});await invoke("discardInput");
+  page=home;await invoke("openQuick");expect(page.data.quickFamilyIndex).toBe(1);
+});
+it("personal drafts and existing personal tasks override remembered family",async()=>{
+  const {families}=await setupCreateFamilies();const {rememberCreateFamily}=await import("../services/create-family");const {captureRecoveryIdentity}=await import("../services/input-recovery");rememberCreateFamily(captureRecoveryIdentity(),families[0]?.id??null);
+  await seed();await import("./editor/index");await invoke("load");expect(page.data.familyIndex).toBe(0);await invoke("discardInput");page.setData({id});await invoke("load");expect(page.data.familyIndex).toBe(0);
+});
+it("inaccessible default falls back to personal and preferences are isolated by account and environment",async()=>{
+  const {api,families,list}=await setupCreateFamilies();const {rememberCreateFamily,readCreateFamily}=await import("../services/create-family");const {captureRecoveryIdentity}=await import("../services/input-recovery");const identity=captureRecoveryIdentity();rememberCreateFamily(identity,families[0]?.id??null);
+  list.mockResolvedValue({items:[],last:{items:[],nextCursor:null,complete:true,asOf:"2026-09-14T00:00:00.000Z"}});await import("./editor/index");await invoke("load");expect(page.data).toMatchObject({status:"ready",familyIndex:0});
+  api.bindRecovery("test",randomUUID());expect(readCreateFamily(captureRecoveryIdentity(),families)).toBeUndefined();rememberCreateFamily(identity,null);
+  api.bindRecovery("other",user);expect(readCreateFamily(captureRecoveryIdentity(),families)).toBeUndefined();api.bindRecovery("test",user);expect(readCreateFamily(captureRecoveryIdentity(),families)).toBe(families[0]?.id);
+});

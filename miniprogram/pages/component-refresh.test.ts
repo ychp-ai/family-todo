@@ -278,6 +278,7 @@ it("batch viewer groups request all family rosters concurrently", async () => {
 });
 
 it("family detail starts today's progress before the roster resolves", async () => {
+  vi.spyOn(await import("../services/personal-view"), "dateAt").mockReturnValue("2026-09-14");
   await import("./families/index");
   const api = await import("../services/family-api");
   vi.spyOn(api, "listFamilies").mockResolvedValue({ items: [{ id: "f", name: "家", ownerName: "我", myMembershipId: "m", myRole: "owner", version: 1 }], last });

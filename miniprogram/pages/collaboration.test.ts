@@ -73,6 +73,52 @@ describe("原生协作页面的授权边界", () => {
     expect(navigation.consumeFamilyDestination()).toBe("joined-family");
   });
 
+  it("分享卡片直达邀请，预览后主动确认加入，接收方转发保留口令", async () => {
+    await import("./invitation/index");
+    vi.spyOn(await import("../services/personal-view"), "navigationMetrics").mockReturnValue({ statusHeight: 0, navHeight: 44, capsuleWidth: 100 });
+    vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: vi.fn().mockResolvedValue({}) } } }));
+    const token = "abcdefghijklmnopqrstuQ";
+    const api = (await import("../services/family-api")).familyApi;
+    const read = vi.spyOn(api, "read").mockResolvedValue({ familyName: "我们的家", inviterName: "妈妈", expiresAt: "2099-09-22T00:00:00.000Z", alreadyJoined: false });
+    const write = vi.spyOn(api, "write").mockResolvedValue({ familyId: "joined-family", membershipId: "member", alreadyJoined: false });
+    page().setData({ generatedToken: token, family: { name: "我们的家" } });
+    const share = page().onShareAppMessage;
+    if (typeof share !== "function") throw new Error("Missing share handler");
+    const card = share.call(page());
+    expect(card).toEqual({ title: "邀请你加入「我们的家」", path: `/pages/invitation/index?token=${token}` });
+    page().setData({ generatedToken: "", family: null });
+    await invoke("onLoad", { token: card.path.split("token=")[1], familyId: "ignored" });
+    page().visible = true;
+    await invoke("load");
+    expect(read).toHaveBeenCalledWith("invitation.preview", { token });
+    expect(page().data).toMatchObject({ fromShare: true, familyId: "", status: "ready", preview: { familyName: "我们的家" } });
+    expect(write).not.toHaveBeenCalled();
+    expect(share.call(page())).toEqual(card);
+    await invoke("accept");
+    expect(write).not.toHaveBeenCalled();
+    page().setData({ myName: "爸爸" });
+    await invoke("accept");
+    expect(write).toHaveBeenCalledWith("invitation.accept", { token, myName: "爸爸" });
+    expect(page().data).toMatchObject({ joinedId: "joined-family", token: "", preview: null });
+  });
+
+  it("失效的分享邀请不展示加入预览，也不继续转发失效口令", async () => {
+    await import("./invitation/index");
+    const { PersonalApiError } = await import("../services/personal-api");
+    const api = (await import("../services/family-api")).familyApi;
+    vi.spyOn(api, "read").mockRejectedValue(new PersonalApiError("INVITATION_UNAVAILABLE", "邀请已不可用", false));
+    const write = vi.spyOn(api, "write");
+    page().visible = true;
+    page().setData({ token: "abcdefghijklmnopqrstuQ", fromShare: true });
+    await invoke("previewInvitation");
+    await invoke("accept");
+    expect(page().data).toMatchObject({ preview: null, error: "邀请已不可用" });
+    expect(write).not.toHaveBeenCalled();
+    const share = page().onShareAppMessage;
+    if (typeof share !== "function") throw new Error("Missing share handler");
+    expect(share.call(page()).path).toBe("/pages/invitation/index");
+  });
+
   it.each(["FORBIDDEN", "NOT_FOUND"])("回收站恢复返回 %s 后清空私密事项", async code => {
     await import("./recycle/index");
     const module = await import("../services/personal-api");
