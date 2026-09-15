@@ -51,20 +51,7 @@ button.profile-avatar-picker{margin:8px auto}.profile-avatar-hint{display:block;
 .family-weui-row .weui-cell__bd { min-width:0; }
 .family-weui-row .weui-cell__ft { padding:0; margin:0; display:flex; flex:none; }
 .family-weui-row:active { transform:scale(.98); }
-.family-weui-sheet.weui-half-screen-dialog {
-  position:fixed; left:12px; right:12px; bottom:12px; width:auto;
-  display:flex; flex-direction:column; min-height:0; max-height:90vh;
-  padding:12px 24px calc(27px + env(safe-area-inset-bottom));
-  border-radius:24px 24px 19px 19px; background:var(--canvas);
-  color:var(--ink); font:inherit; z-index:51; animation:none; transform:none;
-}
-.family-weui-sheet .weui-half-screen-dialog__hd { padding:0; min-height:0; display:block; flex:none; }
-.family-weui-sheet .weui-half-screen-dialog__hd__side { display:none; }
-.family-weui-sheet .weui-half-screen-dialog__hd__main { padding:0; }
-.family-weui-sheet .weui-half-screen-dialog__title { font:inherit; text-align:left; }
-.family-weui-sheet .weui-half-screen-dialog__bd { padding:0; min-height:0; flex:0 1 auto; overflow:hidden; color:var(--ink); font:inherit; }
-.family-weui-sheet .weui-half-screen-dialog__ft { display:none; }
-.family-weui-sheet .primary-button { margin-top:16px; }
+.app-weui-sheet .primary-button { margin-top:16px; }
 @media (prefers-reduced-motion:reduce) {
   .family-weui-row.weui-cell { transition:none; }
   .family-weui-row:active { transform:none; }

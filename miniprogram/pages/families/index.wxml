@@ -14,7 +14,7 @@
 <!-- Keep closing under page control so pending writes retain their dialog and context. -->
 <view wx:if="{{sheet}}" class="family-weui-dialog-host family-flow">
 <view class="mask" bindtap="closeSheet" catchtouchmove="noop" aria-role="button" aria-label="关闭弹窗遮罩"></view>
-<mp-half-screen-dialog show="{{!!sheet}}" ext-class="family-weui-sheet" closabled="{{false}}" mask="{{false}}" bindclose="closeSheet">
+<mp-half-screen-dialog show="{{!!sheet}}" ext-class="app-weui-sheet" closabled="{{false}}" mask="{{false}}" bindclose="closeSheet">
   <view slot="title"><view class="sheet-handle"></view><view class="sheet-header"><text class="h2">{{formTitle}}</text><button class="icon-button" bindtap="closeSheet" aria-label="关闭弹窗">×</button></view></view>
   <scroll-view slot="desc" class="sheet-scroll" scroll-y>
 <block wx:if="{{sheet === 'profile'}}"><form bindsubmit="saveProfile"><button class="profile-avatar profile-avatar-picker" open-type="chooseAvatar" bindchooseavatar="chooseAvatar" disabled="{{profileSaving}}" aria-label="选择微信头像"><image wx:if="{{profileAvatar}}" src="{{profileAvatar}}" mode="aspectFill"/><text wx:else>{{avatarInitial || '我'}}</text></button><text class="form-helper profile-avatar-hint">点击选择头像</text><text class="field-label">昵称</text><input class="form-input" type="nickname" name="nickname" maxlength="32" value="{{profileName}}" bindinput="profileNickname" bindblur="profileNickname" bindnicknamereview="nicknameReview" placeholder="填写昵称" disabled="{{profileSaving}}"/><text class="form-error">{{profileError}}</text><button class="primary-button full-width" form-type="submit" loading="{{profileSaving}}" disabled="{{profileSaving}}">保存</button></form></block>

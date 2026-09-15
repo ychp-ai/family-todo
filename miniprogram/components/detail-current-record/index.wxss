@@ -1,1 +1,3 @@
 /* Visual tokens and page classes are inherited with apply-shared. */
+.current-record.history-list{margin-top:12px}
+.current-record .history-item{padding-bottom:4px}

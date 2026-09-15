@@ -1,0 +1,22 @@
+/* Keep secondary actions visibly distinct from labels and helper text. */
+button.text-button,view.text-button,button.sheet-secondary{
+  min-height:44px;min-width:44px;padding:8px 12px;
+  color:var(--brand-dark);background:var(--lavender);
+  border:1px solid #dadae8;border-radius:10px;
+  font-weight:500;line-height:1.5;gap:6px;
+}
+button.text-button:active,view.text-button:active,button.sheet-secondary:active{
+  background:#e0e2f2;border-color:var(--brand);
+}
+button.text-button[disabled],button.sheet-secondary[disabled]{
+  color:var(--muted);background:var(--canvas);border-color:var(--line);
+}
+.date-tabs button{border:1px solid var(--line);background:var(--paper)}
+.date-tabs button.active{border-color:var(--brand)}
+.family-filter{padding:0 10px;border:1px solid #dadae8;border-radius:10px;background:var(--paper)}
+.filter-row{gap:8px}
+.section-title{gap:8px}
+button.task-main{position:relative;padding-right:24px}
+.task-open-arrow{position:absolute;right:0;top:50%;width:16px;height:16px;transform:translateY(-50%)}
+button.profile-name{display:inline-flex;align-items:center;gap:6px}
+button.profile-name .icon{width:16px;height:16px}

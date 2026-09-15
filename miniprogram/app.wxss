@@ -2,3 +2,6 @@
 @import "./styles/native-reset.wxss";
 @import "./styles/design.wxss";
 @import "./styles/family-flow.wxss";
+
+@import "./styles/weui-adapters.wxss";
+@import "./styles/actions.wxss";

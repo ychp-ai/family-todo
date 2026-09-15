@@ -5,6 +5,7 @@
     "detail-arrangement": "/components/detail-arrangement/index",
     "detail-current-record": "/components/detail-current-record/index",
     "detail-event": "/components/detail-event/index",
-    "detail-settings": "/components/detail-settings/index"
+    "detail-settings": "/components/detail-settings/index",
+    "mp-half-screen-dialog": "weui-miniprogram/half-screen-dialog/half-screen-dialog"
   }
 }

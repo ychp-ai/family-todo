@@ -347,3 +347,43 @@ describe("家庭半屏弹窗关闭保护", () => {
     expect(page().data).toMatchObject({ sheet: "", error: "" });
   });
 });
+
+describe("首页与详情半屏弹窗关闭保护", () => {
+  it.each(["saving", "writing", "uncertain", "batchBusy"])("首页 %s 时保留弹窗", async flag => {
+    await import("./home/index");
+    page().setData({ sheet: "quick", [flag]: true });
+    await invoke("closeSheet");
+    expect(page().data.sheet).toBe("quick");
+    page().setData({ [flag]: false });
+    await invoke("closeSheet");
+    expect(page().data.sheet).toBe("");
+  });
+  it.each(["writing", "uncertain"])("详情 %s 时保留弹窗", async flag => {
+    await import("./detail/index");
+    page().setData({ sheet: "record", [flag]: true });
+    await invoke("closeSheet");
+    expect(page().data.sheet).toBe("record");
+    page().setData({ [flag]: false });
+    await invoke("closeSheet");
+    expect(page().data.sheet).toBe("");
+  });
+  it.each([true, false])("快速新增等待草稿选择后才关闭，保留=%s", async confirm => {
+    await import("./home/index");
+    page().setData({ sheet: "quick" });
+    page().quickDirty = true;
+    const persist = vi.fn().mockReturnValue(true);
+    const discard = vi.fn().mockReturnValue(true);
+    page().persistQuick = persist;
+    page().discardQuick = discard;
+    let answer: ((value: { confirm: boolean; cancel: boolean; errMsg: string }) => void) | undefined;
+    vi.mocked(wx.showModal).mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+    const closing = invoke("closeSheet");
+    expect(page().data.sheet).toBe("quick");
+    if (!answer) throw new Error("Missing draft confirmation");
+    answer({ confirm, cancel: !confirm, errMsg: "showModal:ok" });
+    await closing;
+    expect(confirm ? persist : discard).toHaveBeenCalledOnce();
+    expect(confirm ? discard : persist).not.toHaveBeenCalled();
+    expect(page().data.sheet).toBe("");
+  });
+});
