@@ -30,7 +30,7 @@
 - 家人进度：首页家人入口进入独立进度页，按家庭、执行对象及日期读取 progress.get；完整可见结果中的历史执行对象补入筛选，不扩大 family.get 名册。家庭管理仍在原路由。未完整结果保留 members=null 并续读；暂不可用保留游标供显式重试，过期则仅重建一次。只有完整结果才显示计数和进度环，空态说明可见范围。
 - 批量追加：首页只选择可编辑且可共享的事项，相同事项多个次数按 taskId 去重，上限 20。按家庭分组，个人事项必须明确选择目标家庭；仅选择新增查看人，不添加代记或提醒。结果逐项显示成功／待确认／失败；待确认沿用原操作继续，全体结束后才允许重试失败项，并先读取其最新版本。
 
-所有页面使用原生 custom navigation、WXML 控件和 WXSS；卡片、编辑、权限矩阵与家庭交接弹层映射 `design/flows.*`，首页映射 `design/prototype.js` 与 `design/styles.css`。控件热区至少 44 CSS px。
+所有页面使用原生 custom navigation、WXML 控件和 WXSS；后续页面视觉与交互统一对照 `design/index.html`、`design/prototype.js`、`design/styles.css` 和 `design/page-redesign.md`。旧流程稿已删除，现有原生页面尚不能视为已完成新设计适配。控件热区至少 44 CSS px。
 
 ## 身份、失权与异步响应
 

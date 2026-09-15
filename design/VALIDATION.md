@@ -4,7 +4,7 @@
 
 ## 已验证
 
-- `node --check design/redesign/prototype.js`：通过。
+- `node --check design/prototype.js`：通过。
 - Codex 内置浏览器：八个画板均可切换并显示内容，默认桌面视口下手机内容区域没有横向溢出。
 - 首页截图目视检查：导航、提醒、筛选、分组清单、固定新增按钮及底部导航显示正常。
 - 快速新增：保存虚构事项后可连续录入，切换到明天能找到新增事项。
@@ -29,7 +29,7 @@
 python3 -m http.server 4397 --bind 127.0.0.1 --directory design
 ```
 
-打开 <http://127.0.0.1:4397/redesign/>。也可以直接打开 `index.html`，静态资源均为相对路径。
+打开 <http://127.0.0.1:4397/>。也可以直接打开 `index.html`，静态资源均为相对路径。
 
 ## 权限辨识补充验证
 

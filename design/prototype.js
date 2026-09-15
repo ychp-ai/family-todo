@@ -1,259 +1,122 @@
-// Isolated design prototype. All records are fictional and reset on reload.
-const $ = (selector, root = document) => root.querySelector(selector);
-const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const icon = (name, className = '') => `<svg class="${className}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
-const escape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-const families = { personal: '个人', mine: '我的小家', parents: '爸妈家' };
-const people = { self: { name: '我', mark: '我', tone: 'lavender' }, child: { name: '小宝', mark: '宝', tone: 'peach' }, dad: { name: '爸爸', mark: '爸', tone: 'mint' }, mom: { name: '妈妈', mark: '妈', tone: 'rose' }, grandma: { name: '奶奶', mark: '奶', tone: 'rose' } };
-const initialTasks = [
-  { id: 'milk', title: '买牛奶和鸡蛋', family: 'personal', person: 'self', date: 'today', time: '18:00', done: false, group: 'self', manage: true, canComplete: true, reminder: true },
-  { id: 'coat', title: '取回干洗的外套', family: 'personal', person: 'self', date: 'today', time: '', done: false, group: 'self', manage: true, canComplete: true, reminder: true },
-  { id: 'walk', title: '晚饭后散步 20 分钟', family: 'parents', person: 'dad', date: 'today', time: '18:00', done: false, group: 'help', repeat: true, manage: true, canComplete: true, reminder: true, visible: ['爸爸', '妈妈'] },
-  { id: 'read', title: '阅读 20 分钟', family: 'mine', person: 'child', date: 'today', time: '16:00', done: true, group: 'help', repeat: true, manage: true, canComplete: true, reminder: true, operator: '奶奶', completedAt: '16:24', visible: ['爸爸', '奶奶'], helpers: ['爸爸', '奶奶'], note: '读完后，可以和家人说说今天最喜欢的故事。' },
-  { id: 'bag', title: '整理明天的书包', family: 'mine', person: 'child', date: 'today', time: '19:30', done: false, group: 'help', repeat: true, manage: true, canComplete: true, reminder: true, visible: ['爸爸', '奶奶'], helpers: ['爸爸', '奶奶'] },
-  { id: 'plants', title: '给阳台的花浇水', family: 'parents', person: 'mom', date: 'today', time: '', done: false, group: 'view', manage: false, canComplete: false, visible: ['我'] },
-  { id: 'toys', title: '收好玩具', family: 'mine', person: 'child', date: 'today', time: '', done: true, group: 'help', manage: true, canComplete: true, reminder: true, operator: '奶奶', completedAt: '15:40', visible: ['爸爸', '奶奶'], helpers: ['爸爸', '奶奶'] },
-  { id: 'photos', title: '整理旅行照片', family: 'personal', person: 'self', date: '2026-09-10', time: '', done: false, group: 'self', manage: true, canComplete: true, reminder: true }
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pages = [
+ ['home','首页','跨家庭日常','日期和家庭筛选只影响清单，到时提醒始终汇总所有家庭。'],
+ ['detail','事项详情','本次与周期','执行对象与真实记录人分开；完成这次，不会停止后续安排。'],
+ ['editor','事项编辑','渐进填写','先记内容，再安排时间与家人。只有查看权限不会自动获得代记或提醒。'],
+ ['families','家庭','多个家庭','资料与家庭称呼独立。家庭卡片说明角色，不展示跨家庭的其他私密信息。'],
+ ['family','家庭详情','成员与管理','仍属于家庭页面内部视图。常用成员操作靠前，退出与转交独立确认。'],
+ ['invitation','邀请家人','发出与接收','邀请可转发，持有者可主动加入。这里只模拟预览和接受，不发送微信消息。'],
+ ['progress','家人进度','只看可见记录','不做排名。跳过单列、不计入分母；没有记录，不代表没有完成。'],
+ ['recycle','回收站','恢复与保留','只列当前可管理的事项。周期恢复为暂停，历史与有效权限保留。']
 ];
-let tasks = structuredClone(initialTasks);
-let currentDate = 'today';
-let currentFamily = 'all';
-let progressFamily = 'mine';
-let currentTaskId = 'read';
-let hideCompleted = false;
-let batchMode = false;
-let selected = new Set();
-let demoState = 'ready';
-let dismissedReminders = new Set();
-let extraMembers = [];
-const sheet = $('#sheet');
-const avatar = (person, name) => `<span class="avatar ${people[person].tone}" aria-hidden="true">${escape(name || people[person].mark)}</span>`;
-const dateLabel = (date) => ({ today: '今天 · 9 月 11 日', tomorrow: '明天 · 9 月 12 日', unscheduled: '未安排' })[date] || date;
-const isDue = (task) => task.reminder && !task.done && !task.skipped && task.date === 'today' && Boolean(task.time) && task.time <= '18:30';
-const dueTasks = () => tasks.filter(isDue);
-const toastTimers = new Map();
-function toast(message, target = 'home') {
-  const element = $(`#${target}-toast`);
-  clearTimeout(toastTimers.get(target));
-  element.textContent = message;
-  element.classList.add('visible');
-  toastTimers.set(target, setTimeout(() => element.classList.remove('visible'), 2600));
+let noFamily=false;
+let page='home', mode='ready', date='今天', family='全部家庭', showDone=false, batch=false, selected=new Set(), current=1, sheetReturn=null;
+let me='小雨', familyName='我的小家', activeFamily='我的小家', invited=false, joined=false, revoked=false, recipient=false, series='进行中', reminder=true;
+let people=['妈妈','爸爸','小宝','奶奶'];
+let draft=null; let preferredFamily=null;
+let tasks=[
+ {id:1,title:'读 20 分钟绘本',who:'小宝',family:'我的小家',time:'18:00',date:'今天',group:'帮家人',done:false,repeat:true,can:true,manage:true,viewers:['妈妈','奶奶']},
+ {id:2,title:'取回干洗的外套',who:'我',family:'我的小家',time:'18:00',date:'今天',group:'我来做',done:false,repeat:false,can:true,manage:true,viewers:[]},
+ {id:3,title:'晚饭后散步',who:'爸爸',family:'爸妈家',time:'18:00',date:'今天',group:'关心一下',done:false,repeat:true,can:false,manage:false,viewers:['我']},
+ {id:4,title:'给阳台的花浇水',who:'我',family:'我的小家',time:'',date:'今天',group:'我来做',done:true,repeat:false,can:true,manage:true,viewers:[]},
+ {id:5,title:'带上体检报告',who:'我',family:'爸妈家',time:'09:00',date:'明天',group:'我来做',done:false,repeat:false,can:true,manage:true,viewers:[]},
+ {id:6,title:'整理上个月的照片',who:'我',family:'我的小家',time:'',date:'未安排',group:'我来做',done:false,repeat:false,can:true,manage:true,viewers:[]},
+ {id:7,title:'归还图书馆的书',who:'我',family:'我的小家',time:'',date:'已超时',group:'我来做',done:false,repeat:false,can:true,manage:true,viewers:[]}
+];
+let recycled=[{id:8,title:'整理书桌',who:'小宝',family:'我的小家',time:'20:00',date:'今天',group:'帮家人',done:false,repeat:true,can:true,manage:true,viewers:['妈妈']}];
+const button=(label,action,cls='text',extra='')=>`<button class="${cls}" data-action="${action}" ${extra}>${label}</button>`;
+const tag=(s,c='')=>`<span class="tag ${c}">${s}</span>`;
+const avatar=(s,c='')=>`<span class="avatar ${c}">${esc(s[0])}</span>`;
+const options=(arr,value)=>arr.map(s=>`<option ${s===value?'selected':''}>${esc(s)}</option>`).join('');
+const field=(label,id,value='',type='text')=>`<label class="field" for="${id}">${label}</label><input id="${id}" type="${type}" value="${esc(value)}" ${draft?.locked&&['edit-date','edit-end'].includes(id)?'disabled':''}>`;
+const task=()=>tasks.find(t=>t.id===current)||tasks[0];
+const visible=()=>tasks.filter(t=>(family==='全部家庭'||t.family===family)&&t.date===date&&(date!=='已超时'||(!t.done&&!t.skipped)));
+function toast(s){$('#toast').textContent=s;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').textContent='',3000)}
+function closeSheet(){ $('#overlay').innerHTML=''; if(sheetReturn?.isConnected)sheetReturn.focus(); }
+function sheet(title,body){sheetReturn=document.activeElement;$('#overlay').innerHTML=`<div class="overlay"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="sheet-header"><h3>${title}</h3>${button('×','close','','aria-label="关闭弹层"')}</header><div class="sheet-body">${body}</div></section></div>`;$('#overlay button')?.focus();}
+function confirm(title,copy,action,label='确认'){sheet(title,`<div class="notice warning">${copy}</div><div class="actions">${button('取消','close','secondary')}${button(label,action,'primary')}</div>`)}
+function go(p){closeSheet();page=p;mode='ready';$('#state').value=mode;render();$('#screen').scrollTop=0;}
+function empty(title,copy,action='quick',label='记一件事'){return `<div class="empty"><div class="empty-icon">○</div><h3>${title}</h3><p class="note">${copy}</p>${button(label,action,'secondary')}</div>`}
+function noFamilyView(){return `<div class="empty"><div class="empty-icon" aria-hidden="true">家</div><h3>还没有加入家庭</h3><p class="note">创建一个家庭，或加入家人已有的家庭。<br>所有事项都需要归属家庭。</p><div class="actions">${button('创建家庭','create-family','primary')}${button('加入家庭','receive','secondary')}</div></div>`;}
+function special(){if(noFamily&&page!=='invitation')return noFamilyView();if(mode==='loading')return '<div class="note">正在加载，请稍候…</div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+ if(mode==='error')return empty('内容暂时没有加载出来','请检查网络后重试，原有安排仍然保留。','retry','重新加载');
+ if(mode==='empty'&&page==='families')return noFamilyView();
+
+ if(mode==='empty'){const e={home:[date==='已超时'?'没有超时未完成事项':'这一天，还没有安排','只填标题，也能记下一件事。','quick','记一件事'],families:['还没有加入家庭','所有事项都需要归属家庭。','create-family','创建家庭'],family:['还没有其他家人','邀请真实家人，或添加无账号成员。','invite','邀请家人'],progress:['暂无共享给你的这一天安排','试着换个日期。没有记录，不代表没有完成。','retry','返回进度'],recycle:['暂时没有删除的事项','删除的事项会保留记录，可在这里恢复。','nav:home','返回首页'],invitation:['这个邀请暂时不可用','请检查口令或请家人重新邀请。','receive','输入邀请口令'],detail:['当前没有可显示的次数','可以按日期查看历史安排。','history','查看历史'],editor:['开始一份新安排','选择家庭，再记下要做的事。','retry','开始填写']}[page];return empty(...e)}return ''}
+function stateBanner(){if(mode==='partial')return `<div class="notice warning">${page==='progress'?'进度暂未完整加载，暂不显示统计。':'部分内容未能加载，暂不显示完整总数。'}${button('重新加载','retry')}</div>`;if(mode==='uncertain')return `<div class="notice warning"><b>暂未确认操作结果</b><br>保留原操作内容，请主动重试确认。${button('重试确认结果','resolve')}</div>`;if(mode==='conflict')return `<div class="notice warning">家人已修改这份安排，你的输入已保留。${button('比较最新内容','conflict')}</div>`;if(mode==='readonly')return '<div class="notice">你可以查看这件事和完成记录，暂不能代记或编辑。</div>';return ''}
+function taskRow(t){const readonly=!t.can||mode==='readonly';const control=batch?button(`<span>${selected.has(t.id)?'✓':''}</span>`,'select:'+t.id,'check',!t.manage?'disabled aria-label="无管理权限，无法多选"':'aria-label="选择 '+esc(t.title)+'"'):readonly?'<span class="view-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></span>':button(`<span>${t.done?'✓':''}</span>`,'toggle:'+t.id,'check '+(t.done?'done':''),'aria-label="'+(t.done?'撤销完成':'记录完成')+' '+esc(t.title)+'"');return `<div class="task ${readonly?'task-readonly':'task-actionable'}">${control}<button class="task-copy" data-action="task:${t.id}" ${readonly?'aria-label="仅查看：'+esc(t.title)+'"':''}><strong>${esc(t.title)}</strong><small>${esc(t.who)} · ${esc(t.family)} ${t.repeat?' · 每天':''}</small><small>${t.date==='已超时'?'9 月 14 日 · ':''}${esc(t.time||'不限定时刻')} ${!t.done&&!t.skipped&&(t.time==='18:00'||t.date==='已超时')?tag(t.date==='已超时'?'◷ 计划日期已过':'◷ 已到计划时间','warn'):''}${t.done?tag('已完成','green'):t.skipped?tag('已跳过','gray'):''}</small></button><span class="arrow" aria-hidden="true"><span class="nav-chevron" aria-hidden="true"></span></span></div>`}
+
+function home(){const list=visible();return `<div class="hero"><div><p>9 月 15 日 · 星期二</p><h2>今天的事，慢慢来。</h2></div><span class="hero-mark">家</span></div><button class="reminder" data-action="reminders"><span class="bell">◷</span><span><strong>${tasks.filter(t=>t.time==='18:00'&&!t.done&&!t.skipped&&!t.dismissed).length} 件事到了提醒时间</strong><small>汇总所有家庭中提醒你的事项</small></span><span class="push"><span class="nav-chevron" aria-hidden="true"></span></span></button><div class="toolbar"><select id="home-family" aria-label="筛选家庭">${options(['全部家庭',familyName,'爸妈家'],family)}</select>${button(batch?'取消多选':'多选','batch-toggle')}</div><div class="dates">${['今天','明天','未安排','已超时','日期'].map(d=>button(d,'date:'+d,date===d?'active':'')).join('')}</div>${stateBanner()}${mode==='partial'?'':`<div class="summary"><span>${date==='已超时'?`未完成 ${list.filter(t=>!t.done&&!t.skipped).length} 件`:`已完成 ${list.filter(t=>t.done).length} / ${list.filter(t=>!t.skipped).length} 件 · 跳过 ${list.filter(t=>t.skipped).length}`}</span>${date==='已超时'?'':button(showDone?'隐藏已完成':'显示已完成','show-done')}</div>`}${['我来做','帮家人','关心一下'].map(g=>{const a=list.filter(t=>(mode==='readonly'?'关心一下':!t.can?'关心一下':t.group)===g&&(showDone||!t.done));return a.length?`<h4 class="section-label ${g==='关心一下'?'view-section':''}">${g==='关心一下'?'关心家人':g} · ${a.length}</h4><div class="list">${a.map(taskRow).join('')}</div>`:''}).join('')}${!list.filter(t=>showDone||!t.done).length?empty(list.length?'这一页的事情都完成了':'这里还没有安排',list.length?'可以打开已完成，回看这一天。':'从一件小事开始。'):''}<p class="note" style="text-align:center">一家人的小事，一件一件来。</p>`}
+function detail(){const t=task();return `<div class="small">${esc(t.family)} / ${esc(t.who)} ${t.who==='小宝'?tag('无账号成员'):''}</div><h2 class="detail-title">${esc(t.title)}</h2><div class="note">9 月 15 日 · ${t.time||'不限定时刻'} ${t.repeat?'　↻ 每天':''}</div>${stateBanner()}<div class="card detail-status"><div class="row between"><h3>这一次</h3>${tag(t.done?'已完成':t.skipped?'已跳过':'待完成',t.done?'green':'')}</div><p class="note">${t.done?`${esc(t.who)}已完成 · 由我记录<br>实际完成 ${esc(t.actual||'18:30')} · 记录时间 18:30`:t.skipped?'已跳过这次，不计入完成分母。':'还没有完成记录。'}</p>${!t.done&&!t.skipped&&t.can&&mode!=='readonly'?button('补记时间 / 跳过这次','record','secondary'):''}</div><div class="card"><h4>这件事的安排</h4><div class="cell"><span>执行对象</span><span>${esc(t.who)}</span></div><div class="cell"><span>谁可以看</span><span>${esc(t.viewers.join('、')||'仅自己')}</span></div><div class="cell"><span>我的小程序内提醒</span><span>${reminder?'已开启':'已关闭'}</span></div><p class="note">${t.who==='小宝'?'由家庭拥有人妈妈管理，小宝的记录仍展示为小宝。':'查看、代记和管理权限分别设置。'}</p>${button('查看与提醒设置','settings','secondary full')}</div><div class="card"><h4>本次记录</h4><div class="timeline"><p>${t.done?`18:30　我记录了${esc(t.who)}的完成`:'尚未记录完成'}<br><small>实际完成时间与记录时间分别保留</small></p></div></div>${t.repeat?`<div class="card"><div class="row between"><h4>整个周期</h4>${tag(series)}</div><p class="note">每天 · ${t.time||'不限定时刻'}<br>修改只影响未来安排，历史执行对象保留。</p>${button('按日期查看历史次数','history','secondary full')}${t.manage&&mode!=='readonly'?`<div class="actions">${series==='进行中'?button('暂停','pause','secondary'):series==='已暂停'?button('继续','resume','secondary'):''}${series!=='已停止'?button('停止后续','stop','secondary'):''}</div>`:''}</div>`:''}`}
+function freshDraft(){return {title:'',note:'',family:familyName,who:'自己',repeat:'不重复',date:'2026-09-16',end:'',times:[],week:['二','四'],view:false,help:false,remind:false}}
+function editor(){draft ||= {...freshDraft(),title:'读 20 分钟绘本',family:'我的小家',who:'小宝',repeat:'每天',times:['19:30']};return `${stateBanner()}<div class="card"><label class="field" for="edit-title">要记什么事</label><input id="edit-title" class="input-title" value="${esc(draft.title)}" maxlength="100" placeholder="例如：读 20 分钟绘本"><label class="field" for="edit-note">备注（可选）</label><textarea id="edit-note" placeholder="补充需要家人知道的事">${esc(draft.note)}</textarea></div><div class="card"><h4>为谁安排</h4><label class="field" for="edit-family">所属家庭</label><select id="edit-family" ${draft.existing?'disabled':''}>${options([familyName,'爸妈家'],draft.family)}</select><label class="field" for="edit-who">执行对象</label><select id="edit-who" ${draft.locked?'disabled':''}>${options(draft.family==='爸妈家'?['自己','爸爸','妈妈']:['自己',...people],draft.who)}</select><p class="notice">${draft.who==='小宝'?'小宝没有独立账号。事项由拥有人妈妈管理，妈妈和创建人可见。':draft.who==='自己'?'默认仅自己可见。共享给家人需要明确选择。':`${esc(draft.who)}将能查看并记录完成，无需接受；不会自动开启提醒。`}</p></div><div class="card"><h4>什么时候做</h4>${draft.locked?'<p class="notice">已完成或已跳过的一次性事项保留原安排。需调整时另建，或先撤销跳过。</p>':''}<div class="chips">${['不重复','每天','每周'].map(r=>button(r,'repeat:'+r,draft.repeat===r?'active':'',draft.locked||draft.existing&&task().repeat&&r==='不重复'?'disabled':'')).join('')}</div>${field(draft.repeat==='不重复'?'计划日期（可不填）':'开始日期','edit-date',draft.date,'date')}${draft.repeat!=='不重复'?`${field('结束日期（可选）','edit-end',draft.end,'date')}${draft.repeat==='每周'?`<label class="field">每周哪几天</label><div class="chips">${['一','二','三','四','五','六','日'].map(w=>button(w,'weekday:'+w,draft.week.includes(w)?'active':'','aria-pressed="'+draft.week.includes(w)+'"')).join('')}</div>`:''}`:''}<label class="field">具体时刻（可选）</label>${draft.times.map((t,i)=>`<div class="row"><input type="time" data-time="${i}" aria-label="第 ${i+1} 个时刻" value="${t}">${button('×','remove-time:'+i,'','aria-label="删除时刻"')}</div>`).join('')}${button('＋ 添加时刻'+(draft.repeat==='不重复'?'':' · 最多 6 个'),'add-time','text',draft.times.length>=(draft.repeat==='不重复'?1:6)||draft.locked?'disabled':'')}<p class="note">不填时刻即当天安排，不产生午夜提醒。${draft.repeat!=='不重复'?'更换执行对象或修改周期，仅影响未来安排。':''}</p>${draft.repeat!=='不重复'?button('查看接下来 3 次安排','preview','secondary full'):''}</div><div class="card"><div class="row between"><h4>谁一起照应</h4>${button('设置家人权限','permissions')}</div><p class="note">${draft.view?'奶奶可查看'+(draft.help?'、代记':'')+(draft.remind?'、接收提醒':''):'未添加其他可见家人'}</p><label class="choice"><input type="checkbox" id="my-reminder" ${reminder?'checked':''}>提醒我 · 小程序内</label><p class="note">${reminder?(draft.times.length?'按具体时刻显示到时提示':'已开启 · 待设置时刻'):'我的提醒未开启'}。关闭小程序后不会发送通知。</p></div><p id="editor-error" class="error-text"></p>`}
+function families(){return `<button class="profile" data-action="profile">${avatar(me)}<div><h2>${esc(me)}</h2><small>查看与编辑个人资料</small></div><span class="push"><span class="nav-chevron" aria-hidden="true"></span></span></button>${stateBanner()}<div class="row between"><h3>我的家庭</h3><small>2 个家庭</small></div>${[familyName,'爸妈家'].map((f,i)=>`<button class="family-card ${i===0?'cover':''}" data-action="family:${esc(f)}"><div class="family-heading"><h3>${esc(f)}</h3><span aria-hidden="true"><span class="nav-chevron" aria-hidden="true"></span></span></div><div class="family-meta"><span>${i===0?people.length:3} 位成员</span><span class="family-role">${i===0?'你是家庭拥有人':'你是家庭成员'}</span></div></button>`).join('')}<div class="actions">${button('＋ 创建家庭','create-family','secondary')}${button('加入家庭','receive','secondary')}</div><div class="card">${button('<span>家人进度</span><span>看看家人的安排 <span class="nav-chevron" aria-hidden="true"></span></span>','nav:progress','cell')}${button('<span>回收站</span><span>找回删除的事项 <span class="nav-chevron" aria-hidden="true"></span></span>','nav:recycle','cell')}</div><p class="note">家庭内的称呼独立设置，个人资料只保存在本机。</p>`}
+function memberSummary(p){const list=tasks.filter(t=>t.family===activeFamily&&t.who===(p==='妈妈'&&activeFamily!=='爸妈家'?'我':p)&&t.date==='今天');return list.length?`已完成 ${list.filter(t=>t.done).length} / ${list.filter(t=>!t.skipped).length} 件 · 跳过 ${list.filter(t=>t.skipped).length}`:'今日暂无共享给你的安排'}
+function familyPage(){const owner=activeFamily!=='爸妈家';const roster=owner?people:['爸爸','妈妈','我'];return `<div class="card cover"><h2>${esc(activeFamily)}</h2><p class="note">拥有人 · ${activeFamily==='爸妈家'?'爸爸':'妈妈（我）'}</p>${owner?button('修改家庭名称','rename-family','secondary'):''}</div>${stateBanner()}<div class="row between"><h3>家人</h3><small>${roster.length} 位 · 今日可见进度</small></div><div class="card">${roster.map((p,i)=>`<div class="member-line"><div class="row">${avatar(p,i%2?'mint':'')}<div><strong>${esc(p)} ${p==='小宝'?tag('无账号'):''}</strong><small>${i===0?'家庭拥有人':p==='小宝'?'由拥有人管理':'真实成员'}</small></div>${owner?button('管理','member:'+i,'text push'):''}</div><p class="note" style="margin:10px 0 0 50px">${mode==='partial'?'今日进度暂未加载':memberSummary(p)}</p></div>`).join('')}</div>${owner?`<div class="actions">${button('邀请家人','invite','secondary')}${button('添加无账号成员','add-member','secondary')}</div>`:''}<div class="card">${owner?button('<span>转交家庭拥有权</span><span>先查看影响 <span class="nav-chevron" aria-hidden="true"></span></span>','transfer','cell'):''}${button('<span>退出这个家庭</span><span>先交接事项 <span class="nav-chevron" aria-hidden="true"></span></span>','exit','cell')}${button('<span>回收站</span><span>恢复事项 <span class="nav-chevron" aria-hidden="true"></span></span>','nav:recycle','cell')}</div>`}
+function invitation(){return `${stateBanner()}<div class="chips">${button('发出邀请','send-view',!recipient?'active':'')}${button('接收邀请','receive-view',recipient?'active':'')}</div>${recipient?joined?`<div class="card cover"><h2>你已加入这个家庭</h2><p class="note">重复接受不会再次添加成员。</p>${button('查看家人','nav:family','primary')}</div>`:`<div class="card"><h3>加入家人的日常</h3>${field('邀请口令','invite-token','','text')}${button('预览邀请','invite-preview','secondary full')}<p class="note">从有效分享卡片进入时，直接展示家庭预览。</p></div>`:`<div class="card cover"><div class="portraits row">${people.slice(0,3).map((p,i)=>avatar(p,i?'mint':'')).join('')}</div><h2>邀请家人，<br>一起照应日常。</h2><p class="note">${esc(activeFamily)} · 拥有人妈妈</p><div class="notice">邀请有效期 7 天，可转发供多人使用。持有有效邀请的人确认后即可加入。</div>${button(invited?'生成另一份邀请':'生成新邀请','generate','primary')}</div>${invited?`<div class="card"><div class="row between"><h4>${revoked?'已撤销':'邀请已生成'}</h4>${tag(revoked?'不可加入':'有效')}</div><p class="note">有效至 2026 年 9 月 22 日 18:30</p>${!revoked?`${button('分享给微信好友','share-invite','primary')}${button('复制邀请口令','copy-invite','secondary full')}${button('撤销这份邀请','revoke','text full')}`:''}</div>`:''}`}`}
+function progress(){const list=tasks.filter(t=>t.family===activeFamily&&t.date==='今天'), names=[...new Set(list.map(t=>t.who))];return `<div class="hero"><div><p>各自忙碌，也彼此照应</p><h2>家人的这一天</h2></div><span class="hero-mark">伴</span></div><select id="progress-family" aria-label="查看家庭">${options([familyName,'爸妈家'],activeFamily)}</select><div class="toolbar"><input type="date" id="progress-date" aria-label="查看日期" value="2026-09-15"><select id="progress-person" aria-label="执行对象">${options(['全部家人',...names],'全部家人')}</select></div>${stateBanner()}${mode==='partial'?'':names.map(n=>{const a=list.filter(t=>t.who===n),done=a.filter(t=>t.done).length,skipped=a.filter(t=>t.skipped).length,total=a.length-skipped;return `<div class="card progress-person" data-person="${esc(n)}"><div class="row">${avatar(n,n==='小宝'?'mint':'')}<div><h3>${esc(n)}</h3><small>${n==='小宝'?'无账号成员':'真实成员'}</small></div><div class="mini-stat push"><b>${done}</b><span>/ ${total} 件</span></div></div><div class="progress-track"><span style="width:${total?done/total*100:0}%"></span></div><p class="note">已完成 ${done} · 待完成 ${total-done} · 已跳过 ${skipped}</p>${a.map(t=>`<div class="cell"><span>${esc(t.title)}</span><span>${t.done?'已完成':t.skipped?'已跳过':'待记录'}</span></div>`).join('')}</div>`}).join('')}<p class="notice">只统计共享给你的安排。<br>没有记录，不代表没有完成。</p>${button('管理家庭','nav:family','secondary full')}`}
+function recycle(){return `<p class="note">删除的事项仍可找回，完成历史会一起保留。</p><select id="recycle-family" aria-label="筛选家庭">${options(['全部家庭',familyName,'爸妈家'],'全部家庭')}</select>${stateBanner()}${recycled.length?recycled.map(t=>`<div class="card recycle-item" data-family="${esc(t.family)}"><div class="row between"><h3>${esc(t.title)}</h3>${tag(t.repeat?'周期事项':'一次性','gray')}</div><p class="note">${esc(t.family)} · ${esc(t.who)}<br>9 月 14 日删除</p>${t.repeat?'<div class="notice">恢复后为暂停状态，历史保留，删除期间不补次数。</div>':''}${button('恢复这件事','restore:'+t.id,'secondary full')}</div>`).join(''):empty('暂时没有删除的事项','删除的事项会保留记录，可在这里恢复。','nav:home','返回首页')}`}
+function render(){const p=pages.find(p=>p[0]===page);$('#navigation').innerHTML=pages.map((p,i)=>button(`<span>${String(i+1).padStart(2,'0')}</span>${p[1]}<em>${p[2]}</em>`,'nav:'+p[0],page===p[0]?'selected':'')).join('');$('#caption').textContent=p[1];$('#annotation').textContent=p[3];$('#app-title').innerHTML=(['home','families'].includes(page)?'':button('‹','nav:'+(page==='family'?'families':page==='detail'||page==='editor'?'home':'families'),'','aria-label="返回"'))+(page==='home'?'家庭待办':p[1]);$('#screen').innerHTML=special()||({home,detail,editor,families,family:familyPage,invitation,progress,recycle}[page])();let bottom='';if(page==='home'&&!noFamily)bottom=`<div class="bottom-actions">${button(batch?`增加可见人 · ${selected.size} / 20`:'＋ 记一件事',batch?'batch':'quick','primary',batch&&!selected.size?'disabled':'')}</div>`;if(page==='detail'&&!noFamily&&task().can&&mode!=='readonly'&&mode!=='error'&&mode!=='loading')bottom=`<div class="bottom-actions actions">${button('更多','settings','secondary')}${button(task().done||task().skipped?'撤销这次记录':`记录${task().who==='我'?'':esc(task().who)}完成`,'toggle:'+task().id,'primary')}</div><div class="safe"></div>`;if(page==='editor'&&!noFamily&&!['loading','error'].includes(mode))bottom=`<div class="bottom-actions">${button(mode==='uncertain'?'重试确认保存':'保存这份安排',mode==='uncertain'?'resolve':'save-editor','primary',['conflict','readonly'].includes(mode)?'disabled':'')}</div><div class="safe"></div>`;if(['home','families','family'].includes(page))bottom+=`<div class="tabbar">${button('<b>⌂</b>首页','nav:home',page==='home'?'active':'')}${button('<b>♧</b>家庭','nav:families',page!=='home'?'active':'')}</div>`;$('#bottom').innerHTML=bottom;}
+function permissions(){sheet('谁一起照应',`<p class="note">先允许查看，再单独设置代记和提醒。</p><div class="card"><h4>${esc(draft.who==='小宝'?'妈妈 · 必要可见人':draft.who+' · 执行对象')}</h4><p class="note">${draft.who==='小宝'?'家庭拥有人管理小宝的事项':'执行对象有必要查看和本人记录权限'}，不能取消必要可见。</p><div class="permission"><label class="choice"><input id="permission-view" type="checkbox" ${draft.view?'checked':''}>奶奶可以查看</label><div class="subchoices"><label class="choice"><input id="permission-help" type="checkbox" ${draft.help?'checked':''} ${!draft.view?'disabled':''}>允许代记完成</label><label class="choice"><input id="permission-remind" type="checkbox" ${draft.remind?'checked':''} ${!draft.view?'disabled':''}>接收小程序内提醒</label></div></div><div class="permission"><h4>爸爸</h4><p class="note">已自行关闭提醒，需本人开启。<br>管理者无法替他重新开启。</p></div></div>${button('保留设置','close','primary')}`)}
+function captureDraft(){if(!$('#edit-title'))return;Object.assign(draft,{title:$('#edit-title').value,note:$('#edit-note').value,family:$('#edit-family').value,who:$('#edit-who').value,date:$('#edit-date').value,end:$('#edit-end')?.value||'',times:[...document.querySelectorAll('[data-time]')].map(e=>e.value)})}
+function action(a){const [name,...parts]=a.split(':'),v=parts.join(':');
+ if(name==='nav'){if(page==='editor'){captureDraft();confirm('保留未保存的输入？','返回后可以继续填写；不会自动提交。','leave:'+v,'保留并返回');return}go(v);return}
+ if(name==='leave'){go(v);return}if(name==='close'){if($('#quick-title')?.value){confirm('保留未保存的输入？','这份输入只用于本地演示。','keep-quick','保留草稿');return}closeSheet();return}
+ if(name==='retry'||name==='resolve'){mode='ready';$('#state').value=mode;render();toast(name==='resolve'?'演示：已确认原操作结果':'内容已重新加载');return}
+ if(name==='date'){date=v;if(v==='日期'){sheet('选择日期',`${field('查看哪一天','calendar','2026-09-16','date')}${button('查看这一天','calendar-apply','primary')}`)}else render();return}
+ if(name==='calendar-apply'){const d=$('#calendar').value;date=d==='2026-09-15'?'今天':d==='2026-09-16'?'明天':d;closeSheet();render();return}
+ if(name==='show-done'){showDone=!showDone;render();return}
+ if(name==='task'){current=Number(v);go('detail');return}
+ if(name==='toggle'){const t=tasks.find(t=>t.id===Number(v));if(!t?.can||mode==='readonly')return;if(mode==='uncertain'){toast('请先确认未决操作的结果');return}t.done=t.skipped?false:!t.done;t.skipped=false;render();toast(t.done?`${t.who}已完成 · 由我记录`:'已撤销本次记录');return}
+ if(name==='batch-toggle'){batch=!batch;selected.clear();render();return}
+ if(name==='select'){const t=tasks.find(t=>t.id===Number(v));if(!t?.manage)return;selected.has(t.id)?selected.delete(t.id):selected.size<20?selected.add(t.id):toast('一次最多选择 20 个不同事项');render();return}
+ if(name==='quick'){sheet('记一件事',`<label class="field" for="quick-title">要记什么事</label><input id="quick-title" placeholder="例如：明天取快递" value="${esc(action.quickDraft||'')}" maxlength="100"><label class="field" for="quick-date">计划日期</label><select id="quick-date">${options(['今天','明天','未安排'],'明天')}</select><label class="field" for="quick-family">所属家庭</label><select id="quick-family">${options([familyName,'爸妈家'],preferredFamily||(family==='全部家庭'?familyName:family))}</select><p class="notice">执行对象为自己，仅自己可见。提醒我默认开启；未设置具体时刻时不产生到时提示。</p><p id="quick-error" class="error-text"></p>${button('更多安排 · 周期与家人','full-editor','secondary full')}${button('保存，再记一件','save-quick','primary')}`);return}
+ if(name==='keep-quick'){closeSheet();toast('演示草稿已保留');return}
+ if(name==='save-quick'){const title=$('#quick-title').value.trim();if(!title){$('#quick-error').textContent='先写下要记的事。';$('#quick-title').focus();return}preferredFamily=$('#quick-family').value;tasks.push({id:Date.now(),title,who:'我',family:$('#quick-family').value,date:$('#quick-date').value,time:'',group:'我来做',done:false,repeat:false,can:true,manage:true,viewers:[]});action.quickDraft='';$('#quick-title').value='';$('#quick-error').textContent='已保存，可以接着记下一件。';$('#quick-title').focus();render();return}
+ if(name==='full-editor'){draft={...freshDraft(),title:$('#quick-title').value,family:$('#quick-family').value,date:$('#quick-date').value==='未安排'?'':$('#quick-date').value==='今天'?'2026-09-15':'2026-09-16'};go('editor');return}
+ if(name==='reminders'){sheet('到时提醒',`<p class="notice">汇总所有家庭。只在使用小程序时提示，关闭后不会发送微信通知。</p>${tasks.filter(t=>t.time==='18:00'&&!t.done&&!t.skipped).map(t=>`<div class="card"><h4>${esc(t.title)}</h4><p class="note">${esc(t.family)} · ${esc(t.who)} · 18:00 ${t.dismissed?'· 已收起':''} ${t.read?'· 已读':''}</p><div class="actions">${button('查看','reminder-read:'+t.id,'secondary')}${button(t.dismissed?'已收起':'收起提示','dismiss:'+t.id,'text',t.dismissed?'disabled':'')}</div></div>`).join('')||'<p class="note">暂时没有待处理的到时提醒。</p>'}<p class="note">演示中保留已收起记录。收起提示不会完成事项。</p>`);return}
+ if(name==='dismiss'){tasks.find(t=>t.id===Number(v)).dismissed=true;action('reminders');render();return}if(name==='reminder-read'){const t=tasks.find(t=>t.id===Number(v));t.read=true;current=t.id;go('detail');return}
+ if(name==='settings'){const t=task();sheet('事项设置',`<p class="note">${esc(t.title)} · ${esc(t.family)}</p>${t.manage&&mode!=='readonly'?button('编辑这份安排','edit-current','secondary full'):''}${button(reminder?'关闭我的提醒':'开启我的提醒','reminder-toggle','secondary full')}${t.manage&&mode!=='readonly'?`${button('共享这件事','edit-access','secondary full')}${button('删除整个事项','delete','danger-button full')}`:''}${button('回收站','nav:recycle','text full')}`);return}
+ if(name==='reminder-toggle'){reminder=!reminder;closeSheet();render();toast(reminder?'已开启我的提醒':'已关闭我的提醒');return}
+ if(name==='edit-current'||name==='edit-access'){const t=task();draft={...freshDraft(),title:t.title,family:t.family,who:t.who==='我'?'自己':t.who,repeat:t.repeat?'每天':'不重复',times:t.time?[t.time]:[],existing:true,locked:!t.repeat&&(t.done||t.skipped)};go('editor');if(name==='edit-access')permissions();return}
+ if(name==='repeat'){captureDraft();draft.repeat=v;draft.times=draft.times.slice(0,v==='不重复'?1:6);render();return}if(name==='weekday'){captureDraft();draft.week.includes(v)?draft.week=draft.week.filter(x=>x!==v):draft.week.push(v);render();return}
+ if(name==='add-time'){captureDraft();draft.times.push('19:30');render();return}if(name==='remove-time'){captureDraft();draft.times.splice(Number(v),1);render();return}
+ if(name==='permissions'){captureDraft();permissions();return}
+ if(name==='preview'){captureDraft();const days=[];const base=new Date(draft.date+'T00:00:00Z');if(!draft.date||Number.isNaN(base.getTime())){toast('请先选择有效开始日期');return}for(let i=0;i<60&&days.length<3;i++){const d=new Date(base);d.setUTCDate(d.getUTCDate()+i);const str=d.toISOString().slice(0,10);if(draft.end&&str>draft.end)break;if(draft.repeat==='每周'&&!draft.week.includes(['日','一','二','三','四','五','六'][d.getUTCDay()]))continue;for(const time of draft.times.length?[...new Set(draft.times)].sort():['不限定时刻']){if(str<'2026-09-15'||str==='2026-09-15'&&time!=='不限定时刻'&&time<='18:30')continue;days.push(str+' · '+time);if(days.length===3)break}}sheet('接下来的安排',`<p class="notice">正式产品由服务端计算。此处以 9 月 15 日 18:30 为固定演示时间，时区为上海。</p>${days.map(d=>`<div class="card mono">${d} · ${esc(draft.who)}</div>`).join('')||'<p class="note">此范围内没有有效安排，请检查星期与起止日期。</p>'}`);return}
+ if(name==='save-editor'){captureDraft();if(!draft.title.trim()){ $('#editor-error').textContent='先写下要记的事。';$('#edit-title').focus();return}if(draft.repeat!=='不重复'&&!draft.date||draft.repeat==='每周'&&!draft.week.length||draft.end&&draft.end<draft.date||draft.times.some(t=>!t)||new Set(draft.times).size!==draft.times.length||draft.times.length&&!draft.date){$('#editor-error').textContent='请检查起止日期、星期和时刻；时刻不能重复。';$('#editor-error').scrollIntoView({block:'center'});return}const data={title:draft.title,who:draft.who==='自己'?'我':draft.who,family:draft.family,time:draft.times[0]||'',date:draft.date==='2026-09-15'?'今天':draft.date==='2026-09-16'?'明天':draft.date||'未安排',repeat:draft.repeat!=='不重复',viewers:draft.view?['奶奶']:[]};if(draft.existing)Object.assign(task(),data);else{current=Date.now();tasks.push({...data,id:current,group:data.who==='我'?'我来做':'帮家人',can:true,manage:true,done:false})}draft=null;go('detail');toast('演示安排已保存');return}
+ if(name==='record'){sheet('记录这一次',`${field('实际完成时间','actual-time','2026-09-15T18:30','datetime-local')}${field('记录备注（可选）','record-note')}<p class="note">执行对象：${esc(task().who)} · 记录人：我<br>补记仅用于当前次，系统记录时间另行保留。</p>${button('保存完成记录','save-record','primary')}${button('跳过这次','skip','secondary full')}`);return}
+ if(name==='save-record'){const val=$('#actual-time').value;if(!val||val>'2026-09-15T18:30'){toast('实际完成时间不能晚于当前演示时间');return}task().done=true;task().actual=val;task().recordNote=$('#record-note').value;closeSheet();render();return}
+ if(name==='skip'){confirm('跳过这一次？','只跳过这一次，保留记录，不计入完成分母，不改变后续计划。','skip-confirm','确认跳过');return}if(name==='skip-confirm'){task().skipped=true;task().done=false;closeSheet();render();return}
+ if(name==='history'){sheet('历史次数',`${field('查看日期','history-date','2026-09-14','date')}${button('查看这天','history-show','secondary full')}<div id="history-content" class="card"><h4>9 月 14 日 · 19:30</h4><p class="note">小宝已完成 · 由奶奶记录<br>实际完成 19:45 · 记录时间 19:48<br>当前页为历史样例，正式实现按所选次数独立操作。</p></div>`);return}
+ if(name==='history-show'){$('#history-content').innerHTML=`<h4>${esc($('#history-date').value)}</h4><p class="note">此设计样例仅提供 9 月 14 日历史记录；其他日期未模拟。</p>`;return}
+ if(['pause','resume','stop','delete'].includes(name)){const map={pause:['暂停整个周期？','此前未完成的次数保留；暂停期间不产生新次数。','确认暂停'],resume:['继续这个周期？','演示下一次：9 月 16 日 19:30。不补暂停期间的次数。','确认继续'],stop:['停止后续安排？','已到时次数与历史保留，停止后不能重新继续。','停止后续'],delete:['删除整个事项？','整个系列及历史暂时从列表、提醒和进度隐藏，可从回收站恢复。','移入回收站']}[name];confirm(map[0],map[1],name+'-confirm',map[2]);return}
+ if(['pause-confirm','resume-confirm','stop-confirm'].includes(name)){series=name==='pause-confirm'?'已暂停':name==='resume-confirm'?'进行中':'已停止';closeSheet();render();return}
+ if(name==='delete-confirm'){recycled.push({...task(),stopped:series==='已停止'});tasks=tasks.filter(t=>t.id!==current);go('recycle');toast('已移入回收站');return}
+ if(name==='restore'){confirm('恢复这件事？','保留历史和当前有效权限。周期恢复后暂停，已停止的周期不能继续；不会恢复已退出成员的访问权。','restore-confirm:'+v,'确认恢复');return}if(name==='restore-confirm'){const t=recycled.find(t=>t.id===Number(v));tasks.push(t);recycled=recycled.filter(x=>x.id!==t.id);series=t.stopped?'已停止':'已暂停';closeSheet();render();toast('已恢复，可在首页找到这件事');return}
+ if(name==='family'){activeFamily=v;go('family');return}if(name==='profile'){sheet('个人资料',`<div class="row">${avatar(me)}<p class="note">正式页面使用微信头像选择；<br>此处不申请头像权限。</p></div>${field('昵称','profile-name',me)}<p class="note">资料只保存在本机，家庭内称呼单独维护。</p>${button('保存资料','save-profile','primary')}`);return}if(name==='save-profile'){if(!$('#profile-name').value.trim())return;me=$('#profile-name').value.trim().slice(0,32);closeSheet();render();return}
+ if(['create-family','rename-family','add-member'].includes(name)){sheet(name==='create-family'?'创建家庭':name==='rename-family'?'修改家庭名称':'添加无账号成员',`${field(name==='add-member'?'家人的称呼':'家庭名称','family-input',name==='rename-family'?activeFamily:'')}${name==='create-family'?field('我在家里的称呼','my-name','妈妈'):''}${name==='add-member'?'<p class="notice">没有独立账号，相关事项由家庭拥有人管理。不会自行收到提醒。</p>':''}${button(name==='create-family'?'创建家庭':'保存','save-family:'+name,'primary')}`);return}
+ if(name==='save-family'){const value=$('#family-input').value.trim();if(!value){toast('请填写名称或称呼');return}if(v==='create-family')noFamily=false;if(v==='add-member')people.push(value.slice(0,12));else {familyName=value.slice(0,24);activeFamily=familyName}go('family');toast('演示数据已更新');return}
+ if(name==='member'){const i=Number(v),p=people[i];sheet('管理'+esc(p),`${field('家庭内称呼','member-name',p)}${button('保存称呼','rename-member:'+i,'primary')}${i?button('删除成员','remove-member:'+i,'danger-button full'):'<p class="note">当前拥有人须先转交拥有权，才能退出家庭。</p>'}`);return}if(name==='rename-member'){const n=$('#member-name').value.trim();if(!n)return;people[Number(v)]=n.slice(0,12);closeSheet();render();return}
+ if(name==='remove-member'){const p=people[Number(v)];confirm('删除'+esc(p)+'？',p==='小宝'?'删除会停用无账号成员；历史身份和未结束事项保留，由拥有人继续管理。':'该成员的事项与创建管理职责默认交接给拥有人。示例：3 项普通事项，其中 1 项仅本人可见；2 项创建管理职责。历史不变，不影响其其他家庭事项。','remove-confirm:'+v,'确认删除');return}if(name==='remove-confirm'){people.splice(Number(v),1);closeSheet();render();return}
+ if(name==='invite'){recipient=false;go('invitation');return}if(name==='receive'){recipient=true;go('invitation');return}if(name==='send-view'||name==='receive-view'){recipient=name==='receive-view';render();return}if(name==='generate'){invited=true;revoked=false;render();return}
+ if(name==='share-invite'||name==='copy-invite'){sheet('邀请分享预览',`<div class="card cover"><h3>${esc(activeFamily)}</h3><p class="note">妈妈邀请你一起照应家人的日常</p></div><p class="notice">正式小程序使用微信分享卡片；此处没有发送邀请，也没有真实邀请口令。</p>${button('模拟接收方打开','invite-preview','primary')}`);return}
+ if(name==='invite-preview'){if(revoked){sheet('邀请不可用','<p class="notice warning">这份邀请已撤销，请联系家人重新发出邀请。</p>');return}sheet('你收到一份家庭邀请',`<div class="card cover"><h2>${esc(activeFamily)}</h2><p class="note">妈妈邀请你加入 · 7 天内有效</p></div>${field('我在家里的称呼','join-name','奶奶')}<p class="notice">确认后加入家庭。不会自动向你公开其他成员的私密事项。</p>${button('接受邀请并加入','accept','primary')}`);return}if(name==='accept'){if(!$('#join-name').value.trim()){toast('请填写家庭称呼');return}joined=true;noFamily=false;recipient=true;go('invitation');toast('演示：已加入家庭');return}
+ if(name==='revoke'){confirm('撤销这份邀请？','撤销后阻止后续加入，已加入的家人仍保留。','revoke-confirm','撤销邀请');return}if(name==='revoke-confirm'){revoked=true;closeSheet();render();return}
+ if(name==='transfer'){sheet('转交家庭拥有权',`<label class="field" for="successor">选择承接人</label><select id="successor">${options(people.filter(p=>p!=='妈妈'&&p!=='小宝'),'爸爸')}</select><p class="notice">只能选择有效真实成员。转交后你仍在家庭中，退出需要另行确认。</p>${button('查看交接影响','transfer-preview','primary')}`);return}
+ if(name==='transfer-preview'){const to=$('#successor').value;if(!to){toast('请先邀请另一位真实家人');return}confirm('确认转交给'+esc(to)+'？',`示例：2 项无账号成员事项的管理归属交给${esc(to)}，历史执行对象与记录不变。正式提交须使用最新交接预览。`,'transfer-confirm','确认转交');return}
+ if(name==='transfer-confirm'){closeSheet();toast('演示交接确认完成；家庭角色变更未模拟');return}
+ if(name==='exit'&&activeFamily==='爸妈家'){action('exit-preview');return}if(name==='exit'){sheet('退出这个家庭',`<p class="notice warning">当前你是家庭拥有人，需要先转交给另一位真实成员。没有人可承接时，先邀请家人。</p>${button('转交拥有权','transfer','primary')}${button('查看普通成员退出样例','exit-preview','secondary full')}`);return}
+ if(name==='exit-preview'){confirm('退出并交接给妈妈？','示例：3 项普通事项（其中 1 项仅本人可见）、2 项创建管理职责将交给妈妈。只显示数量，不泄露私密事项标题。退出后失去该家庭访问权，历史保留，其他家庭不受影响。','exit-confirm','确认退出并交接');return}
+ if(name==='exit-confirm'){go('families');toast('演示交接确认完成；实际成员关系未改变');return}
+ if(name==='batch'){const groups=[...new Set(tasks.filter(t=>selected.has(t.id)).map(t=>t.family))];sheet('批量增加可见人',`<p class="notice">保留原名单，不自动增加代记或提醒。各项保留原所属家庭。</p>${groups.map((g,i)=>`<div class="card"><h4>${esc(g)} · ${tasks.filter(t=>selected.has(t.id)&&t.family===g).length} 项</h4><label class="choice"><input type="checkbox" data-batch-group="${esc(g)}">增加${g==='爸妈家'?'妈妈':'奶奶'}为可见人</label></div>`).join('')}${button('确认增加可见人','batch-save','primary')}`);return}
+ if(name==='batch-save'){const checks=[...document.querySelectorAll('[data-batch-group]')];if(checks.some(c=>!c.checked)){toast('请为每个家庭选择可见人');return}checks.forEach(c=>tasks.filter(t=>selected.has(t.id)&&t.family===c.dataset.batchGroup).forEach(t=>{t.viewers=[...new Set([...t.viewers,t.family==='爸妈家'?'妈妈':'奶奶'])]}));sheet('本次批量结果',`<div class="notice">${selected.size} 项已增加可见人。原可见名单保留。</div><p class="note">此处模拟全部成功；部分失败和待确认流程详见交互规范。</p>${button('完成','batch-done','primary')}`);return}if(name==='batch-done'){batch=false;selected.clear();closeSheet();render();return}
+ if(name==='conflict'){captureDraft();sheet('查看最新修改',`<div class="card"><h4>你的输入</h4><p>${esc(draft?.title||'读 20 分钟绘本')}</p></div><div class="card"><h4>家人已保存的版本 · 示例</h4><p>读 30 分钟绘本</p></div><p class="notice">不自动覆盖。保留本地输入后，逐项核对最新内容再保存。</p>${button('保留输入，继续核对','conflict-resolve','primary')}`);return}if(name==='conflict-resolve'){closeSheet();mode='ready';$('#state').value=mode;render();toast('演示：已保留输入，请核对后保存');return}
 }
-function openSheet(title, body, initialize) {
-  if (sheet.open) sheet.close();
-  $('#sheet-title').textContent = title;
-  $('#sheet-body').innerHTML = body;
-  sheet.showModal();
-  initialize?.();
-}
-$('#sheet-close').addEventListener('click', () => sheet.close());
-sheet.addEventListener('click', (event) => {
-  if (event.target !== sheet) return;
-  const rect = sheet.getBoundingClientRect();
-  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) sheet.close();
-});
-function taskCard(task) {
-  let action;
-  if (batchMode) {
-    action = task.manage ? `<button class="check-button" data-select="${task.id}" aria-label="选择${escape(task.title)}" aria-pressed="${selected.has(task.id)}"><span class="check-circle">${selected.has(task.id) ? icon('check') : ''}</span></button>` : '<span class="check-button"><span class="readonly-badge">不可<br>多选</span></span>';
-  } else {
-    action = task.canComplete ? `<button class="check-button" data-complete="${task.id}" aria-label="${task.done ? '撤销完成' : '完成'}：${escape(task.title)}" aria-pressed="${task.done}"><span class="check-circle">${task.done ? icon('check') : ''}</span></button>` : '<span class="check-button"><span class="readonly-badge">仅可<br>查看</span></span>';
-  }
-  return `<article class="task-card ${task.done ? 'is-done' : ''} ${selected.has(task.id) ? 'selected' : ''}">${action}<button class="task-main" data-detail="${task.id}"><strong>${escape(task.title)}</strong><span class="task-meta"><span class="house-tag ${task.family === 'personal' ? 'personal' : ''}">${families[task.family]}</span>${task.person !== 'self' ? `<span>${people[task.person].name}</span><span>·</span>` : ''}<span>${task.time || '不限定时刻'}</span>${task.repeat ? icon('repeat') : ''}</span>${task.done ? `<span class="record-note">${task.person === 'self' ? '自己记录完成' : `${people[task.person].name}已完成 · ${escape(task.operator)}记录`}</span>` : ''}</button></article>`;
-}
-function renderHome() {
-  const list = $('#task-list');
-  const visible = tasks.filter((task) => task.date === currentDate && (currentFamily === 'all' || task.family === currentFamily));
-  const finished = visible.filter((task) => task.done).length;
-  $('#summary-text').textContent = demoState === 'partial' ? '数据未完整加载 · 暂不汇总' : demoState === 'ready' ? `已完成 ${finished} / ${visible.length} 件` : '—';
-  $('#day-progress').style.width = demoState === 'ready' && visible.length ? `${finished / visible.length * 100}%` : '0%';
-  $('#reminder-count').textContent = dueTasks().filter((task) => !dismissedReminders.has(task.id)).length;
-  const backlog = tasks.filter((task) => task.date === '2026-09-10' && !task.done && (currentFamily === 'all' || task.family === currentFamily));
-  $('#backlog-open').hidden = currentDate !== 'today' || demoState !== 'ready' || !backlog.length;
-  $('#backlog-open span').textContent = `之前还有 ${backlog.length} 件未完成`;
-  $('#completed-toggle').textContent = hideCompleted ? '显示已完成' : '隐藏已完成';
-  $('#completed-toggle').setAttribute('aria-pressed', String(hideCompleted));
-  $('#batch-toggle').textContent = batchMode ? '取消多选' : '多选';
-  $('#quick-add').innerHTML = batchMode ? `增加可见人${selected.size ? ` · ${selected.size} 项` : ''}` : `${icon('plus')}记一件事`;
-  $('#quick-add').disabled = batchMode && selected.size === 0;
-  if (demoState === 'loading') { list.innerHTML = '<div role="status" aria-label="正在加载事项"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><p class="end-note">正在加载事项…</p></div>'; return; }
-  if (demoState === 'error') { list.innerHTML = `<div class="state-box">${icon('repeat')}<h4>事项暂时没有加载出来</h4><p>请检查网络后重试，已保存的事项不会丢失。</p><button class="outline-button" data-retry>重新加载</button></div>`; return; }
-  if (demoState === 'empty' || !visible.length) { list.innerHTML = `<div class="state-box">${icon('calendar')}<h4>${currentDate === 'tomorrow' ? '给明天留个小安排' : '这里还没有安排'}</h4><p>从一件小事开始，<br>只填标题也能记下来。</p><button class="outline-button" data-add>记一件事</button></div>`; return; }
-  const groupNames = { self: '我来做', help: '帮家人', view: '关心一下' };
-  list.innerHTML = (demoState === 'partial' ? '<div class="partial-warning">爸妈家的事项暂未加载，以下仅展示已加载内容。<button data-retry>重试</button></div>' : '') + (batchMode ? '<p class="batch-help">选择有管理权限的事项，按所属家庭增加可见人。</p>' : '') + Object.entries(groupNames).map(([key, label]) => {
-    const items = visible.filter((task) => task.group === key && (!hideCompleted || !task.done) && (demoState !== 'partial' || task.family !== 'parents'));
-    return items.length ? `<section class="task-group"><h4 class="group-label">${label}<span>${items.length}</span></h4>${items.map(taskCard).join('')}</section>` : '';
-  }).join('');
-  if (hideCompleted && visible.every((task) => task.done)) list.innerHTML += '<div class="state-box"><h4>这一页的事情都完成了</h4><p>点击“显示已完成”回看记录。</p></div>';
-}
-function renderDetail() {
-  const task = tasks.find((item) => item.id === currentTaskId);
-  const person = people[task.person];
-  const visibility = task.visible?.length ? [...new Set(['我', ...task.visible])].join('、') : '仅自己可见';
-  const viewerAvatars = task.visible?.length ? `<span class="avatar-stack">${avatar('self')}${task.visible.filter((name) => name !== '我').map((name) => avatar(Object.keys(people).find((key) => people[key].name === name) || 'self')).join('')}</span>` : icon('lock', 'tiny');
-  const helpers = task.person === 'self' ? '仅自己' : task.canComplete ? ['妈妈（我）', ...(task.helpers || [])].join('、') : '你暂无代记权限';
-  const isChild = task.person === 'child';
-  const history = task.id === 'read' ? `<div class="section-title"><h4>每一次的小进步</h4><span>每天独立记录</span></div><div class="history-list"><div class="history-item"><time>${task.done ? escape(task.completedAt) : '待记录'}</time><strong>今天 · ${task.done ? '已完成' : '待完成'}</strong><p>${task.done ? `${escape(task.operator)}记录 · 小宝读完了今天的故事` : '今天尚未确认完成'}</p></div><div class="history-item"><time>16:35</time><strong>昨天 · 已完成</strong><p>奶奶记录 · 一起读了《小王子》</p></div><div class="history-item"><time>16:18</time><strong>9 月 9 日 · 已完成</strong><p>妈妈记录</p></div></div>` : `<div class="section-title"><h4>本次记录</h4></div><div class="history-list"><div class="history-item"><strong>${task.done ? `${escape(task.operator)}记录完成` : '尚未确认完成'}</strong><p>${task.done ? `实际完成：今天 ${escape(task.completedAt)} · 记录时间：今天 18:30` : '完成后，会在这里留下记录人和时间。'}</p></div></div>`;
-  $('#detail-content').innerHTML = `<div class="detail-family">${icon(task.family === 'personal' ? 'lock' : 'home')}${families[task.family]}<span> / </span>${person.name}</div><h3 class="detail-title">${escape(task.title)}</h3><p class="detail-subtitle">${icon(task.repeat ? 'repeat' : 'calendar')}${task.repeat ? '每天' : dateLabel(task.date)}${task.time ? ` · ${task.time}` : ' · 不限定时刻'}</p><div class="completion-card ${task.done ? '' : 'pending'}"><span class="completion-badge">${icon(task.done ? 'check' : 'clock')}</span><div class="completion-copy"><strong>${person.name === '我' ? '' : person.name}${task.done ? '已完成' : '待完成'}</strong><p>${task.done ? `由${escape(task.operator)}记录 · 今天 ${escape(task.completedAt)}` : '没有记录，不代表没有完成'}</p></div></div><div class="section-title"><h4>这件事的安排</h4><span>${task.repeat ? '当前这一次' : '一次性事项'}</span></div><div class="detail-info"><div class="info-row"><span class="info-label">谁来做</span><span class="info-value">${avatar(task.person)}${person.name}${isChild ? '<span class="micro-tag">无账号成员</span>' : ''}</span></div><div class="info-row"><span class="info-label">谁可以看</span><span class="info-value">${viewerAvatars}${escape(visibility)}</span></div><div class="info-row"><span class="info-label">可代记家人</span><span class="info-value">${escape(helpers)}</span></div><div class="info-row"><span class="info-label">小程序内提醒</span><span class="info-value">${task.reminder ? task.time ? '我 · 到时提醒' : '已开启 · 待设置时刻' : '未开启'}</span></div></div>${task.note ? `<p class="detail-note">${escape(task.note)}</p>` : ''}${history}`;
-  $('#detail-actions').innerHTML = `<div class="detail-buttons"><button class="outline-button" id="detail-more">${task.manage ? '事项设置' : '查看权限'}</button>${task.canComplete ? `<button class="primary-button ${task.done ? 'quiet-button' : ''}" id="detail-complete">${icon(task.done ? 'repeat' : 'check')}${task.done ? '撤销本次完成' : task.person === 'self' ? '完成本次' : '代记本次完成'}</button>` : '<span class="outline-button">仅可查看</span>'}</div><span class="home-indicator"></span>`;
-  $('#detail-complete')?.addEventListener('click', () => toggleComplete(task.id, 'detail'));
-  $('#detail-more').addEventListener('click', () => showSettings(task));
-}
-function renderFamily() {
-  const mine = progressFamily === 'mine';
-  $('#family-card-label').textContent = mine ? '在一起的每一天' : '隔着距离，也惦记着';
-  $('#family-card-title').textContent = mine ? '小家里的大牵挂' : '爸妈的日常，放心上';
-  $('#family-card-members').textContent = mine ? `${4 + extraMembers.length} 位家人 · ${1 + extraMembers.length} 位无账号成员` : '3 位家人';
-  $('.family-portrait').innerHTML = mine ? '<span class="portrait lavender">妈</span><span class="portrait mint">爸</span><span class="portrait peach">宝</span><span class="portrait rose">奶</span>' : '<span class="portrait mint">爸</span><span class="portrait rose">妈</span><span class="portrait lavender">我</span>';
-  const members = mine ? ['child', 'dad', 'grandma', 'self'] : ['dad', 'mom', 'self'];
-  $('#member-list').innerHTML = members.map((id) => {
-    const memberTasks = tasks.filter((task) => task.person === id && task.family === progressFamily && task.date === 'today');
-    const complete = memberTasks.filter((task) => task.done).length;
-    return `<button class="member-card" data-member="${id}">${avatar(id)}<span class="member-copy"><span class="member-name">${people[id].name}${id === 'child' ? '<span class="micro-tag">家人代记</span>' : id === 'self' && mine ? '<span class="micro-tag">家庭拥有人</span>' : ''}</span><p>${memberTasks.length ? `${complete} 件已完成 · ${memberTasks.length - complete} 件待完成` : '暂无共享给你的今日安排'}</p></span>${memberTasks.length ? `<span class="member-meter" style="--meter:${complete / memberTasks.length * 100}"><svg viewBox="0 0 36 36"><circle class="meter-track" cx="18" cy="18" r="15.5"/><circle class="meter-fill" cx="18" cy="18" r="15.5" pathLength="100"/></svg><span>${complete}/${memberTasks.length}</span></span>` : ''}${icon('chevron', 'chevron')}</button>`;
-  }).join('') + (mine ? extraMembers.map((name) => `<div class="member-card">${avatar('child', name.slice(0, 1))}<span class="member-copy"><span class="member-name">${escape(name)}<span class="micro-tag">家人代记</span></span><p>还没有安排事项</p></span></div>`).join('') : '');
-  $('#invite-family').textContent = mine ? '＋ 邀请家人一起记' : '查看家庭成员';
-}
-function renderAll() { renderHome(); renderDetail(); renderFamily(); }
-function toggleComplete(id, target = 'home') {
-  const task = tasks.find((item) => item.id === id);
-  if (!task.canComplete) return;
-  if (!task.done && task.repeat && task.date !== 'today') return toast('未来周期次数尚不能提前完成', target);
-  task.done = !task.done;
-  if (task.done) { task.operator = '妈妈（我）'; task.completedAt = '18:30'; }
-  renderAll();
-  toast(task.done ? `${task.person === 'self' ? '已完成' : `已为${people[task.person].name}记录完成`}，可撤销` : '已撤销本次完成', target);
-}
-function showTask(id) {
-  currentTaskId = id;
-  sheet.close();
-  renderDetail();
-  $('#detail-content').scrollTop = 0;
-  $('#detail-artboard').scrollIntoView({ block: 'nearest', behavior: 'auto' });
-}
-$('#task-list').addEventListener('click', (event) => {
-  const button = event.target.closest('button');
-  if (!button) return;
-  if (button.dataset.complete) toggleComplete(button.dataset.complete);
-  if (button.dataset.detail) showTask(button.dataset.detail);
-  if (button.dataset.select) { const id = button.dataset.select; selected.has(id) ? selected.delete(id) : selected.add(id); renderHome(); }
-  if (button.hasAttribute('data-add')) showQuickAdd();
-  if (button.hasAttribute('data-retry')) { demoState = 'ready'; $('#demo-state').value = 'ready'; renderHome(); }
-});
-$('#home-family').addEventListener('change', (event) => { currentFamily = event.target.value; renderHome(); });
-$$('[data-date]').forEach((button) => button.addEventListener('click', () => {
-  currentDate = button.dataset.date;
-  $$('[data-date]').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
-  renderHome();
-}));
-$('#date-picker-open').addEventListener('click', () => openSheet('查看其他日期', '<label class="field-label" for="chosen-date">计划日期</label><input id="chosen-date" class="form-input" type="date" value="2026-09-11"><button id="apply-date" class="primary-button full-width" style="margin-top:20px">查看这一天</button>', () => $('#apply-date').addEventListener('click', () => {
-  const date = $('#chosen-date').value;
-  if (!date) return;
-  currentDate = ({ '2026-09-11': 'today', '2026-09-12': 'tomorrow' })[date] || date;
-  $$('[data-date]').forEach((button) => { button.classList.toggle('active', button.dataset.date === currentDate); button.setAttribute('aria-pressed', String(button.dataset.date === currentDate)); });
-  renderHome(); sheet.close(); toast(`正在查看 ${date}`);
-})));
-$('#completed-toggle').addEventListener('click', () => { hideCompleted = !hideCompleted; renderHome(); });
-$('#batch-toggle').addEventListener('click', () => { batchMode = !batchMode; selected = new Set(); renderHome(); });
-$('#quick-add').addEventListener('click', () => batchMode ? showBatchShare() : showQuickAdd());
-$('#demo-state').addEventListener('change', (event) => { demoState = event.target.value; renderHome(); });
-$('#reset-demo').addEventListener('click', () => location.reload());
-['detail-back', 'family-back'].forEach((id) => $(`#${id}`).addEventListener('click', () => $('#home-artboard').scrollIntoView({ block: 'start', behavior: 'auto' })));
-$$('[data-family]').forEach((button) => button.addEventListener('click', () => {
-  progressFamily = button.dataset.family;
-  $$('[data-family]').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
-  renderFamily();
-}));
-$('#member-list').addEventListener('click', (event) => {
-  const button = event.target.closest('[data-member]');
-  if (!button) return;
-  const person = button.dataset.member;
-  const memberTasks = tasks.filter((task) => task.family === progressFamily && task.person === person && task.date === 'today');
-  openSheet(`${people[person].name}的今日安排`, `<p class="sheet-message">${families[progressFamily]} · 9 月 11 日<br>仅展示共享给你的事项。</p>${memberTasks.length ? memberTasks.map(taskCard).join('') : '<div class="state-box"><h4>暂无可见的今日安排</h4><p>家人共享事项后，可以在这里查看。</p></div>'}`, wireSheetTasks);
-});
-function wireSheetTasks() {
-  $$('[data-detail]', $('#sheet-body')).forEach((button) => button.addEventListener('click', () => showTask(button.dataset.detail)));
-  $$('[data-complete]', $('#sheet-body')).forEach((button) => button.addEventListener('click', () => { toggleComplete(button.dataset.complete); sheet.close(); }));
-}
-$('#backlog-open').addEventListener('click', () => {
-  const backlog = tasks.filter((task) => /^2026-09-10$/.test(task.date) && !task.done && (currentFamily === 'all' || task.family === currentFamily));
-  openSheet('之前未完成的事', `<p class="sheet-message">保留原计划日期，不会自动挪到今天。</p>${backlog.length ? backlog.map((task) => `<h3 class="sheet-list-title">9 月 10 日 · 星期四</h3>${taskCard(task)}`).join('') : '<div class="state-box"><h4>这个范围没有积压事项</h4></div>'}`, wireSheetTasks);
-});
-$('#reminder-open').addEventListener('click', showReminders);
-function showReminders() {
-  const reminders = dueTasks();
-  openSheet('到时提醒', `<p class="sheet-message">汇总所有家庭中提醒你的事项。<br>仅在使用小程序时提示，关闭后不会发送微信通知。</p>${reminders.length ? reminders.map((task) => `<div class="reminder-item"><h3>${escape(task.title)}</h3><p>${families[task.family]} · ${people[task.person].name} · 今天 ${task.time}${dismissedReminders.has(task.id) ? '<br>你已收起这条提示，事项仍待完成' : ''}</p><div><button class="outline-button" data-dismiss="${task.id}" ${dismissedReminders.has(task.id) ? 'disabled' : ''}>${dismissedReminders.has(task.id) ? '已收起' : '收起提示'}</button><button class="primary-button" data-reminder-detail="${task.id}">查看事项</button></div></div>`).join('') : '<div class="state-box"><h4>暂时没有待处理的到时提醒</h4><p>完成事项后，对应提示会一起撤下。</p></div>'}`, () => {
-    $$('[data-dismiss]').forEach((button) => button.addEventListener('click', () => { dismissedReminders.add(button.dataset.dismiss); renderHome(); showReminders(); }));
-    $$('[data-reminder-detail]').forEach((button) => button.addEventListener('click', () => showTask(button.dataset.reminderDetail)));
-  });
-}
-function showQuickAdd() {
-  let chosenDate = currentDate === 'today' ? 'today' : currentDate;
-  let expanded = false;
-  openSheet('记一件事', `<form id="quick-form"><input class="title-input" id="task-title" maxlength="80" placeholder="想记下什么小事？" aria-label="事项标题" required autocomplete="off"><span class="field-label">哪天做</span><div class="form-pills">${[['today', '今天'], ['tomorrow', '明天'], ['unscheduled', '未安排']].map(([date, label]) => `<button type="button" data-new-date="${date}" class="${chosenDate === date ? 'active' : ''}" aria-pressed="${chosenDate === date}">${label}</button>`).join('')}</div><div id="basic-privacy" class="privacy-note">${icon('lock')}<span>个人事项 · 仅自己可见<br>不设置具体时刻，也可以保存。</span></div><label class="checkbox-label"><input id="new-reminder" type="checkbox" checked>小程序内提醒我</label><p class="form-helper">默认开启，可手动关闭。设置具体时刻后，到时在小程序内提示。</p><button type="button" id="expand-settings" class="sheet-secondary">家庭、时刻、重复与共享${icon('chevron')}</button><div id="advanced-fields" hidden><label class="field-label" for="new-family">所属家庭</label><select id="new-family" class="form-select"><option value="personal">个人 · 暂不归属家庭</option><option value="mine">我的小家</option><option value="parents">爸妈家</option></select><label class="field-label" for="new-person">谁来做</label><select id="new-person" class="form-select"><option value="self">自己</option></select><div class="two-fields"><div><label class="field-label" for="new-repeat">重复</label><select id="new-repeat" class="form-select"><option value="once">不重复</option><option value="daily">每天</option></select></div><div><label class="field-label" for="new-time">时刻（可选）</label><input id="new-time" class="form-input" type="time"></div></div><p class="form-helper" id="new-privacy">仅自己可见。增加可见人不会同时开启对方的提醒或代记权限。</p><div id="new-viewers"></div></div><p id="quick-error" class="form-error" role="alert"></p><p id="quick-success" class="sheet-success" role="status"></p><div class="sheet-actions"><button type="button" class="outline-button" id="save-next">保存并继续记</button><button class="primary-button" type="submit">保存事项</button></div></form>`, () => {
-    $$('[data-new-date]').forEach((button) => button.addEventListener('click', () => { chosenDate = button.dataset.newDate; $$('[data-new-date]').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); }); }));
-    $('#expand-settings').addEventListener('click', () => { expanded = !expanded; $('#advanced-fields').hidden = !expanded; $('#basic-privacy').hidden = expanded; });
-    function updatePrivacy() {
-      const family = $('#new-family').value;
-      const person = $('#new-person').value;
-      $('#new-privacy').textContent = person === 'child' ? '小宝由家人代记。事项归属妈妈（家庭拥有人），由你管理；未默认向全家公开。' : person === 'self' ? '默认仅自己可见。增加可见人不会同时开启对方的提醒或代记权限。' : `为${people[person].name}安排时，${people[person].name}需要可见；其他家人不默认加入。`;
-      const names = family === 'mine' ? ['爸爸', '奶奶'] : family === 'parents' ? ['爸爸', '妈妈'] : [];
-      $('#new-viewers').innerHTML = names.length ? `<span class="field-label">增加可见家人</span>${names.map((name) => `<label class="checkbox-label"><input type="checkbox" value="${name}" ${name === people[person].name && person !== 'self' ? 'checked disabled' : ''}>${name}</label>`).join('')}` : '';
-    }
-    $('#new-family').addEventListener('change', () => {
-      const family = $('#new-family').value;
-      const options = family === 'mine' ? ['self', 'child', 'dad', 'grandma'] : family === 'parents' ? ['self', 'dad', 'mom'] : ['self'];
-      $('#new-person').innerHTML = options.map((person) => `<option value="${person}">${person === 'self' ? '自己' : people[person].name}${person === 'child' ? ' · 无账号成员' : ''}</option>`).join('');
-      updatePrivacy();
-    });
-    $('#new-person').addEventListener('change', updatePrivacy);
-    function save(continueAdding) {
-      const title = $('#task-title').value.trim();
-      if (!title) { $('#quick-error').textContent = '先写下要做的事情。'; $('#task-title').focus(); return; }
-      const family = expanded ? $('#new-family').value : 'personal';
-      const person = expanded ? $('#new-person').value : 'self';
-      const repeat = expanded && $('#new-repeat').value === 'daily';
-      const time = expanded ? $('#new-time').value : '';
-      if (repeat && chosenDate === 'unscheduled') { $('#quick-error').textContent = '每日事项需要选择开始日期。'; return; }
-      if (repeat && chosenDate === 'today' && time && time <= '18:30') { $('#quick-error').textContent = '今天这个时刻已过，请选择未来时刻或从明天开始。'; return; }
-      tasks.push({ id: `new-${crypto.randomUUID()}`, title, family, person, date: chosenDate, time, done: false, group: person === 'self' ? 'self' : 'help', manage: true, canComplete: true, repeat, reminder: $('#new-reminder').checked, visible: expanded ? $$('#new-viewers input:checked').map((input) => input.value) : [] });
-      demoState = 'ready'; $('#demo-state').value = 'ready'; renderAll();
-      if (continueAdding) { $('#task-title').value = ''; $('#quick-error').textContent = ''; $('#quick-success').textContent = `已保存“${title}”，继续记下一件吧。`; $('#task-title').focus(); }
-      else { sheet.close(); toast(`已保存到${dateLabel(chosenDate).split(' · ')[0]}`); }
-    }
-    $('#quick-form').addEventListener('submit', (event) => { event.preventDefault(); save(false); });
-    $('#save-next').addEventListener('click', () => save(true));
-    $('#task-title').focus();
-  });
-}
-function showSettings(task) {
-  if (!task.manage) return openSheet('你可以查看这件事', '<p class="sheet-message">妈妈将这件事共享给你查看。你可以了解完成进度，目前不能编辑、代记或再次共享。</p>');
-  openSheet('事项设置', `<p class="sheet-message">${escape(task.title)} · ${families[task.family]}</p>${task.person === 'child' ? '<div class="privacy-note">' + icon('people') + '<span>小宝是无账号成员，事项实际归属妈妈（家庭拥有人）。执行对象仍是小宝，代记会保留真实记录人。</span></div>' : ''}<label class="field-label" for="edit-title">事项名称</label><input id="edit-title" class="form-input" value="${escape(task.title)}" maxlength="80"><p class="form-helper">${task.repeat ? '修改周期应只影响未来记录；本设计稿演示名称编辑。' : task.family === 'personal' ? '个人事项默认仅自己可见。' : '家庭事项按已设置的可见范围共享。'}</p><p class="form-error" id="settings-error" role="alert"></p><button id="save-title" class="primary-button full-width" style="margin-top:22px">保存名称</button>`, () => $('#save-title').addEventListener('click', () => { const title = $('#edit-title').value.trim(); if (!title) { $('#settings-error').textContent = '事项名称不能为空。'; return; } task.title = title; renderAll(); sheet.close(); toast('名称已更新', 'detail'); }));
-}
-function showBatchShare() {
-  const chosen = tasks.filter((task) => selected.has(task.id) && task.manage);
-  const grouped = Object.groupBy(chosen, (task) => task.family);
-  openSheet('批量增加可见人', `<p class="sheet-message">共 ${chosen.length} 项，按家庭分别选择。<br>保留已有可见人，不增加代记或提醒权限。</p>${Object.entries(grouped).map(([family, items]) => `<section data-share-group="${family}"><h3 class="sheet-list-title">${families[family]} · ${items.length} 项</h3>${family === 'personal' ? '<label class="field-label" for="share-family">先明确归属一个家庭</label><select id="share-family" class="form-select"><option value="mine">我的小家</option><option value="parents">爸妈家</option></select>' : ''}<div class="share-people">${(family === 'parents' ? ['爸爸', '妈妈'] : ['爸爸', '奶奶']).map((name) => `<label class="checkbox-label"><input type="checkbox" value="${name}">${name}</label>`).join('')}</div></section>`).join('')}<p id="share-error" class="form-error" role="alert"></p><button class="primary-button full-width" id="apply-share" style="margin-top:20px">确认增加可见人</button>`, () => {
-    $('#share-family')?.addEventListener('change', (event) => { const names = event.target.value === 'mine' ? ['爸爸', '奶奶'] : ['爸爸', '妈妈']; $('[data-share-group="personal"] .share-people').innerHTML = names.map((name) => `<label class="checkbox-label"><input type="checkbox" value="${name}">${name}</label>`).join(''); });
-    $('#apply-share').addEventListener('click', () => {
-      const groups = $$('[data-share-group]');
-      if (groups.some((group) => !$('input:checked', group))) { $('#share-error').textContent = '请为每个家庭分组至少选择一位可见人。'; return; }
-      groups.forEach((group) => {
-        const names = $$('input:checked', group).map((input) => input.value);
-        grouped[group.dataset.shareGroup].forEach((task) => { if (task.family === 'personal') task.family = $('#share-family').value; task.visible = [...new Set([...(task.visible || []), ...names])]; });
-      });
-      batchMode = false; selected = new Set(); renderAll(); sheet.close(); toast(`已为 ${chosen.length} 项增加可见人`);
-    });
-  });
-}
-$('#view-family').addEventListener('click', () => $('#family-artboard').scrollIntoView({ block: 'start', behavior: 'auto' }));
-$('#manage-family').addEventListener('click', showFamilyManagement);
-function showFamilyManagement() {
-  const mine = progressFamily === 'mine';
-  const members = mine ? [['妈妈（我）', '家庭拥有人', 'self'], ['爸爸', '真实成员', 'dad'], ['奶奶', '真实成员', 'grandma'], ['小宝', '无账号成员 · 家人代记', 'child'], ...extraMembers.map((name) => [name, '无账号成员 · 家人代记', 'child'])] : [['爸爸', '家庭拥有人', 'dad'], ['妈妈', '真实成员', 'mom'], ['我', '真实成员', 'self']];
-  openSheet(families[progressFamily], `<p class="sheet-message">${mine ? '你是这个家庭的拥有人，可以邀请家人、创建无账号成员。' : '爸爸是这个家庭的拥有人，负责管理家庭成员。'}</p>${members.map(([name, role, person]) => `<div class="manage-member">${avatar(person)}<span>${escape(name)}<small>${role}</small></span></div>`).join('')}${mine ? '<button id="add-virtual" class="outline-button full-width" style="margin-top:22px">＋ 添加无账号成员</button>' : '<p class="form-helper" style="margin-top:20px">退出家庭时，你在本家庭的事项管理职责将交接给爸爸，包括原本仅自己可见的家庭事项。个人事项和其他家庭不受影响。</p>'}`, () => $('#add-virtual')?.addEventListener('click', () => openSheet('添加无账号成员', '<p class="sheet-message">孩子或老人没有账号，也能由家人帮忙记录。<br>相关事项归属你，日常展示这个成员的称呼。</p><label class="field-label" for="virtual-name">怎么称呼</label><input id="virtual-name" class="form-input" maxlength="12" placeholder="例如：小宝、爷爷"><p class="form-error" id="virtual-error" role="alert"></p><button class="primary-button full-width" id="save-virtual" style="margin-top:20px">添加成员</button>', () => $('#save-virtual').addEventListener('click', () => { const name = $('#virtual-name').value.trim(); if (!name) { $('#virtual-error').textContent = '请填写家人称呼。'; return; } extraMembers.push(name); renderFamily(); showFamilyManagement(); }))));
-}
-$('#invite-family').addEventListener('click', () => {
-  if (progressFamily === 'parents') return showFamilyManagement();
-  openSheet('邀请家人加入', '<p class="sheet-message">加入「我的小家」后，可以一起记录日常。<br>只有明确共享的事项，家人才看得到。</p><div class="invitation-code">我的小家</div><p class="form-helper">设计示意：正式小程序通过邀请卡片分享，对方确认后加入。本预览不会生成真实邀请或发送消息。</p>');
-});
-renderAll();
+document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(b&&!b.disabled)action(b.dataset.action)});
+document.addEventListener('input',e=>{if(e.target.id==='quick-title')action.quickDraft=e.target.value;});
+document.addEventListener('change',e=>{const el=e.target;if(el.id==='state'){if(page==='editor')captureDraft();noFamily=el.value==='no-family'||el.value==='empty'&&page==='families';mode=el.value==='no-family'?'ready':el.value;render()}if(el.id==='home-family'){family=el.value;render()}if(el.id==='progress-family'){activeFamily=el.value;render()}if(el.id==='progress-person'){document.querySelectorAll('.progress-person').forEach(c=>c.hidden=el.value!=='全部家人'&&c.dataset.person!==el.value)}if(el.id==='progress-date'){document.querySelectorAll('.progress-person').forEach(c=>c.hidden=el.value!=='2026-09-15');toast(el.value==='2026-09-15'?'已显示当天样例':'此原型仅提供 9 月 15 日进度数据')}if(el.id==='recycle-family')document.querySelectorAll('.recycle-item').forEach(c=>c.hidden=el.value!=='全部家庭'&&c.dataset.family!==el.value);if(el.id==='edit-family'){captureDraft();preferredFamily=draft.family;draft.who='自己';draft.view=draft.help=draft.remind=false;render();toast('已切换家庭，请重新选择家人')}if(el.id==='edit-who'){captureDraft();render()}if(el.id==='quick-family')preferredFamily=el.value;if(el.id==='my-reminder')reminder=el.checked;if(el.id==='permission-view'){if(!el.checked&&(draft.help||draft.remind)){const yes=window.confirm('取消查看将同时取消奶奶的代记和提醒权限。继续？');if(!yes){el.checked=true;return}}draft.view=el.checked;if(!draft.view)draft.help=draft.remind=false;permissions()}if(el.id==='permission-help')draft.help=el.checked;if(el.id==='permission-remind')draft.remind=el.checked;});
+document.addEventListener('keydown',e=>{if(!$('#overlay').children.length)return;if(e.key==='Escape'){e.preventDefault();action('close')}if(e.key==='Tab'){const a=[...$('#overlay').querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea')];if(!a.length)return;const first=a[0],last=a[a.length-1];if(e.shiftKey&&document.activeElement===first){last.focus();e.preventDefault()}else if(!e.shiftKey&&document.activeElement===last){first.focus();e.preventDefault()}}});
+$('#reset').addEventListener('click',()=>location.reload());
+render();
