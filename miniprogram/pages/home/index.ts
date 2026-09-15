@@ -1,3 +1,4 @@
+import { occurrenceWarning } from "../../services/occurrence-warning";
 import { readCreateFamily, rememberCreateFamily } from "../../services/create-family";
 import { patchData } from "../../services/patch-data";
 import { componentActions } from "../../services/component-events";
@@ -15,8 +16,8 @@ import { dateAt, dateCaption, errorMessage, navigationMetrics, occurrenceUrl, oc
 import { familyApi, listFamilies } from "../../services/family-api";
 import { occurrenceGroup, accessInput, permissionRows, subjectOptions, subjectNotice } from "../../services/collaboration-draft";
 import type { Roster, PermissionRow, SubjectOption } from "../../services/collaboration-draft";
-type Card = TaskListItem & { id: string; statusLabel: string; group:string; selected:boolean };
-function cards(items: TaskListItem[],families:FamilySummary[],userId:string): Card[] { return items.map(item => ({...item,id:item.occurrence.id,selected:false,statusLabel:item.occurrence.status === "completed" ? `由${item.occurrence.operatorName ?? "家人"}记录完成` : item.occurrence.status === "skipped" ? `由${item.occurrence.operatorName ?? "家人"}跳过本次` : "",group:occurrenceGroup(item.occurrence,userId,families)})); }
+type Card = TaskListItem & { id: string; statusLabel: string; warningLabel: string; group:string; selected:boolean };
+function cards(items: TaskListItem[],families:FamilySummary[],userId:string,asOf:string): Card[] { return items.map(item => ({...item,id:item.occurrence.id,selected:false,warningLabel:occurrenceWarning(item.occurrence,asOf),statusLabel:item.occurrence.status === "completed" ? `由${item.occurrence.operatorName ?? "家人"}记录完成` : item.occurrence.status === "skipped" ? `由${item.occurrence.operatorName ?? "家人"}跳过本次` : "",group:occurrenceGroup(item.occurrence,userId,families)})); }
 function groups(items:Card[]) {return ["我来做","帮家人","关心一下"].map(name=>({name,items:items.filter(i=>i.group===name)})).filter(g=>g.items.length);}
 Page({
   onComponentAction: componentActions(["batchFamilyChange", "batchViewersChange", "changeTab", "dismissReminder", "expand", "familyChange", "fullEditor", "futureFeature", "openReminders", "openTask", "pickDate", "quickDateChange", "quickFamilyChange", "quickNoteInput", "quickReminderChange", "quickRepeatChange", "quickSubjectChange", "quickTimeChange", "quickTitleInput", "quickViewersChange", "reminderDetail", "retryQuickFamily", "saveQuick", "toggleTask"]),
@@ -24,7 +25,7 @@ Page({
     families:[] as FamilySummary[],groups:[] as {name:string;items:Card[]}[],pendingCount:0,quickFamilyIndex:0,quickFamilyOptions:["个人事项"],quickSubjectOptions:[] as SubjectOption[],quickSubjectNames:["自己"],quickSubjectIndex:0,quickRows:[] as PermissionRow[],quickNotice:"个人事项 · 仅自己可见",quickLoading:false,items:[] as Card[],visibleItems:[] as Card[],backlog:[] as Card[],reminders:[] as (ReminderDTO & {id:string})[],reminderCount:0,reminderError:"",summaryText:"—",progress:0,hideCompleted:true,
     sheet:"",quickTitle:"",quickDate:"today",quickTime:"",quickRepeatIndex:0,quickRepeatOptions:["不重复","每天"],quickNote:"",quickReminder:true,expanded:false,quickError:"",quickSuccess:"",saving:false,uncertain:false,writing:false,writingKey:"",includeDismissed:false},
   quickIdentity:null as RecoveryIdentity|null,quickRecovery:null as InputRecovery|null,quickDirty:false,quickTransferred:false,batchEpoch:0,quickRoster:null as Roster|null,quickSubject:{kind:"self"} as Subject,quickEpoch:0,visible:false,alive:true,epoch:0,pendingWrite:null as null | {key:string;run:()=>Promise<unknown>;done:()=>void},timer:undefined as ReturnType<typeof setTimeout> | undefined,lastRefresh:0,retries:0,
-  cacheUserId:"",cacheRevision:-1,cacheAt:0,
+  cacheUserId:"",cacheRevision:-1,cacheAt:0,lastFullRefresh:0,
   onLoad() { patchData(this, navigationMetrics()); },
   async onShow() {
     this.visible = true; const epoch=this.epoch;
@@ -47,9 +48,8 @@ Page({
   onHide() { this.persistQuick();this.stop();this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;patchData(this, {batchMode:false,sheet:"",refreshing:false,listRefreshing:false,items:this.data.items.map(i=>({...i,selected:false})),visibleItems:this.data.visibleItems.map(i=>({...i,selected:false})),groups:groups(this.data.visibleItems.map(i=>({...i,selected:false}))),backlog:this.data.backlog.map(i=>({...i,selected:false})),quickRows:[],quickSubjectOptions:[],selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[]}); }, onUnload() { this.persistQuick();this.alive=false; this.stop();this.batchEpoch++; },
   stop() { this.visible = false; this.epoch++; if (this.timer) clearTimeout(this.timer); },
   schedule(delay: number) { if (this.timer) clearTimeout(this.timer); if (this.visible) this.timer=setTimeout(() => {void this.refresh();},delay); },
-  async refresh(mode: "all" | {tasks:boolean;backlog:boolean} = "all") {
+  async refresh(mode: "all" | "tasks" | "record" = "all") {
     if (!this.visible || this.pendingWrite || this.data.writing || this.data.saving || this.data.batchBusy || this.data.batchMode) return; this.cacheAt=0;const epoch=++this.epoch;const reminderEpoch=this.reminderEpoch; this.lastRefresh=Date.now(); if (this.timer) clearTimeout(this.timer);
-    const completeData=["ready","empty"].includes(this.data.status)&&!this.data.error;
     patchData(this, {error:"",...(!["ready","empty"].includes(this.data.status)?{status:"loading"}:{})});
     try {
       const user=await readySession();
@@ -61,51 +61,49 @@ Page({
       const current=()=>this.visible&&epoch===this.epoch;
       const selectedId=this.data.familyIndex>1?this.data.families[this.data.familyIndex-2]?.id:undefined;
       const personalOnly=this.data.familyIndex===1;
-      const input: TaskListInput = this.data.tab === "unscheduled" ? {unscheduled:true} : this.data.tab === "tomorrow" ? {dateFrom:dateAt(new Date().toISOString(),1),dateTo:dateAt(new Date().toISOString(),1)} : this.data.tab === "calendar" ? {dateFrom:this.data.selectedDate,dateTo:this.data.selectedDate} : {};
-      // Recording an occurrence does not change families; business reads still check access.
-      const reuseFamilies=mode!=="all"&&this.cacheUserId===user.id&&completeData&&this.data.today===dateAt(new Date().toISOString());
-      const refreshTasks=!reuseFamilies||mode.tasks;
-      const refreshBacklog=!reuseFamilies||mode.backlog;
+      const input: TaskListInput = this.data.tab === "overdue" ? {overdue:true} : this.data.tab === "unscheduled" ? {unscheduled:true} : this.data.tab === "tomorrow" ? {dateFrom:dateAt(new Date().toISOString(),1),dateTo:dateAt(new Date().toISOString(),1)} : this.data.tab === "calendar" ? {dateFrom:this.data.selectedDate,dateTo:this.data.selectedDate} : {};
+      // Date filters only affect task.list; identity and scope remain checked by the API.
+      const reuseFamilies=mode!=="all"&&this.cacheUserId===user.id;
       const familiesPromise=reuseFamilies?Promise.resolve({items:this.data.families}):listFamilies();
       // Only a selected family needs the membership list to resolve its scope.
       const scopePromise=selectedId?familiesPromise.then(result=>result.items.some(f=>f.id===selectedId)?{familyId:selectedId}:{}):Promise.resolve(personalOnly?{familyId:null}:{});
       const reads=Promise.allSettled([
-        refreshTasks?scopePromise.then(scope=>current()?listTasks({...input,...scope},current):Promise.reject(new Error("已切换查看范围。"))):Promise.resolve(null),
-        listReminders(this.data.includeDismissed,current),
-        refreshBacklog?scopePromise.then(scope=>current()?listTasks({overdue:true,...scope},current):Promise.reject(new Error("已切换查看范围。"))):Promise.resolve(null)
+        scopePromise.then(scope=>current()?listTasks({...input,...scope},current):Promise.reject(new Error("已切换查看范围。"))),
+        mode==="tasks"?Promise.resolve(null):listReminders(this.data.includeDismissed,current)
       ]);
       const familyResult=await familiesPromise;
       if(!current())return;
       const familyIndex=personalOnly?1:selectedId&&familyResult.items.some(f=>f.id===selectedId)?familyResult.items.findIndex(f=>f.id===selectedId)+2:0;
       patchData(this, {families:familyResult.items,familyOptions:["全部家庭","仅个人",...familyResult.items.map(f=>f.name)],familyIndex,quickFamilyOptions:["个人事项",...familyResult.items.map(f=>f.name)]});
-      const [tasks,reminders,backlog] = await reads;
+      const [tasks,reminders] = await reads;
       if (epoch !== this.epoch || !this.visible) return;
       if (tasks.status === "rejected") throw tasks.reason;
       const failed=tasks.value?.last.scopes.some(scope=>scope.status!=="ok")??false;
       if(tasks.value){
-        const items=cards(tasks.value.items,familyResult.items,user.id),summary=tasks.value.last.summary;
+        const items=cards(tasks.value.items,familyResult.items,user.id,tasks.value.last.asOf),summary=tasks.value.last.summary;
         const today=dateAt(tasks.value.last.asOf),tomorrow=dateAt(tasks.value.last.asOf,1);
         const visibleItems=items.filter(i=>!this.data.hideCompleted||i.occurrence.status==="pending");
         patchData(this, {status:items.length ? "ready" : failed ? "error" : "empty",items,groups:groups(visibleItems),visibleItems,today,tomorrow,greeting:dateCaption(today),
-          summaryText:summary ? `已完成 ${summary.completed} / ${summary.denominator} 件${summary.skipped ? ` · 跳过 ${summary.skipped}` : ""}` : "数据未完整加载 · 暂不汇总",progress:summary?.denominator ? summary.completed/summary.denominator*100 : 0});
+          summaryText:this.data.tab==="overdue"&&!failed ? `超时未完成 ${items.length} 件` : summary ? `已完成 ${summary.completed} / ${summary.denominator} 件${summary.skipped ? ` · 跳过 ${summary.skipped}` : ""}` : "数据未完整加载 · 暂不汇总",progress:summary?.denominator ? summary.completed/summary.denominator*100 : 0});
       }
       patchData(this, {
-        ...(reminderEpoch!==this.reminderEpoch?{}:reminders.status === "fulfilled" ? {reminders:reminders.value.items.map(item=>({...item,id:item.occurrence.id})),reminderCount:reminders.value.items.filter(i => !i.dismissedAt).length,reminderError:reminders.value.last.scopes.some(s=>s.status!=="ok")?"部分家庭提醒暂未加载，点击重试":""} : {reminders:[],reminderCount:0,reminderError:"提醒暂未加载，点击重试"}),
-        ...(backlog.status === "fulfilled" && backlog.value ? {backlog:cards(backlog.value.items,familyResult.items,user.id)} : {}),error:failed ? "部分家庭未完整加载，请重试。" : backlog.status === "rejected" || backlog.value?.last.scopes.some(s=>s.status!=="ok") ? "过去未完成暂未完整加载，请重试。" : ""});
-      this.cacheUserId=user.id;this.cacheRevision=revision;this.cacheAt=failed||this.data.error||this.data.reminderError?0:Date.now();
-      this.retries=0; this.schedule(30000);
+        ...(mode==="tasks"||reminderEpoch!==this.reminderEpoch?{}:reminders.status === "fulfilled" && reminders.value ? {reminders:reminders.value.items.map(item=>({...item,id:item.occurrence.id})),reminderCount:reminders.value.items.filter(i => !i.dismissedAt).length,reminderError:reminders.value.last.scopes.some(s=>s.status!=="ok")?"部分家庭提醒暂未加载，点击重试":""} : {reminders:[],reminderCount:0,reminderError:"提醒暂未加载，点击重试"}),
+        error:failed ? "部分家庭未完整加载，请重试。" : ""});
+      if(mode!=="tasks")this.lastFullRefresh=Date.now();
+      this.cacheUserId=user.id;this.cacheRevision=revision;this.cacheAt=failed||this.data.error||this.data.reminderError?0:Math.min(Date.now(),this.lastFullRefresh);
+      this.retries=0; this.schedule(Math.max(1000,30000-(Date.now()-this.lastFullRefresh)));
     } catch (error) {
       if (epoch !== this.epoch || !this.visible) return;
-      patchData(this, {status:"error",error:errorMessage(error),summaryText:"—",progress:0,items:[],visibleItems:[],groups:[],backlog:[],reminders:[],reminderCount:0,reminderError:"提醒暂未加载，点击重试"});
+      patchData(this, {status:"error",error:errorMessage(error),summaryText:"—",progress:0,items:[],visibleItems:[],groups:[],backlog:[],...(mode==="tasks"&&!isAccessDenied(error)?{}:{reminders:[],reminderCount:0,reminderError:"提醒暂未加载，点击重试"})});
       const delay=[5000,15000,30000][this.retries++]; if (delay && (!(error instanceof PersonalApiError) || error.retryable || error.code === "CURSOR_EXPIRED")) this.schedule(delay);
     } finally {
       if(this.alive&&epoch===this.epoch)patchData(this, {listRefreshing:false});
     }
   },
   retry() { this.retries=0; void this.refresh(); },
-  changeTab(event: WechatMiniprogram.TouchEvent) { const tab: unknown=event.currentTarget.dataset.tab; if (typeof tab !== "string" || !this.data.today) return; this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {tab,items:[],visibleItems:[],groups:[]}); void this.refresh(); },
-  pickDate(event: WechatMiniprogram.PickerChange) { const value=event.detail.value; if (typeof value !== "string") return; this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {tab:"calendar",selectedDate:value,items:[],visibleItems:[],groups:[]}); void this.refresh(); },
-  familyChange(event: WechatMiniprogram.PickerChange) { this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {familyIndex:Number(event.detail.value),items:[],visibleItems:[],groups:[],backlog:[]}); void this.refresh(); },
+  changeTab(event: WechatMiniprogram.TouchEvent) { const tab: unknown=event.currentTarget.dataset.tab; if (typeof tab !== "string" || !["today","tomorrow","unscheduled","overdue"].includes(tab) || tab===this.data.tab || !this.data.today || this.data.writing || this.data.saving || this.data.batchBusy) return; this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {tab,status:"loading",summaryText:"—",progress:0,items:[],visibleItems:[],groups:[]}); void this.refresh("tasks"); },
+  pickDate(event: WechatMiniprogram.PickerChange) { const value=event.detail.value; if (typeof value !== "string" || (this.data.tab==="calendar"&&value===this.data.selectedDate) || this.data.writing || this.data.saving || this.data.batchBusy) return; this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {tab:"calendar",selectedDate:value,status:"loading",summaryText:"—",progress:0,items:[],visibleItems:[],groups:[]}); void this.refresh("tasks"); },
+  familyChange(event: WechatMiniprogram.PickerChange) { this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {familyIndex:Number(event.detail.value),status:"loading",summaryText:"—",progress:0,items:[],visibleItems:[],groups:[],backlog:[]}); void this.refresh("tasks"); },
   toggleCompleted() { const hideCompleted=!this.data.hideCompleted; const visibleItems=this.data.items.filter(i => !hideCompleted || i.occurrence.status === "pending");patchData(this, {hideCompleted,visibleItems,groups:groups(visibleItems)}); },
   resetBatchSelection(){this.batchEpoch++;patchData(this, {batchMode:false,selectedTasks:[],selectedIds:[],batchGroups:[],batchError:""});},
   futureFeature() {if(this.data.writing||this.data.batchBusy)return;patchData(this, {batchMode:!this.data.batchMode,selectedTasks:[],selectedIds:[],batchError:""});if(!this.data.batchMode)void this.refresh();},
@@ -128,18 +126,9 @@ Page({
     patchData(this, {writing:true,writingKey:key,listRefreshing:key.startsWith("toggle:"),quickError:""});
     try{await this.pendingWrite.run();succeeded=true;const finish=this.pendingWrite.done;this.pendingWrite=null;if(this.alive){patchData(this, {uncertain:false});finish();}}
     catch(error){const uncertain=error instanceof PersonalApiError&&error.retryable;if(!uncertain)this.pendingWrite=null;if(this.alive){if(isAccessDenied(error))this.clearSensitive();patchData(this, {quickError:errorMessage(error),uncertain});wx.showToast({title:errorMessage(error),icon:"none"});}}
-    finally{if(this.alive)patchData(this, {writing:false,writingKey:""});if(this.alive)patchData(this, {pendingCount:personalApi.pendingCount});if(!this.pendingWrite&&this.visible){if(key.startsWith("dismiss:")||key.startsWith("read:"))void this.refreshReminders();else await this.refresh(succeeded&&key.startsWith("toggle:")?this.occurrenceRefreshScope(key.slice("toggle:".length)):"all");}else if(this.alive)patchData(this, {listRefreshing:false});}
+    finally{if(this.alive)patchData(this, {writing:false,writingKey:""});if(this.alive)patchData(this, {pendingCount:personalApi.pendingCount});if(!this.pendingWrite&&this.visible){if(key.startsWith("dismiss:")||key.startsWith("read:"))void this.refreshReminders();else await this.refresh(succeeded&&key.startsWith("toggle:")?"record":"all");}else if(this.alive)patchData(this, {listRefreshing:false});}
   },
   clearSensitive(){this.cacheAt=0;this.cacheUserId="";this.discardQuick();this.epoch++;this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {listRefreshing:false,status:"error",selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,items:[],visibleItems:[],groups:[],backlog:[],reminders:[],reminderCount:0,summaryText:"—",progress:0,sheet:"",quickTitle:"",quickNote:"",quickTime:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:["自己"],quickNotice:"",quickLoading:false});},
-  occurrenceRefreshScope(id:string): "all" | {tasks:boolean;backlog:boolean} {
-    const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===id);
-    if(!item)return "all";
-    return {
-      tasks:this.data.items.some(i=>i.occurrence.id===id),
-      // An undone historical occurrence returns to backlog even when it was absent before the write.
-      backlog:this.data.backlog.some(i=>i.occurrence.id===id)||(item.occurrence.localDate!==null&&item.occurrence.localDate<this.data.today)
-    };
-  },
   async toggleTask(event: WechatMiniprogram.TouchEvent) {
     if(this.data.batchMode){this.selectTask(event);return;}const id:unknown=event.currentTarget.dataset.id;const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===id);if(!item||!item.occurrence.canRecord)return;
     const payload={occurrence:occurrenceRef(item.occurrence),expectedVersion:item.occurrence.version};
@@ -158,7 +147,6 @@ Page({
     finally { if(current())this.schedule(30000); }
   },
   openReminders() { patchData(this, {sheet:"reminders"}); if (this.data.reminderError) void this.refreshReminders(); },
-  openBacklog() { patchData(this, {sheet:"backlog"}); },
   async closeSheet() { if (this.data.batchBusy || (this.data.sheet === "quick" ? this.quickDraftLocked() : this.data.writing || this.data.saving || this.data.uncertain)) {wx.showToast({title:"请先重试确认本次保存结果",icon:"none"});return;} if(this.data.sheet==="quick"&&this.quickDirty){const answer=await wx.showModal({title:"保留未保存的输入？",content:"下次新增可恢复；放弃会删除本地草稿。",confirmText:"保留",cancelText:"放弃"});if(answer.confirm){if(!this.persistQuick())return;}else if(!this.discardQuick())return;}this.batchEpoch++;patchData(this, {sheet:""}); }, noop() {},
   quickTitleInput(e: WechatMiniprogram.Input) { if(this.quickDraftLocked())return;patchData(this, {quickTitle:e.detail.value}); this.quickDirty=true;this.persistQuick();},
   quickNoteInput(e: WechatMiniprogram.Input) { if(this.quickDraftLocked())return;patchData(this, {quickNote:e.detail.value}); this.quickDirty=true;this.persistQuick();},

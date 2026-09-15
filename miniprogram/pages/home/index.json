@@ -6,7 +6,6 @@
     "home-date-tabs": "/components/home-date-tabs/index",
     "home-task-card": "/components/home-task-card/index",
     "home-reminder-card": "/components/home-reminder-card/index",
-    "home-backlog-card": "/components/home-backlog-card/index",
     "home-quick-form": "/components/home-quick-form/index",
     "home-batch-group": "/components/home-batch-group/index"
   }

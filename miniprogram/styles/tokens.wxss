@@ -1,4 +1,5 @@
 page {
   --brand:#5860b5;--brand-dark:#444b92;--paper:#fff;--canvas:#f4f5fa;--ink:#292735;--muted:#72717f;--line:#e8e8ef;--lavender:#ececf8;--green:#45705b;--green-light:#e8f0eb;--peach:#f5e5d9;--rose:#f2e2e6;--display:"Kaiti SC","STKaiti","KaiTi",serif;--body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;--utility:"Avenir Next","PingFang SC",sans-serif;
+  --warning:#95602f;--warning-light:#faf0e5;
   --color-brand:var(--brand);--color-page:var(--canvas);--color-surface:var(--paper);--color-text-primary:var(--ink);--color-text-secondary:var(--muted);--color-border:var(--line);--radius-card:24rpx;--radius-control:16rpx;--space-page:32rpx;
 }

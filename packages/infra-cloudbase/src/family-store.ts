@@ -206,17 +206,21 @@ export class CloudBaseFamilyStore implements FamilyStore {
     const response = await this.db.collection("membership_slots").where({ userId, active: true }).limit(11).get();
     this.budget();
     if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > 10) bad();
-    const rows: unknown[] = response.data; const families: Family[] = [];
-    for (const row of rows) {
-      const slot = readSlot(row); if (slot.userId !== userId || slot.activeMembershipId === null) bad();
-      const family = await this.read("families", slot.familyId, readFamily); if (!family) bad(); families.push(family);
-    }
+    const rows: unknown[] = response.data;
+    const slots = rows.map(row => {
+      const slot = readSlot(row); if (slot.userId !== userId || slot.activeMembershipId === null) bad(); return slot;
+    });
+    const families = await Promise.all(slots.map(async slot => {
+      const family = await this.read("families", slot.familyId, readFamily); if (!family) bad(); return family;
+    }));
     return families.sort((a, b) => ordered(a).localeCompare(ordered(b)));
   }
   public async context(familyId: string, membershipIds: string[] = []): Promise<FamilyContext | null> {
     const family = await this.read("families", familyId, readFamily); if (!family) return null;
-    const active = await this.members({ familyId, status: "active" }, null, 20);
-    const virtual = await this.virtualMembers({ familyId, status: "active" }, null, 20);
+    const [active, virtual] = await Promise.all([
+      this.members({ familyId, status: "active" }, null, 20),
+      this.virtualMembers({ familyId, status: "active" }, null, 20)
+    ]);
     if (active.more || virtual.more || active.items.length !== family.memberCount || virtual.items.length !== family.virtualMemberCount) throw new Error("Family roster changed.");
     const members = active.items;
     for (const start of membershipIds) {

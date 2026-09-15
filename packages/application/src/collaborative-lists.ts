@@ -48,10 +48,12 @@ export class CollaborativeLists {
     if (requestedFamily && !families.some(family => family.id === requestedFamily)) taskMissing();
     const selected = requestedFamily ? families.filter(family => family.id === requestedFamily) : families;
     const streams: Stream[] = requestedFamily === undefined || requestedFamily === null ? [{ familyId: null, version: start.scope.revision, after: null, headId: null, done: false, failed: false }] : [];
+    const contexts = new Map<string, FamilyContext>();
     for (const family of selected) {
       let context: FamilyContext | null = null;
       try { context = await this.store.context(family.id); } catch { /* A verified family may fail independently; expose a stable scope failure only. */ }
       if (context && !context.members.some(member => member.userId === start.actor.id && member.status === "active")) expired();
+      if (context) contexts.set(family.id, context);
       streams.push({ familyId: family.id, version: context?.family.version ?? family.version, after: null, headId: null, done: !context, failed: !context });
     }
     const fingerprint = this.store.fingerprint({ action, payload: { ...payload, cursor: undefined } });
@@ -83,7 +85,7 @@ export class CollaborativeLists {
         cache.set(task.id, { task, context: null }); return true;
       }
       if (task.collaboration?.familyId !== scope.familyId) taskMissing();
-      const context = await taskContext(this.store, task);
+      const context = await taskContext(this.store, task, contexts.get(scope.familyId));
       if (context.family.version !== scope.version) expired();
       const rights = familyTaskRights(task, context, start.actor.id);
       if (!rights.canView || (query.mode === "recycle" && !rights.manager)) return false;

@@ -180,3 +180,6 @@ button[disabled]:active{transform:none}
   button.primary-button:active,button.outline-button:active,button.icon-button:active,button.family-row:active,button.family-tool:active{transform:none}
   .skeleton{animation:none}
 }
+
+.task-warning{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:6px;background:var(--warning-light);color:var(--warning);font-size:10px;font-weight:500;line-height:16px;white-space:nowrap;flex-shrink:0}
+.task-warning-icon{display:block;width:12px;height:12px;flex:none}

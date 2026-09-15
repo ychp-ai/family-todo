@@ -193,7 +193,7 @@ describe("原生协作页面的授权边界", () => {
     page().visible = true;
     page().setData({ families: familyItems, familyIndex: 2 });
     const first = invoke("refresh");
-    await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(1));
     page().setData({ familyIndex: 3 });
     await invoke("refresh");
     if (!finishOld) throw new Error("Missing deferred first page");

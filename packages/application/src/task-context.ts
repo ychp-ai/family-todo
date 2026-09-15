@@ -20,10 +20,11 @@ export async function taskContext(store: FamilyStore, task: CollaborativeTask, r
   if (!base) taskMissing();
   const context: FamilyContext = { family: base.family, members: base.members, virtualMembers: base.virtualMembers };
   if (task.recurrence) {
-    context.historicalTaskId = task.id; context.historicalSubjectMembershipIds = [];
-    for (const member of context.members.filter(member => member.status === "active")) {
-      if (await store.historicalSubjectAccess(task.id, member.id)) context.historicalSubjectMembershipIds.push(member.id);
-    }
+    context.historicalTaskId = task.id;
+    // The validated roster bounds this fan-out to at most 20 active members.
+    const members = context.members.filter(member => member.status === "active");
+    const access = await Promise.all(members.map(member => store.historicalSubjectAccess(task.id, member.id)));
+    context.historicalSubjectMembershipIds = members.filter((_, index) => access[index]).map(member => member.id);
   }
   return context;
 }

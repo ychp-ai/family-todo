@@ -33,12 +33,12 @@ async function cachedHome() {
 
 it("首页切回复用缓存，下拉刷新读取最新列表并结束动画", async () => {
   const tasks = await cachedHome();
-  expect(tasks).toHaveBeenCalledTimes(2);
+  expect(tasks).toHaveBeenCalledTimes(1);
   await invoke("onHide");
   await invoke("onShow");
-  expect(tasks).toHaveBeenCalledTimes(2);
+  expect(tasks).toHaveBeenCalledTimes(1);
   await invoke("pullRefresh");
-  expect(tasks).toHaveBeenCalledTimes(4);
+  expect(tasks).toHaveBeenCalledTimes(2);
   expect(page().data.refreshing).toBe(false);
 });
 
@@ -46,20 +46,20 @@ it("首页缓存到期或账号上下文失效后重新加载", async () => {
   const tasks = await cachedHome();
   page().cacheAt = Date.now() - 30001;
   await invoke("onHide");await invoke("onShow");
-  expect(tasks).toHaveBeenCalledTimes(4);
+  expect(tasks).toHaveBeenCalledTimes(2);
   (await import("../services/personal-api")).personalApi.unbindRecovery();
   await invoke("onHide");await invoke("onShow");
-  expect(tasks).toHaveBeenCalledTimes(6);
+  expect(tasks).toHaveBeenCalledTimes(3);
 });
 
 it("首页跨天及切换账号不会复用旧缓存", async () => {
   const tasks = await cachedHome();
   page().setData({ today: "2000-01-01" });
   await invoke("onHide");await invoke("onShow");
-  expect(tasks).toHaveBeenCalledTimes(4);
+  expect(tasks).toHaveBeenCalledTimes(2);
   vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ id: "another", displayName: "家人" }) } } }));
   await invoke("onHide");await invoke("onShow");
-  expect(tasks).toHaveBeenCalledTimes(6);
+  expect(tasks).toHaveBeenCalledTimes(3);
   expect(page().cacheUserId).toBe("another");
 });
 
@@ -211,7 +211,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-it("home starts tasks, backlog and reminders while families are still pending", async () => {
+it("home starts only current tasks and reminders while families are still pending", async () => {
   await import("./home/index");
   const families = deferred<{ items: []; last: typeof last }>();
   vi.spyOn(await import("../services/family-api"), "listFamilies").mockReturnValue(families.promise);
@@ -220,7 +220,7 @@ it("home starts tasks, backlog and reminders while families are still pending", 
   const reminders = vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last });
   page().visible = true; page().schedule = vi.fn();
   const reading = invoke("refresh");
-  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(1));
   expect(reminders).toHaveBeenCalledOnce();
   families.resolve({ items: [], last }); await reading;
   expect(page().data.status).toBe("empty");
@@ -325,7 +325,7 @@ it("完成事项的蒙层持续到列表刷新结束，并阻止重复操作", a
   await invoke("saveQuick", { currentTarget: { dataset: {} } });
   expect(create).not.toHaveBeenCalled();
   writing.resolve();
-  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(4));
+  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(2));
   expect(page().data).toMatchObject({ writing: false, listRefreshing: true, items: [item] });
   await invoke("saveQuick", { currentTarget: { dataset: {} } });
   expect(create).not.toHaveBeenCalled();
@@ -345,7 +345,7 @@ it("完成后的刷新失败或页面隐藏会撤下蒙层", async () => {
   const reading = deferred<{ items: []; last: typeof last }>();
   tasks.mockReturnValue(reading.promise);
   const action = invoke("runWrite", "toggle:one", async () => {});
-  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(6));
+  await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(3));
   expect(page().data.listRefreshing).toBe(true);
   await invoke("onHide");
   expect(page().data.listRefreshing).toBe(false);
@@ -395,24 +395,63 @@ it("完成写入发生版本冲突时仍刷新家庭，未知结果不发读取�
 
 
 it.each([
-  { name: "过期列表", inTasks: false, inBacklog: true, status: "pending" as const },
-  { name: "历史日期与过期列表重叠", inTasks: true, inBacklog: true, status: "pending" as const },
-  { name: "撤销历史完成重新进入过期列表", inTasks: true, inBacklog: false, status: "completed" as const },
-])("按次数归属刷新：$name", async ({ inTasks, inBacklog, status }) => {
+  { name: "过期列表", inTasks: false, status: "pending" as const },
+  { name: "历史日期与过期列表重叠", inTasks: true, status: "pending" as const },
+  { name: "撤销历史完成重新进入过期列表", inTasks: true, status: "completed" as const },
+])("按次数归属刷新：$name", async ({ inTasks, status }) => {
   const tasks = await cachedHome();
   const families = vi.mocked((await import("../services/family-api")).listFamilies);
   const reminders = vi.mocked((await import("../services/personal-lists")).listReminders);
   const occurrence: OccurrenceDTO = { id: "past", taskId: "task", segmentId: "segment", localDate: "2000-01-01", slot: "day", status, version: 2, canRecord: true, subject: { kind: "user", userId: "me" }, subjectName: "我", time: null, scheduledAt: null, actualCompletedAt: null, recordedAt: null, operatorName: null };
   const item = { id: "past", task: { id: "task" }, occurrence };
-  const untouched = { id: "today", task: { id: "task" }, occurrence: { ...occurrence, id: "today", localDate: String(page().data.today) } };
-  page().setData({ items: inTasks ? [item] : [untouched], visibleItems: inTasks ? [item] : [untouched], backlog: inBacklog ? [item] : [], summaryText: "原汇总", progress: 25, ...(inTasks ? { tab: "calendar", selectedDate: "2000-01-01" } : {}) });
+  page().setData({ items: [item], visibleItems: [item], summaryText: "原汇总", progress: 25, ...(inTasks ? { tab: "calendar", selectedDate: "2000-01-01" } : {tab:"overdue"}) });
   vi.spyOn((await import("../services/personal-api")).personalApi, "write").mockResolvedValue({ occurrence, taskVersion: 3 });
   tasks.mockClear(); families.mockClear(); reminders.mockClear();
   await invoke("toggleTask", { currentTarget: { dataset: { id: "past" } } });
-  expect(tasks.mock.calls.map(([input]) => input)).toEqual(inTasks ? [{ dateFrom: "2000-01-01", dateTo: "2000-01-01" }, { overdue: true }] : [{ overdue: true }]);
+  expect(tasks.mock.calls.map(([input]) => input)).toEqual(inTasks ? [{ dateFrom: "2000-01-01", dateTo: "2000-01-01" }] : [{ overdue: true }]);
   expect(families).not.toHaveBeenCalled();
   expect(reminders).toHaveBeenCalledOnce();
   expect(page().data.backlog).toEqual([]);
-  if (!inTasks) expect(page().data).toMatchObject({ items: [untouched], visibleItems: [untouched], summaryText: "原汇总", progress: 25 });
+  expect(page().data.items).toEqual([]);
   expect(page().data.listRefreshing).toBe(false);
+});
+
+it("日期与超时 tab 按需查询，不重新读取家庭、提醒或后台积压", async () => {
+  const tasks = await cachedHome();
+  const families = vi.mocked((await import("../services/family-api")).listFamilies);
+  const reminders = vi.mocked((await import("../services/personal-lists")).listReminders);
+  tasks.mockClear(); families.mockClear(); reminders.mockClear();
+  for (const tab of ["tomorrow", "unscheduled", "overdue", "today"]) {
+    await invoke("changeTab", { currentTarget: { dataset: { tab } } });
+    await vi.waitFor(() => expect(page().data.status).toBe("empty"));
+  }
+  await invoke("pickDate", { detail: { value: "2026-09-10" } });
+  await vi.waitFor(() => expect(page().data.status).toBe("empty"));
+  expect(tasks.mock.calls.map(([input]) => input)).toEqual([
+    {dateFrom:page().data.tomorrow,dateTo:page().data.tomorrow},
+    {unscheduled:true}, {overdue:true}, {}, {dateFrom:"2026-09-10",dateTo:"2026-09-10"},
+  ]);
+  expect(families).not.toHaveBeenCalled();
+  expect(reminders).not.toHaveBeenCalled();
+  await invoke("pickDate", { detail: { value: "2026-09-10" } });
+  expect(tasks).toHaveBeenCalledTimes(5);
+});
+
+it("快速切换丢弃旧日期响应，日期失败保留独立提醒", async () => {
+  const tasks = await cachedHome();
+  const old = deferred<{items:[];last:typeof last}>();
+  tasks.mockReturnValueOnce(old.promise);
+  await invoke("changeTab", { currentTarget: { dataset: { tab:"overdue" } } });
+  await vi.waitFor(() => expect(tasks).toHaveBeenLastCalledWith({overdue:true},expect.any(Function)));
+  await invoke("changeTab", { currentTarget: { dataset: { tab:"tomorrow" } } });
+  await vi.waitFor(() => expect(page().data.status).toBe("empty"));
+  old.resolve({items:[],last:{...last,asOf:"2000-01-01T00:00:00.000Z"}});
+  await Promise.resolve();
+  expect(page().data.tab).toBe("tomorrow");
+  expect(page().data.today).not.toBe("2000-01-01");
+  page().setData({reminders:[{id:"keep"}],reminderCount:1});
+  tasks.mockRejectedValueOnce(new Error("offline"));
+  await invoke("changeTab", { currentTarget: { dataset: { tab:"overdue" } } });
+  await vi.waitFor(() => expect(page().data.status).toBe("error"));
+  expect(page().data).toMatchObject({reminders:[{id:"keep"}],reminderCount:1});
 });
