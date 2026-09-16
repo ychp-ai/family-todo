@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { projectOccurrences } from "@family-todo/domain";
 import { overlayOccurrence, overlayOccurrences, projectionTask } from "../packages/application/src/recurrence-projection";
-import { isPersonalData } from "@family-todo/contracts";
+import { isFullPersonalData as isPersonalData } from "./support/full-data";
 import type { OccurrenceDTO, OccurrenceRef, PersonalAction, PersonalActionMap, TaskDraft } from "@family-todo/contracts";
 import { OccurrenceLists } from "../packages/application/src/occurrence-lists";
 import { CollaborativeTaskService } from "../packages/application/src/collaborative-tasks";

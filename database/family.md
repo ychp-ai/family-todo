@@ -19,6 +19,8 @@
 
 实体仍使用 schemaVersion=1。tasks 的个人字段保持兼容；家庭事项增加顶层 familyId（索引）与 collaboration（familyId、creatorMembershipId、createdByUserId、ownerBinding、subject/subjectName、可选 occurrenceSnapshot、显式查看/代记名单）。公开 ownerUserId 由当前成员链解析，不直接采用个人兼容字段。旧个人读取器拒绝带 collaboration 的文档，防止按创建者错误读取家庭事项。
 
+2026-09-16 起，本地兼容写入对 UUID 精确键实体 `families`、`memberships`、`virtual_members`、`invitations`、`family_events` 以及家庭 `tasks` 不再重复保存顶层 `id`；读取时从已校验 `_id` 注入。旧文档显式 `id` 必须与 `_id` 相等，畸形显式值继续拒绝。`families` 新写同时省略没有索引或查询消费者的 `listOrder`；家庭列表仍经 `membership_slots` 精确读取后按 `createdAt/id` 在内存排序。成员、虚拟成员、邀请的 `listOrder` 仍被现有索引和分页使用，必须保留。哈希复合键的 membership_slots、提醒偏好、提醒回执、幂等回执没有改动，也不会被当作 UUID 实体读取。该变化不批量改写旧文档、不删除索引。
+
 提醒与幂等为不同集合：idempotency_receipts 继续使用 SHA256(JSON([actorUserId,requestId]))，family action 和 task action 共享唯一命名空间。兼容字段 taskId 存放本次资源 UUID；新增 resourceKind/familyId/ownerOnly/minimumConfirmation 指示重放检查，result 为已提交结果。退出/转交及修改后失去查看权的 task.update 只保存 API 最小确认。邀请创建结果认证加密，重放前检查原调用者仍为拥有人且邀请有效。
 
 query_sessions 中家庭查询采用 schemaVersion=2、purpose=family，随机32字符会话 ID 和服务端 HMAC 签名。检查点不可变、15分钟有效、序列化最多128KiB。确认预览另存5分钟 token。个人旧会话保持原schema读取；无需批量改写。

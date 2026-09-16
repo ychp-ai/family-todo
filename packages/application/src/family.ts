@@ -1,3 +1,5 @@
+import { ListValidation, listFingerprint } from "./list-validation";
+import type { ValidationFamily } from "./list-validation";
 import { FAMILY_ACTIONS, instant, isFamilyData, isFamilyPayload, isRecord } from "@family-todo/contracts";
 import type { FamilyAction, FamilyActionMap, FamilyDTO, FamilySummary, InvitationSummary, MemberDTO, VirtualDTO } from "@family-todo/contracts";
 import { familyTaskRights, resolvedMember } from "@family-todo/domain";
@@ -181,6 +183,8 @@ export class FamilyService {
     if (!session || session.kind !== "confirmation" || session.actorId !== actorId || session.fingerprint !== fingerprint || session.familyVersion !== familyVersion || familyVersion !== expectedVersion || !instant(session.expiresAt) || session.expiresAt <= now) stale(true);
   }
   private async read(action: FamilyAction, payload: unknown): Promise<unknown> {
+    const validation = new ListValidation(this.store, this.clock);
+    if (action === "family.list" && isFamilyPayload(action, payload)) { const hit = await validation.reuse(payload.conditional?.token, listFingerprint(this.store, action, payload)); if (hit) return hit; }
     const start = await this.store.transaction(async tx => {
       const actor = await tx.actor();
       let current: Awaited<ReturnType<typeof access>> | null = null;
@@ -214,11 +218,14 @@ export class FamilyService {
       const checkpoint = payload.cursor ? await this.store.readSession(payload.cursor) : null;
       if (payload.cursor && (!this.validCheckpoint(checkpoint, actor.id, fingerprint, now) || checkpoint.revision !== scope.revision || checkpoint.signature !== signature || typeof checkpoint.offset !== "number" || !Number.isSafeInteger(checkpoint.offset) || checkpoint.offset < 0)) stale();
       const offset = checkpoint && typeof checkpoint.offset === "number" ? checkpoint.offset : 0; const limit = payload.limit ?? 20;
+      const validationFamilies: ValidationFamily[] = [];
       const items = await this.store.transaction(async tx => {
+        validationFamilies.length = 0;
         const result: FamilySummary[] = [];
         if ((await tx.scope(actor.id)).revision !== scope.revision) stale();
         for (const family of families) {
           const current = await access(tx, family.id, actor.id); if (family.version !== current.family.version) stale();
+          validationFamilies.push({ familyId: family.id, version: family.version, membershipId: current.member.id });
           if (!families.slice(offset, offset + limit).some(selected => selected.id === family.id)) continue;
           const ownerMember = await tx.member(family.ownerMembershipId); if (!ownerMember || ownerMember.status !== "active") throw new Error("Missing family owner.");
           result.push({ id: family.id, name: family.name, version: family.version, ownerName: ownerMember.name, myMembershipId: current.member.id, myRole: current.member.id === family.ownerMembershipId ? "owner" : "member" });
@@ -227,8 +234,10 @@ export class FamilyService {
       });
       const asOf = checkpoint && instant(checkpoint.asOf) ? checkpoint.asOf : now;
       const complete = offset + limit >= families.length;
-      const nextCursor = complete ? null : await this.store.saveSession({ kind: "list", actorId: actor.id, fingerprint, revision: scope.revision, signature, offset: offset + limit, asOf, expiresAt: checkpoint?.expiresAt ?? new Date(this.clock.now().getTime() + 900000).toISOString() });
-      return { items, complete, nextCursor, asOf };
+      const nextCursor = complete ? null : await this.store.saveSession({ kind: "list", validationProof: !payload.cursor || checkpoint?.validationProof === true, actorId: actor.id, fingerprint, revision: scope.revision, signature, offset: offset + limit, asOf, expiresAt: checkpoint?.expiresAt ?? new Date(this.clock.now().getTime() + 900000).toISOString() });
+      const expiresAt = new Date(Date.parse(asOf) + 900000).toISOString();
+      const validator = payload.conditional && complete && (!payload.cursor || checkpoint?.validationProof === true) ? await validation.issue(listFingerprint(this.store, action, payload), { actorId: actor.id, revision: scope.revision, families: validationFamilies, asOf, expiresAt, nextInvalidationAt: expiresAt }) : undefined;
+      return { items, complete, nextCursor, asOf, ...(payload.conditional ? { serverTime: this.clock.now().toISOString(), ...(validator ? { cache: validator } : {}) } : {}) };
     }
     if ((action === "member.list" || action === "virtualMember.list" || action === "invitation.list") && isFamilyPayload(action, payload)) {
       const current = start.current; if (!current) missing();

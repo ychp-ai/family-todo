@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyNativeData } from "../../tests/helpers/native-data";
 import type { OccurrenceDTO, TaskDTO } from "@family-todo/contracts";
+import type { ListMetricContext, ListMetricRecord } from "../services/list-metrics";
 
 type NativePage = Record<string, unknown> & { data: Record<string, unknown>; setData(patch: Record<string, unknown>): void };
 let captured: NativePage | undefined;
@@ -22,10 +23,11 @@ const last = { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00
 async function cachedHome() {
   await import("./home/index");
   const now = new Date().toISOString();
+  const cache = { token: "page-token", expiresAt: new Date(Date.now()+900000).toISOString(), nextInvalidationAt: new Date(Date.now()+60000).toISOString() };
   const lists = await import("../services/personal-lists");
-  const tasks = vi.spyOn(lists, "listTasks").mockResolvedValue({ items: [], last: { ...last, asOf: now } });
-  vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last: { ...last, asOf: now } });
-  vi.spyOn(await import("../services/family-api"), "listFamilies").mockResolvedValue({ items: [], last: { ...last, asOf: now } });
+  const tasks = vi.spyOn(lists, "listTasks").mockResolvedValue({ items: [], last: { ...last, asOf: now, cache } });
+  vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last: { ...last, asOf: now, cache } });
+  vi.spyOn(await import("../services/family-api"), "listFamilies").mockResolvedValue({ items: [], last: { ...last, asOf: now, cache } });
   page().schedule = vi.fn();
   await invoke("onShow");
   return tasks;
@@ -39,7 +41,181 @@ it("首页切回复用缓存，下拉刷新读取最新列表并结束动画", a
   expect(tasks).toHaveBeenCalledTimes(1);
   await invoke("pullRefresh");
   expect(tasks).toHaveBeenCalledTimes(2);
+  expect(tasks).toHaveBeenLastCalledWith({},expect.any(Function),true);
   expect(page().data.refreshing).toBe(false);
+});
+
+it("首页缓存命中记录一个父操作和三个显式子操作", async () => {
+  await cachedHome();
+  const metrics = await import("../services/list-metrics");
+  const records: ListMetricRecord[] = [];
+  let id = 0;
+  metrics.configureListMetrics({sampleRate:1,sink:record=>{records.push(record);},createOperationId:async()=>`home-${++id}`});
+  try {
+    await invoke("onHide");
+    await invoke("onShow");
+    expect(records).toHaveLength(4);
+    const parent = records.find(record => record.action === "home.refresh");
+    const children = records.filter(record => record.parentOperationId === parent?.operationId);
+    expect(parent).toMatchObject({source:"cache",result:"success",attempts:0});
+    expect(parent?.childOperationIds).toHaveLength(3);
+    expect(children.map(record => [record.action,record.source,record.result])).toEqual([
+      ["family.list","cache","success"],
+      ["task.list","cache","success"],
+      ["reminder.list","cache","success"],
+    ]);
+  } finally { metrics.configureListMetrics(null); }
+});
+
+it("首页子列表失败记录 error 子操作和 partial 父操作", async () => {
+  await import("./home/index");
+  const metrics = await import("../services/list-metrics"), lists = await import("../services/personal-lists"), families = await import("../services/family-api");
+  const records: ListMetricRecord[] = []; let id=0;
+  metrics.configureListMetrics({sampleRate:1,sink:record=>{records.push(record);},createOperationId:async()=>`partial-${++id}`});
+  const finish = (metric: unknown, result: "success"|"error", error?: unknown) => (metric as ListMetricContext|undefined)?.finish(result,error);
+  vi.spyOn(families,"listFamilies").mockImplementation(async (_force,metric)=>{finish(metric,"success");return {items:[],last};});
+  vi.spyOn(lists,"listTasks").mockImplementation(async (_input,_active,_force,metric)=>{finish(metric,"success");return {items:[],last};});
+  vi.spyOn(lists,"listReminders").mockImplementation(async (_dismissed,_active,_force,metric)=>{const error=new Error("reminder unavailable");finish(metric,"error",error);throw error;});
+  page().visible=true;page().schedule=vi.fn();
+  try {
+    await invoke("refresh");
+    expect(records.find(record=>record.action==="home.refresh")).toMatchObject({result:"partial",complete:true});
+    expect(records.find(record=>record.action==="reminder.list")).toMatchObject({result:"error",error:"unknown",complete:true});
+    expect(records.filter(record=>record.parentOperationId)).toHaveLength(3);
+  } finally { metrics.configureListMetrics(null); }
+});
+
+it.each(["partial","failed"] as const)("首页提醒 fulfilled %s 时子操作和父操作都记 partial", async status => {
+  await import("./home/index");
+  const metrics=await import("../services/list-metrics"),lists=await import("../services/personal-lists"),families=await import("../services/family-api");
+  const records:ListMetricRecord[]=[];let id=0;
+  metrics.configureListMetrics({sampleRate:1,sink:record=>{records.push(record);},createOperationId:async()=>`reminder-partial-${++id}`});
+  const finish=(metric:unknown,result:"success"|"partial")=>(metric as ListMetricContext|undefined)?.finish(result);
+  vi.spyOn(families,"listFamilies").mockImplementation(async(_force,metric)=>{finish(metric,"success");return {items:[],last};});
+  vi.spyOn(lists,"listTasks").mockImplementation(async(_input,_active,_force,metric)=>{finish(metric,"success");return {items:[],last};});
+  const reminderLast={...last,scopes:[{familyId:"family",status}]};
+  vi.spyOn(lists,"listReminders").mockImplementation(async(_dismissed,_active,_force,metric)=>{finish(metric,"partial");return {items:[],last:reminderLast};});
+  page().visible=true;page().schedule=vi.fn();
+  try{
+    await invoke("refresh");
+    expect(records.find(record=>record.action==="task.list")).toMatchObject({result:"success"});
+    expect(records.find(record=>record.action==="reminder.list")).toMatchObject({result:"partial"});
+    expect(records.find(record=>record.action==="home.refresh")).toMatchObject({result:"partial"});
+  }finally{metrics.configureListMetrics(null);}
+});
+
+it("首页采样只决定一次，排除父操作时不独立采样子列表",async()=>{
+  await import("./home/index");
+  const metrics=await import("../services/list-metrics"),api=(await import("../services/personal-api")).personalApi;
+  const random=vi.fn().mockReturnValueOnce(.9).mockReturnValue(.1),createOperationId=vi.fn(async()=>"unexpected"),records:ListMetricRecord[]=[];
+  const reads=vi.spyOn(api,"read").mockImplementation(((action:string,_payload:unknown,observer?: (event:{requestId:string;reusedInFlight:boolean})=>void)=>{
+    observer?.({requestId:`${action}-request`,reusedInFlight:false});
+    const base={items:[],complete:true,nextCursor:null,asOf:"2026-09-16T00:00:00.000Z"};
+    return Promise.resolve(action==="family.list"?base:{...base,scopes:[],summary:null});
+  }) as typeof api.read);
+  metrics.configureListMetrics({sampleRate:.5,random,sink:record=>{records.push(record);},createOperationId});
+  page().visible=true;page().schedule=vi.fn();
+  try{
+    await invoke("refresh");
+    expect(random).toHaveBeenCalledTimes(1);
+    expect(createOperationId).not.toHaveBeenCalled();
+    expect(records).toEqual([]);
+    expect(reads.mock.calls.map(call=>call[0]).sort()).toEqual(["family.list","reminder.list","task.list"]);
+  }finally{metrics.configureListMetrics(null);}
+});
+
+it("首页采样命中后创建三个关联子操作且不重复抽样",async()=>{
+  await import("./home/index");
+  const metrics=await import("../services/list-metrics"),api=(await import("../services/personal-api")).personalApi;
+  const random=vi.fn(()=>.1),records:ListMetricRecord[]=[];let id=0;
+  vi.spyOn(api,"read").mockImplementation(((action:string,_payload:unknown,observer?: (event:{requestId:string;reusedInFlight:boolean})=>void)=>{
+    observer?.({requestId:`${action}-request`,reusedInFlight:false});
+    const base={items:[],complete:true,nextCursor:null,asOf:"2026-09-16T00:00:00.000Z"};
+    return Promise.resolve(action==="family.list"?base:{...base,scopes:[],summary:null});
+  }) as typeof api.read);
+  metrics.configureListMetrics({sampleRate:.5,random,sink:record=>{records.push(record);},createOperationId:async()=>`sampled-${++id}`});
+  page().visible=true;page().schedule=vi.fn();
+  try{
+    await invoke("refresh");
+    expect(random).toHaveBeenCalledTimes(1);
+    expect(records).toHaveLength(4);
+    const parent=records.find(record=>record.action==="home.refresh");
+    expect(records.filter(record=>record.parentOperationId===parent?.operationId)).toHaveLength(3);
+  }finally{metrics.configureListMetrics(null);}
+});
+
+it("首页诊断 ID 未就绪不阻塞业务启动或隐藏取消",async()=>{
+  await import("./home/index");
+  const metrics=await import("../services/list-metrics"),lists=await import("../services/personal-lists"),families=await import("../services/family-api");
+  const releases:((value:string)=>void)[]=[],records:ListMetricRecord[]=[];
+  metrics.configureListMetrics({sampleRate:1,sink:record=>{records.push(record);},createOperationId:()=>new Promise(resolve=>{releases.push(resolve);})});
+  const finish=(metric:unknown)=>(metric as ListMetricContext|undefined)?.finish("success");
+  const familyRead=vi.spyOn(families,"listFamilies").mockImplementation(async(_force,metric)=>{finish(metric);return {items:[],last};});
+  vi.spyOn(lists,"listTasks").mockImplementation(async(_input,_active,_force,metric)=>{finish(metric);return {items:[],last};});
+  vi.spyOn(lists,"listReminders").mockImplementation(async(_dismissed,_active,_force,metric)=>{finish(metric);return {items:[],last};});
+  page().visible=true;page().schedule=vi.fn();
+  try{
+    let settled=false;const refresh=invoke("refresh").then(()=>{settled=true;});
+    await Promise.resolve();
+    expect(familyRead).toHaveBeenCalledTimes(1);
+    await invoke("onHide");
+    await vi.waitFor(()=>expect(settled).toBe(true));
+    expect(records).toEqual([]);
+    expect(releases).toHaveLength(4);
+    releases.forEach((release,index)=>release(`delayed-${index}`));
+    await refresh;
+    await vi.waitFor(()=>expect(records).toHaveLength(4));
+  }finally{metrics.configureListMetrics(null);}
+});
+
+it("首页家庭早失败后仍记录兄弟任务的全部分页请求",async()=>{
+  await import("./home/index");
+  const metrics=await import("../services/list-metrics"),api=(await import("../services/personal-api")).personalApi;
+  const records:ListMetricRecord[]=[];let id=0,releaseFirst:(()=>void)|undefined,releaseSecond:(()=>void)|undefined;
+  metrics.configureListMetrics({sampleRate:1,sink:record=>{records.push(record);},createOperationId:async()=>`early-${++id}`});
+  vi.spyOn(api,"read").mockImplementation(((action:string,payload:{cursor?:string},observer?: (event:{requestId:string;reusedInFlight:boolean})=>void)=>{
+    if(action==="family.list"){observer?.({requestId:"family-request",reusedInFlight:false});return Promise.reject(new Error("family unavailable"));}
+    if(action==="reminder.list"){observer?.({requestId:"reminder-request",reusedInFlight:false});return Promise.resolve({...last,items:[]});}
+    if(payload.cursor){observer?.({requestId:"task-page-2",reusedInFlight:false});return new Promise<unknown>(resolve=>{releaseSecond=()=>resolve({...last,items:[],complete:true,nextCursor:null});});}
+    observer?.({requestId:"task-page-1",reusedInFlight:false});return new Promise<unknown>(resolve=>{releaseFirst=()=>resolve({...last,items:[],complete:false,nextCursor:"next"});});
+  }) as typeof api.read);
+  page().visible=true;page().schedule=vi.fn();
+  try{
+    await invoke("refresh");
+    expect(records.some(record=>record.action==="home.refresh")).toBe(false);
+    releaseFirst?.();
+    await vi.waitFor(()=>expect(releaseSecond).toBeTypeOf("function"));
+    releaseSecond?.();
+    await vi.waitFor(()=>expect(records.some(record=>record.action==="home.refresh")).toBe(true));
+    expect(records.find(record=>record.action==="task.list")).toMatchObject({result:"success",attempts:2,pages:2,requests:[
+      {requestId:"task-page-1",reusedInFlight:false},{requestId:"task-page-2",reusedInFlight:false},
+    ]});
+  }finally{metrics.configureListMetrics(null);}
+});
+
+it("首页取消等待 pending 请求 settle 后记录真实 requestId", async () => {
+  await import("./home/index");
+  const metrics = await import("../services/list-metrics"), lists = await import("../services/personal-lists"), families = await import("../services/family-api");
+  const records: ListMetricRecord[] = [];let id=0,release:(()=>void)|undefined;
+  metrics.configureListMetrics({sampleRate:1,sink:record=>{records.push(record);},createOperationId:async()=>`cancel-${++id}`});
+  vi.spyOn(families,"listFamilies").mockImplementation(async (_force,metric)=>{(metric as ListMetricContext|undefined)?.finish("success");return {items:[],last};});
+  vi.spyOn(lists,"listReminders").mockImplementation(async (_dismissed,_active,_force,metric)=>{(metric as ListMetricContext|undefined)?.finish("success");return {items:[],last};});
+  vi.spyOn(lists,"listTasks").mockImplementation(async (_input,active,_force,metricArgument)=>{
+    const metric=metricArgument as ListMetricContext|undefined;
+    await metrics.metricRequest(metric,async observer=>{await new Promise<void>(resolve=>{release=resolve;});observer?.({requestId:"late-home-request",reusedInFlight:false});});
+    if (!active?.()) {const error=new metrics.ListCancelledError();metric?.finishError(error);throw error;}
+    metric?.finish("success");return {items:[],last};
+  });
+  page().visible=true;page().schedule=vi.fn();
+  try {
+    const refresh=invoke("refresh");
+    await vi.waitFor(()=>expect(release).toBeTypeOf("function"));
+    await invoke("onHide");
+    expect(records.some(record=>record.action==="task.list")).toBe(false);
+    release?.();await refresh;
+    expect(records.find(record=>record.action==="task.list")).toMatchObject({result:"cancelled",complete:false,requests:[{requestId:"late-home-request",reusedInFlight:false}]});
+    expect(records.find(record=>record.action==="home.refresh")).toMatchObject({result:"cancelled",complete:false});
+  } finally { metrics.configureListMetrics(null); }
 });
 
 it("首页缓存到期或账号上下文失效后重新加载", async () => {
@@ -438,7 +614,7 @@ it("快速切换丢弃旧日期响应，日期失败保留独立提醒", async (
   const old = deferred<{items:[];last:typeof last}>();
   tasks.mockReturnValueOnce(old.promise);
   await invoke("changeTab", { currentTarget: { dataset: { tab:"overdue" } } });
-  await vi.waitFor(() => expect(tasks).toHaveBeenLastCalledWith({overdue:true},expect.any(Function)));
+  await vi.waitFor(() => expect(tasks).toHaveBeenLastCalledWith({overdue:true},expect.any(Function),false));
   await invoke("changeTab", { currentTarget: { dataset: { tab:"tomorrow" } } });
   await vi.waitFor(() => expect(page().data.status).toBe("empty"));
   old.resolve({items:[],last:{...last,asOf:"2000-01-01T00:00:00.000Z"}});
@@ -462,4 +638,25 @@ it("recycle family picker has no personal option and keeps selected family after
   await invoke("refresh");
   expect(list).toHaveBeenCalledExactlyOnceWith("a");
   expect(page().data).toMatchObject({ familyOptions: ["全部家庭", "乙", "甲"], familyIndex: 2 });
+});
+
+it("首页30秒内仍遵守已到时间边界，正常前台刷新不延长30秒", async () => {
+  const tasks = await cachedHome();
+  const schedule = vi.mocked(page().schedule as (delay: number) => void);
+  expect(schedule.mock.calls.at(-1)?.[0]).toBeLessThanOrEqual(30000);
+  page().cacheBoundary = Date.now();
+  await invoke("onHide"); await invoke("onShow");
+  expect(tasks).toHaveBeenCalledTimes(2);
+});
+
+it("首页在时间边界前隐藏再显示仍按剩余边界刷新", async () => {
+  const tasks = await cachedHome();
+  const start = Date.now();
+  page().cacheAt = start;
+  page().cacheBoundary = start + 10000;
+  await invoke("onHide");
+  vi.spyOn(Date, "now").mockReturnValue(start + 5000);
+  await invoke("onShow");
+  expect(tasks).toHaveBeenCalledTimes(1);
+  expect(page().schedule).toHaveBeenLastCalledWith(5000);
 });

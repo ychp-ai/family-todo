@@ -14,6 +14,8 @@
 
 领域与存储隔离：tasks 保存 schemaVersion=1，_id 对应公开 id；日期/瞬时字段都是可校验字符串。一次性次数与偏好暂在聚合内，未来周期和家庭迁移必须显式映射，保留已有 ID、历史与回执。公开 DTO 不含 _openid、fileID 或 SDK 类型。
 
+2026-09-16 起，本地兼容写入在以实体 UUID 作为 `_id` 的 `tasks`、`task_events` 中不再重复保存顶层 `id`。读取器只从已校验的文档 `_id` 注入领域 `id`；旧文档仍可带 `id`，但显式值为 null、类型错误或与 `_id` 不同都会拒绝。事项的 `candidateSchema/scopeKey/candidateKind/candidateOrder` 及 `scheduleOrder/recentOrder/createdOrder` 全部保留。该变化只影响新写，不扫描或改写历史文档；哈希键幂等回执、查询会话及其领域 ID 不在省略范围。
+
 全部升序复合索引：
 
 | 集合 / 名称 | 字段顺序 |

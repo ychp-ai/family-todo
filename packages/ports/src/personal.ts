@@ -13,6 +13,7 @@ export interface PersonalTransaction {
 }
 export type PersonalQuery = {
   mode: "tasks" | "recycle" | "reminders" | "history" | "projection";
+  candidateWindow?: { from: string; to: string; backlog: boolean };
   taskId?: string; dateFrom?: string; dateTo?: string; unscheduled?: boolean;
   overdueBefore?: string; status?: "pending" | "completed" | "skipped"; includeDismissed?: boolean;
 };

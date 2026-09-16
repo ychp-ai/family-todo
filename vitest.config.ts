@@ -6,5 +6,6 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     unstubGlobals: true,
+    maxWorkers: 4,
   },
 });

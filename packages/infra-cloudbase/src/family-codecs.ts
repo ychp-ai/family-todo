@@ -1,6 +1,6 @@
 import { instant, integer, isRecord, isResolvedSubject, isUuid, text } from "@family-todo/contracts";
-import type { CollaborativeTask, Family, FamilyTaskContext, Invitation, Membership, MembershipSlot, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
-import { readPersonalTask } from "./personal-store";
+import type { CollaborativeTask, TaskListSource, Family, FamilyTaskContext, Invitation, Membership, MembershipSlot, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
+import { readPersonalTask, readPersonalListSource } from "./personal-store";
 
 function bad(): never { throw new Error("Invalid collaboration storage record."); }
 function base(v: unknown): v is Record<string, unknown> & { id: string; version: number; createdAt: string; updatedAt: string } {
@@ -50,11 +50,12 @@ function readTaskContext(v: unknown): FamilyTaskContext {
   const occurrenceSnapshot = isRecord(snapshot) && isResolvedSubject(snapshot.subject) && typeof snapshot.subjectName === "string" ? { subject: snapshot.subject, subjectName: snapshot.subjectName } : undefined;
   return { ...(occurrenceSnapshot ? { occurrenceSnapshot } : {}), familyId: v.familyId, creatorMembershipId: v.creatorMembershipId, createdByUserId: v.createdByUserId, ownerBinding, subject: resolvedSubject, subjectName: v.subjectName, viewerMembershipIds: v.viewerMembershipIds, helperMembershipIds: v.helperMembershipIds };
 }
-export function readCollaborativeTask(v: unknown): CollaborativeTask {
-  const task = readPersonalTask(v);
+function withCollaboration<T extends Omit<CollaborativeTask, "collaboration" | "note">>(task: T, v: unknown): T & Pick<CollaborativeTask, "collaboration"> {
   if (!isRecord(v)) bad();
   if (v.collaboration === undefined) return task;
   const collaboration = readTaskContext(v.collaboration);
   if (v.familyId !== collaboration.familyId) bad();
   return { ...task, collaboration };
 }
+export function readCollaborativeTask(v: unknown): CollaborativeTask { return withCollaboration(readPersonalTask(v), v); }
+export function readTaskListSource(v: unknown): TaskListSource { return withCollaboration(readPersonalListSource(v), v); }

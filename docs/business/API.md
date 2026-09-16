@@ -251,3 +251,9 @@ ReminderDTO：`occurrence:OccurrenceRef,title,familyId,familyName,subjectName,sc
 ```
 
 响应 task.myReminder.enabled=true，而 occurrence.scheduledAt=null；不会产生午夜到时提示。使用原 requestId 和相同 payload 重试应返回同一 task.id；改标题重用该 requestId 应返回 IDEMPOTENCY_CONFLICT。
+
+### 完整列表条件读取（本地实现，待部署验收）
+
+`family.list`、`task.list`（含未安排）与 `reminder.list` 可选传 `conditional:{token?:string}`。首次及分页传 `{}`，仅持有完整结果时传服务端 token；token 不得与 cursor 同传。未选择 conditional 的旧请求保持原返回形状。选择后普通页附 `serverTime`；完整且全部 scope 成功时可附 `cache:{token,nextInvalidationAt,expiresAt}`。未发 cache 不代表空列表或失败。
+
+有效命中返回 `{unchanged:true,token,serverTime}`，没有 items、summary 或新 asOf。客户端复用同一 token 的完整快照并保留原 asOf；serverTime 仅表示本次检查时间。丢失完整快照必须无 token 重查。未知、过期、筛选/权限版本不匹配的 token 回退普通完整分页；鉴权失败沿用既有错误规则。token 绑定可信 actor、个人 scope revision、家庭版本/成员关系及全部查询条件（含 limit、view、null/省略家庭）。它不是授权凭证，不能由客户端时间或版本证明有效。

@@ -37,5 +37,7 @@ export async function main(event: unknown, context?: unknown) {
     return loadPersonalStore(identity, deadline);
   }, clock, uuids);
   const run = () => createApiHandler(router)(event);
-  return process.env.FAMILY_TODO_PERFORMANCE_LOGS === "true" ? measureApi(event, run) : run();
+  return process.env.FAMILY_TODO_PERFORMANCE_LOGS === "true"
+    ? measureApi(event, run, console.info, { detailedDatabase: process.env.FAMILY_TODO_PERFORMANCE_DETAILS === "true" })
+    : run();
 }

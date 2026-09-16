@@ -1,6 +1,6 @@
 import { isUuid } from "./api";
-import { exact, instant, integer, nullable, opaque, page, pageInput, text } from "./personal";
-import type { Page, PageInput, WriteRef } from "./personal";
+import { conditionalInput, isUnchangedList, exact, instant, integer, nullable, opaque, page, pageInput, text } from "./personal";
+import type { ConditionalInput, ConditionalPage, Page, PageInput, WriteRef } from "./personal";
 
 export type FamilySummary = { id: string; name: string; ownerName: string; myMembershipId: string; myRole: "owner" | "member"; version: number };
 export type FamilyDTO = { id: string; name: string; version: number; myMembershipId: string; ownerMembershipId: string; authEpoch: number };
@@ -16,7 +16,7 @@ export type PreviewResult<T> = { preview: T; complete: true; nextCursor: null } 
 export type ExitInput = { familyId: string; targetMembershipId: string; mode: "leave" | "remove" };
 export type TransferInput = { familyId: string; toMembershipId: string };
 export type FamilyActionMap = {
-  "family.list": { payload: PageInput; data: Page<FamilySummary> };
+  "family.list": { payload: PageInput & ConditionalInput; data: ConditionalPage<Page<FamilySummary>> };
   "family.create": { payload: { name: string; myName: string }; data: { family: FamilyDTO } };
   "family.get": { payload: { id: string }; data: { family: FamilyDTO; members: MemberDTO[]; virtualMembers: VirtualDTO[] } };
   "family.update": { payload: WriteRef & { name: string }; data: { family: FamilyDTO } };
@@ -53,7 +53,7 @@ function exitInput(v: Record<string, unknown>): boolean { return isUuid(v.family
 function transferInput(v: Record<string, unknown>): boolean { return isUuid(v.familyId) && isUuid(v.toMembershipId); }
 export function isFamilyPayload<A extends FamilyAction>(action: A, v: unknown): v is FamilyActionMap[A]["payload"] {
   switch (action) {
-    case "family.list": return exact(v, [], ["limit", "cursor"]) && pageInput(v);
+    case "family.list": return exact(v, [], ["limit", "cursor", "conditional"]) && pageInput(v) && conditionalInput(v);
     case "family.create": return exact(v, ["name", "myName"]) && text(v.name, 1, 24) && text(v.myName, 1, 12);
     case "family.get": return exact(v, ["id"]) && isUuid(v.id);
     case "family.update": return exact(v, ["id", "expectedVersion", "name"]) && writeRef(v) && text(v.name, 1, 24);
@@ -109,7 +109,7 @@ function previewResult(v: unknown, guard: (v: unknown) => boolean): boolean {
 }
 export function isFamilyData<A extends FamilyAction>(action: A, v: unknown): v is FamilyActionMap[A]["data"] {
   switch (action) {
-    case "family.list": return page(v, isFamilySummary);
+    case "family.list": return isUnchangedList(v) || page(v, isFamilySummary, false, true);
     case "family.create": case "family.update": return exact(v, ["family"]) && isFamilyDTO(v.family);
     case "family.get": {
       if (!exact(v, ["family", "members", "virtualMembers"]) || !isFamilyDTO(v.family)) return false;

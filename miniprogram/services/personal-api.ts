@@ -22,11 +22,15 @@ function timeout<T>(promise: Promise<T>): Promise<T> {
   });
 }
 /** One identity-bound intent; persist its original request before any network write. */
+export type ReadObserver = (event: { requestId: string; reusedInFlight: boolean }) => void;
 export class PersonalApi {
   private revision = 0;
   public get readRevision(): number { return this.revision; }
-  private invalidateReads(): void { this.revision++; this.reads.clear(); }
-  private readonly reads = new Map<string, Promise<unknown>>();
+  private invalidateReads(): void { this.revision++; this.reads.clear(); this.clearCompleteLists(); }
+  private readonly listInvalidators = new Set<() => void>();
+  public onListsInvalidated(listener: () => void): () => void { this.listInvalidators.add(listener); return () => this.listInvalidators.delete(listener); }
+  public clearCompleteLists(): void { for (const listener of this.listInvalidators) listener(); }
+  private readonly reads = new Map<string, { request: Promise<unknown>; requestId: Promise<string> }>();
   private batchState: {payload: PersonalActionMap["task.batchAddViewers"]["payload"]; result: PersonalActionMap["task.batchAddViewers"]["data"] | null} | null = null;
   private context: string | null = null;
   private generation = 0;
@@ -97,18 +101,21 @@ export class PersonalApi {
     if (this.recoveryFailure) throw this.recoveryFailure;
     await this.pending?.run();
   }
-  public async read<A extends BusinessAction>(action: A,payload: BusinessMap[A]["payload"]): Promise<BusinessMap[A]["data"]> {
+  public async read<A extends BusinessAction>(action: A,payload: BusinessMap[A]["payload"], observer?: ReadObserver): Promise<BusinessMap[A]["data"]> {
     const key = JSON.stringify({ action, payload }, (_key, value: unknown) => {
       if (value && typeof value === "object" && !Array.isArray(value)) return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
       return value;
     });
     let request = this.reads.get(key);
+    const reusedInFlight = Boolean(request);
     if (!request) {
-      request = timeout(this.ids()).then(id => this.call(action, payload, id));
+      const requestId = timeout(this.ids());
+      request = { requestId, request: requestId.then(id => this.call(action, payload, id)) };
       this.reads.set(key, request);
     }
+    if (observer) void request.requestId.then(requestId => { try { observer({ requestId, reusedInFlight }); } catch { /* Observability cannot affect reads. */ } }, () => undefined);
     try {
-      const result = await request;
+      const result = await request.request;
       if (!guard(action, result)) throw new PersonalApiError("INVALID_RESPONSE", "服务返回无效，请重试。", true);
       return result;
     } finally { if (this.reads.get(key) === request) this.reads.delete(key); }

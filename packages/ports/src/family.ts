@@ -1,4 +1,4 @@
-import type { HistoricalSubjectAccess, OccurrenceIdentity, PersistedOccurrenceState, PersistedScheduleControl, PersistedScheduleSegment, CollaborativeTask, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, PersonalEvent, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
+import type { HistoricalSubjectAccess, OccurrenceIdentity, PersistedOccurrenceState, PersistedScheduleControl, PersistedScheduleSegment, CollaborativeTask, TaskListSource, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, PersonalEvent, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
 import type { PersonalQuery, PersonalReceipt, PersonalTransaction } from "./personal";
 
 export type FamilyReceipt = PersonalReceipt & {
@@ -34,12 +34,14 @@ export interface FamilyTransaction extends PersonalTransaction {
   saveReminderReceipt(receipt: ReminderReceipt): Promise<void>;
   addFamilyEvent(event: FamilyEvent): Promise<void>;
 }
-export type FamilyPage<T> = { items: T[]; more: boolean; after: string | null };
+export type FamilyPage<T> = { items: T[]; more: boolean; after: string | null; olderHint?: string | null };
 export type FamilyListQuery = { familyId: string; status?: string };
 export class FamilyBudgetExceededError extends Error {
   public constructor() { super("Family operation time budget exceeded."); this.name = "FamilyBudgetExceededError"; }
 }
 export interface FamilyStore {
+  /** Server-selected algorithm; included in continuation and conditional fingerprints. */
+  readonly candidateAlgorithm?: "indexed-candidates/v1" | "legacy";
   /** Shared invocation budget; never reset between reads and transaction retries. */
   remainingBudgetMs(): number;
   transaction<T>(work: (tx: FamilyTransaction) => Promise<T>): Promise<T>;
@@ -49,10 +51,17 @@ export interface FamilyStore {
   readVirtualMember(id: string): Promise<VirtualMember | null>;
   readInvitation(id: string): Promise<Invitation | null>;
   findInvitation(tokenHash: string): Promise<Invitation | null>;
+  readListTask(id: string): Promise<TaskListSource | null>;
+  readListTasks(ids: string[]): Promise<TaskListSource[]>;
+  scanListTasks(userId: string, familyId: string | null, query: PersonalQuery, asOf: string, after: string | null, limit: number): Promise<FamilyPage<TaskListSource>>;
   readTask(id: string): Promise<CollaborativeTask | null>;
+  readTasks(ids: string[]): Promise<CollaborativeTask[]>;
+  readSegments(pairs: { taskId: string; segmentId: string }[]): Promise<PersistedScheduleSegment[]>;
+  readPreferences(taskIds: string[], userId: string): Promise<ReminderPreference[]>;
+  historicalSubjectPairs(pairs: { taskId: string; membershipId: string }[]): Promise<HistoricalSubjectAccess[]>;
   deriveOccurrenceId(identity: OccurrenceIdentity): string;
   readSegment(id: string): Promise<PersistedScheduleSegment | null>;
-  segments(taskId: string, after: string | null, limit: number, window?: { from: string; to: string; currentSegmentId: string }): Promise<FamilyPage<PersistedScheduleSegment>>;
+  segments(taskId: string, after: string | null, limit: number, window?: { from: string; to: string; currentSegmentId: string; currentSegment?: PersistedScheduleSegment }): Promise<FamilyPage<PersistedScheduleSegment>>;
   /** Strictly before boundary; descending effectiveAt then taskVersion, at most one row. */
   controlBefore(taskId: string, boundary: string): Promise<PersistedScheduleControl | null>;
   readOccurrenceState(id: string): Promise<PersistedOccurrenceState | null>;

@@ -1,5 +1,5 @@
 import { isPersonalData, isPersonalPayload, PERSONAL_ACTIONS } from "@family-todo/contracts";
-import type { OccurrenceDTO, OccurrenceRef, PersonalAction, PersonalActionMap, TaskDTO } from "@family-todo/contracts";
+import type { OccurrenceDTO, OccurrenceRef, PersonalAction, PersonalActionMap, TaskSummaryDTO, TaskDTO } from "@family-todo/contracts";
 import { occurrenceSlot, reminderDue, scheduledInstant, shanghaiDate } from "@family-todo/domain";
 import type { PersonalTask, User } from "@family-todo/domain";
 import type { Clock, PersonalQuery, PersonalStore, PersonalTransaction, QueryCheckpoint, UuidGenerator } from "@family-todo/ports";
@@ -16,15 +16,17 @@ function occurrence(task: PersonalTask): OccurrenceDTO {
     time: task.time, scheduledAt: scheduledInstant(task), status: task.status, actualCompletedAt: task.actualCompletedAt,
     recordedAt: task.recordedAt, operatorName: task.operatorName, canRecord: task.lifecycle === "active" };
 }
-export function taskDTO(task: PersonalTask): TaskDTO {
+export function personalTaskSummary(task: Omit<PersonalTask, "note">): TaskSummaryDTO {
   const active = task.lifecycle !== "deleted";
-  return { id: task.id, version: task.version, title: task.title, note: task.note, familyId: null, familyName: null,
+  return { id: task.id, version: task.version, title: task.title, familyId: null, familyName: null,
     ownerUserId: task.ownerUserId, ownerName: task.ownerName, createdByUserId: task.ownerUserId,
     subject: { kind: "user", userId: task.ownerUserId }, subjectName: task.ownerName,
-    schedule: task.recurrence?.schedule ?? { kind: "once", date: task.date, time: task.time }, lifecycle: task.lifecycle, participants: [],
-    myReminder: { enabled: task.reminderEnabled, selfDisabled: task.reminderSelfDisabled, version: task.reminderVersion },
-    capabilities: { canEdit: active, canRecord: active, canShare: active, canDelete: active, canRestore: !active, canResume: task.lifecycle === "paused" && !task.recurrence?.stopped },
-    createdAt: task.createdAt, updatedAt: task.updatedAt };
+    schedule: task.recurrence?.schedule ?? { kind: "once", date: task.date, time: task.time }, lifecycle: task.lifecycle,
+    capabilities: { canEdit: active, canRecord: active, canShare: active, canDelete: active, canRestore: !active, canResume: task.lifecycle === "paused" && !task.recurrence?.stopped } };
+}
+export function taskDTO(task: PersonalTask): TaskDTO {
+  return { ...personalTaskSummary(task), note: task.note, participants: [], createdAt: task.createdAt, updatedAt: task.updatedAt,
+    myReminder: { enabled: task.reminderEnabled, selfDisabled: task.reminderSelfDisabled, version: task.reminderVersion } };
 }
 function checkRef(task: PersonalTask, ref: OccurrenceRef): void {
   if (ref.id !== task.occurrenceId || ref.taskId !== task.id || ref.segmentId !== task.segmentId || ref.localDate !== task.date || ref.slot !== occurrenceSlot(task)) missing();

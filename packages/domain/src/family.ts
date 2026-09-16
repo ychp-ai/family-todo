@@ -30,6 +30,8 @@ export type FamilyTaskContext = {
 };
 /** The optional context preserves the schema-1 personal task layout. */
 export type CollaborativeTask = PersonalTask & { collaboration?: FamilyTaskContext };
+/** Validated read-only list source; never accepted by task write ports. */
+export type TaskListSource = Omit<CollaborativeTask, "note">;
 export type ReminderPreference = {
   taskId: string; userId: string; membershipId: string | null; enabled: boolean; selfDisabled: boolean; version: number;
 };
@@ -51,7 +53,7 @@ export function resolvedMember(context: FamilyContext, membershipId: string): Me
   throw new Error("Missing membership successor.");
 }
 
-export function familyTaskRights(task: CollaborativeTask, context: FamilyContext, userId: string) {
+export function familyTaskRights(task: Pick<CollaborativeTask, "id" | "lifecycle" | "collaboration">, context: FamilyContext, userId: string) {
   const binding = task.collaboration;
   if (!binding || binding.familyId !== context.family.id) throw new Error("Mismatched task family.");
   const actor = context.members.find(member => member.userId === userId && member.status === "active");

@@ -31,5 +31,5 @@ export function createCloudBaseFamilyStore(identity: WechatIdentity, deadline?: 
   if (!env) throw new Error("Cloud function environment is unavailable.");
   cloud.init({ env });
   const config = { env, throwOnNotFound: false };
-  return new CloudBaseFamilyStore(observeDatabase(cloud.database(config)), identity, process.env.FAMILY_TODO_CURSOR_SECRET ?? "", invitationKeyringFromEnvironment(process.env.FAMILY_TODO_INVITATION_KEYRING), Date.now, deadline);
+  return new CloudBaseFamilyStore(observeDatabase(cloud.database(config)), identity, process.env.FAMILY_TODO_CURSOR_SECRET ?? "", invitationKeyringFromEnvironment(process.env.FAMILY_TODO_INVITATION_KEYRING), Date.now, deadline, process.env.FAMILY_TODO_INDEXED_CANDIDATES === "1");
 }

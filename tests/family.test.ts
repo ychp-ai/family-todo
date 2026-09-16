@@ -1,7 +1,9 @@
+import type { UnchangedList } from "@family-todo/contracts";
 import { seedLegacyTask } from "./support/legacy-task";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { isFamilyData, isPersonalData } from "@family-todo/contracts";
+import { isFullFamilyData as isFamilyData } from "./support/full-data";
+import { isFullPersonalData as isPersonalData } from "./support/full-data";
 import type { FamilyAction, FamilyActionMap, PersonalAction, PersonalActionMap, TaskDraft } from "@family-todo/contracts";
 import { FamilyService, registerFamilyHandlers } from "../packages/application/src/family";
 import { CollaborativeTaskService } from "../packages/application/src/collaborative-tasks";
@@ -14,11 +16,11 @@ async function client(database?: Fixture["database"], name = "家人") {
   const f = await familyFixture(database, name); let time = new Date(f.now);
   const clock = { now: () => time };
   return { ...f, setTime: (value: string) => { time = new Date(value); },
-    async call<A extends FamilyAction>(action: A, payload: FamilyActionMap[A]["payload"], requestId = randomUUID()): Promise<FamilyActionMap[A]["data"]> {
+    async call<A extends FamilyAction>(action: A, payload: FamilyActionMap[A]["payload"], requestId = randomUUID()): Promise<Exclude<FamilyActionMap[A]["data"], UnchangedList>> {
       const result = await new FamilyService(f.store(), clock, { generate: randomUUID }).execute(action, payload, requestId);
       if (!isFamilyData(action, result)) throw new Error("Invalid test response"); return result;
     },
-    async task<A extends PersonalAction>(action: A, payload: PersonalActionMap[A]["payload"], requestId = randomUUID()): Promise<PersonalActionMap[A]["data"]> {
+    async task<A extends PersonalAction>(action: A, payload: PersonalActionMap[A]["payload"], requestId = randomUUID()): Promise<Exclude<PersonalActionMap[A]["data"], UnchangedList>> {
       const service = new CollaborativeTaskService(f.store(), new CloudBasePersonalStore(f.database, f.identity, "test-family-secret-32-characters-long"), clock, { generate: randomUUID });
       const result = action === "task.create" && "draft" in payload && !payload.draft.familyId ? await seedLegacyTask(f.store(), new CloudBasePersonalStore(f.database, f.identity, "test-family-secret-32-characters-long"), clock, { generate: randomUUID }, payload.draft, requestId) : await service.execute(action, payload, requestId); if (!isPersonalData(action, result)) throw new Error("Invalid task test response"); return result;
     }

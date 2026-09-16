@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 
 import { exact, instant, integer, isRecord, isTaskEvent, isUuid, localDate, localTime } from "@family-todo/contracts";
 import { scheduledInstant } from "@family-todo/domain";
-import type { PersonalEvent, PersonalScope, PersonalTask, User } from "@family-todo/domain";
+import type { CollaborativeTask, PersonalEvent, PersonalScope, PersonalTask, User } from "@family-todo/domain";
 import type { PersonalQuery, PersonalReceipt, PersonalStore, PersonalTransaction, QueryCheckpoint } from "@family-todo/ports";
 
 import { readTaskRecurrence } from "./scheduling-codecs";
@@ -14,6 +14,7 @@ import type { IdentityDocument, IdentityTransaction } from "./identity-store";
 import type { WechatIdentity } from "./invocation-identity";
 
 interface Query {
+  field(fields: Record<string, boolean>): Query;
   where(filter: Record<string, unknown>): Query;
   orderBy(field: string, direction: "asc" | "desc"): Query;
   limit(count: number): Query;
@@ -21,33 +22,47 @@ interface Query {
 }
 interface StorageDocument { get(): unknown; set(options: { data: Record<string, unknown> }): unknown; }
 interface Collection extends Query { doc(id: string): StorageDocument }
-interface Command { in(values: unknown[]): unknown; lt(value: unknown): unknown; lte(value: unknown): unknown; gt(value: unknown): unknown; gte(value: unknown): { and(value: unknown): unknown }; }
+interface QueryCondition { and(value: unknown): QueryCondition; }
+interface Command { in(values: unknown[]): unknown; lt(value: unknown): unknown; lte(value: unknown): unknown; gt(value: unknown): unknown; gte(value: unknown): QueryCondition; }
 export interface PersonalDatabase {
   collection(name: string): Collection;
   command: Command;
   runTransaction<T>(work: (tx: IdentityTransaction) => Promise<T>, retries: number): Promise<T>;
 }
 function malformed(): never { throw new Error("Invalid personal storage record."); }
+function entityRecord(value: Record<string, unknown>, id: unknown): Record<string, unknown> {
+  if (!isUuid(id) || (Object.hasOwn(value, "id") && value.id !== id)) malformed();
+  return { ...value, id };
+}
+function entityFields<T extends { id: string }>(value: T): Omit<T, "id"> { const { id: _id, ...fields } = value; return fields; }
 function nullableText(v: unknown): v is string | null { return v === null || typeof v === "string"; }
 function nullableInstant(v: unknown): v is string | null { return v === null || instant(v); }
-export function readPersonalTask(v: unknown): PersonalTask {
-  if (!isRecord(v) || !isUuid(v.id) || !isUuid(v.ownerUserId) || typeof v.ownerName !== "string" || typeof v.title !== "string" || !v.title.trim() || [...v.title].length > 80 || typeof v.note !== "string" || [...v.note].length > 1000 || !integer(v.version,1) || !isUuid(v.segmentId) || !isUuid(v.occurrenceId)
+export function readPersonalListSource(v: unknown): Omit<PersonalTask, "note"> {
+  if (!isRecord(v) || !isUuid(v.id) || !isUuid(v.ownerUserId) || typeof v.ownerName !== "string" || typeof v.title !== "string" || !v.title.trim() || [...v.title].length > 80 || !integer(v.version,1) || !isUuid(v.segmentId) || !isUuid(v.occurrenceId)
     || !(v.date === null || localDate(v.date)) || !(v.time === null || localTime(v.time)) || (v.date === null && v.time !== null)
     || (v.lifecycle !== "active" && v.lifecycle !== "paused" && v.lifecycle !== "stopped" && v.lifecycle !== "deleted") || (v.status !== "pending" && v.status !== "completed" && v.status !== "skipped")
     || !integer(v.occurrenceVersion) || !nullableInstant(v.actualCompletedAt) || !nullableInstant(v.recordedAt) || !nullableText(v.operatorName)
     || typeof v.reminderEnabled !== "boolean" || typeof v.reminderSelfDisabled !== "boolean" || !integer(v.reminderVersion)
     || !nullableInstant(v.readAt) || !nullableInstant(v.dismissedAt) || !instant(v.createdAt) || !instant(v.updatedAt)) malformed();
-  return {...(v.recurrence === undefined ? {} : { recurrence: readTaskRecurrence(v.recurrence) }),id:v.id,ownerUserId:v.ownerUserId,ownerName:v.ownerName,title:v.title,note:v.note,version:v.version,segmentId:v.segmentId,occurrenceId:v.occurrenceId,date:v.date,time:v.time,lifecycle:v.lifecycle,status:v.status,occurrenceVersion:v.occurrenceVersion,actualCompletedAt:v.actualCompletedAt,recordedAt:v.recordedAt,operatorName:v.operatorName,reminderEnabled:v.reminderEnabled,reminderSelfDisabled:v.reminderSelfDisabled,reminderVersion:v.reminderVersion,readAt:v.readAt,dismissedAt:v.dismissedAt,createdAt:v.createdAt,updatedAt:v.updatedAt};
+  return {candidateKind: v.candidateSchema === 1 && (v.candidateKind === "single" || v.candidateKind === "history") ? v.candidateKind : v.recurrence === undefined ? "single" : "history",...(v.recurrence === undefined ? {} : { recurrence: readTaskRecurrence(v.recurrence) }),id:v.id,ownerUserId:v.ownerUserId,ownerName:v.ownerName,title:v.title,version:v.version,segmentId:v.segmentId,occurrenceId:v.occurrenceId,date:v.date,time:v.time,lifecycle:v.lifecycle,status:v.status,occurrenceVersion:v.occurrenceVersion,actualCompletedAt:v.actualCompletedAt,recordedAt:v.recordedAt,operatorName:v.operatorName,reminderEnabled:v.reminderEnabled,reminderSelfDisabled:v.reminderSelfDisabled,reminderVersion:v.reminderVersion,readAt:v.readAt,dismissedAt:v.dismissedAt,createdAt:v.createdAt,updatedAt:v.updatedAt};
+}
+export function readPersonalTask(v: unknown): PersonalTask {
+  const source = readPersonalListSource(v);
+  if (!isRecord(v) || typeof v.note !== "string" || [...v.note].length > 1000) malformed();
+  return { ...source, note: v.note };
 }
 function readScope(v: unknown): PersonalScope {
   if (!isRecord(v) || v.schemaVersion !== 1 || !isUuid(v.userId) || !integer(v.revision,1) || !integer(v.personalTaskCount) || v.personalTaskCount > 500 || !integer(v.activeFamilyCount)) malformed();
   return {userId:v.userId,revision:v.revision,personalTaskCount:v.personalTaskCount,activeFamilyCount:v.activeFamilyCount};
 }
 function reverseTime(instantValue: string): string { return String(9999999999999-Date.parse(instantValue)).padStart(13,"0"); }
-export function taskFields(task: PersonalTask): Record<string,unknown> {
+export function taskFields(task: CollaborativeTask): Record<string,unknown> {
+  const schedule = task.recurrence?.schedule;
   const date = task.date ?? "9999-12-31";
+  const indexedDate = (schedule?.kind === "once" ? schedule.date : task.date) ?? "9999-12-31";
+  const time = schedule?.kind === "once" ? schedule.time : task.time;
   const window = Math.floor(Date.parse(date)/86400000/31);
-  return {...task,schemaVersion:1,scheduledAt:scheduledInstant(task),scheduleOrder:`${date}/${task.time ?? "99:99"}/${task.id}`,recentOrder:`${String(999999-window).padStart(6,"0")}/${date}/${task.time ?? "99:99"}/${task.id}`,createdOrder:`${reverseTime(task.createdAt)}/${task.id}`};
+  return {...entityFields(task),candidateSchema:1,scopeKey:task.collaboration ? `f/${task.collaboration.familyId}` : `p/${task.ownerUserId}`,candidateKind:task.candidateKind === "history" || (task.recurrence && (task.candidateKind !== "single" || task.recurrence.schedule.kind !== "once")) ? "history" : "single",schemaVersion:1,scheduledAt:scheduledInstant(task),candidateOrder:`${indexedDate}/${time ?? "99:99"}/${task.id}`,scheduleOrder:`${date}/${task.time ?? "99:99"}/${task.id}`,recentOrder:`${String(999999-window).padStart(6,"0")}/${date}/${task.time ?? "99:99"}/${task.id}`,createdOrder:`${reverseTime(task.createdAt)}/${task.id}`};
 }
 export class Transaction implements PersonalTransaction {
   public constructor(private readonly tx: IdentityTransaction, private readonly identity: WechatIdentity) {}
@@ -70,7 +85,7 @@ export class Transaction implements PersonalTransaction {
     const value = readDocument(await this.doc("tasks",id).get()); if (!value) return null;
     if (value.collaboration !== undefined) return null;
     if (value.schemaVersion !== 1 || value._id !== id) malformed();
-    return readPersonalTask({...value,id:value._id});
+    return readPersonalTask(entityRecord(value, value._id));
   }
   public async saveTask(task: PersonalTask): Promise<void> { await this.doc("tasks",task.id).set({data:taskFields(task)}); }
   private receiptKey(userId: string,requestId: string): string { return createHash("sha256").update(JSON.stringify([userId,requestId])).digest("hex"); }
@@ -82,7 +97,7 @@ export class Transaction implements PersonalTransaction {
   public async saveReceipt(userId: string,requestId: string,receipt: PersonalReceipt): Promise<void> { await this.doc("idempotency_receipts",this.receiptKey(userId,requestId)).set({data:{schemaVersion:1,userId,requestId,...receipt}}); }
   public async addEvent(event: PersonalEvent): Promise<void> {
     const doc = this.doc("task_events",event.id); if (readDocument(await doc.get())) throw new Error("Event identifier collision.");
-    await doc.set({data:{...event,schemaVersion:1,eventOrder:`${reverseTime(event.recordedAt)}/${event.id}`}});
+    await doc.set({data:{...entityFields(event),schemaVersion:1,eventOrder:`${reverseTime(event.recordedAt)}/${event.id}`}});
   }
 }
 function canonical(v: unknown): string {
@@ -132,9 +147,10 @@ export class CloudBasePersonalStore implements PersonalStore {
       if (!isRecord(row) || row.schemaVersion !== 1 || typeof row[order] !== "string") malformed();
       next = row[order];
       if (query.mode === "history") {
-        const event = {id:row._id,taskId:row.taskId,occurrenceId:row.occurrenceId,kind:row.kind,actorName:row.actorName,recordedAt:row.recordedAt,actualCompletedAt:row.actualCompletedAt,note:row.note};
+        const value = entityRecord(row, row._id);
+        const event = {id:value.id,taskId:value.taskId,occurrenceId:value.occurrenceId,kind:value.kind,actorName:value.actorName,recordedAt:value.recordedAt,actualCompletedAt:value.actualCompletedAt,note:value.note};
         if (!isTaskEvent(event) || event.taskId !== query.taskId) malformed(); events.push(event);
-      } else { if (row.collaboration !== undefined) continue; const task = readPersonalTask({...row,id:row._id}); if (task.ownerUserId !== userId) malformed(); tasks.push(task); }
+      } else { if (row.collaboration !== undefined) continue; const task = readPersonalTask(entityRecord(row, row._id)); if (task.ownerUserId !== userId) malformed(); tasks.push(task); }
     }
     return {tasks,events,more,after:next};
   }
