@@ -355,14 +355,6 @@ it("完成后的刷新失败或页面隐藏会撤下蒙层", async () => {
   await action;
 });
 
-it("结果待确认时撤下蒙层并保留重试入口", async () => {
-  await cachedHome();
-  const { PersonalApiError } = await import("../services/personal-api");
-  await invoke("runWrite", "toggle:one", async () => { throw new PersonalApiError("INTERNAL", "稍后重试", true); });
-  expect(page().data).toMatchObject({ listRefreshing: false, writing: false, uncertain: true });
-  expect(page().pendingWrite).not.toBeNull();
-});
-
 it.each(["pending", "completed"] as const)("首页切换 %s 状态后只刷新事项与提醒，复用家庭筛选", async status => {
   const tasks = await cachedHome();
   const families = vi.mocked((await import("../services/family-api")).listFamilies);
@@ -393,6 +385,8 @@ it("完成写入发生版本冲突时仍刷新家庭，未知结果不发读取�
   families.mockClear(); tasks.mockClear();
   await invoke("runWrite", "toggle:one", async () => { throw new PersonalApiError("INTERNAL", "结果未知", true); });
   expect(families).not.toHaveBeenCalled(); expect(tasks).not.toHaveBeenCalled();
+  expect(page().data).toMatchObject({ listRefreshing: false, writing: false, uncertain: true });
+  expect(page().pendingWrite).not.toBeNull();
 });
 
 

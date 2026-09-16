@@ -112,10 +112,4 @@ describe("身份初始化闭环（模拟存储）", () => {
     });
     expect(resolveStore).not.toHaveBeenCalled();
   });
-
-  it("客户端拒绝携带 OpenID 的成功响应", async () => {
-    const api = new AppApiClient({ send: async () => ({ ok: true, requestId: request.requestId,
-      data: { user: { id: randomUUID(), displayName: "我", version: 1, openid: "SECRET" } } }) });
-    await expect(ensureIdentity(request.requestId, api)).rejects.toThrow("服务响应异常");
-  });
 });

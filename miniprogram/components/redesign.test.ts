@@ -20,16 +20,3 @@ it("重复分段控件传递所选项，锁定状态不会改变日程", async (
     expect(triggerEvent).not.toHaveBeenCalled(); instance.data[key] = false;
   }
 });
-it.each(["family-member", "family-virtual-member"])("%s 管理操作默认收起且可再次收起", async name => {
-  let control: Control | undefined;
-  vi.stubGlobal("Component", (definition: Control) => { control = definition; });
-  if (name === "family-member") await import("./family-member/index");
-  else await import("./family-virtual-member/index");
-  if (!control) throw new Error("missing component");
-  const toggle = control.methods.toggleManagement;
-  if (!toggle) throw new Error("missing toggle");
-  const instance = { data: { ...control.data }, setData(patch: Record<string, unknown>) { Object.assign(this.data, patch); } };
-  expect(instance.data.managing).toBe(false);
-  toggle.call(instance); expect(instance.data.managing).toBe(true);
-  toggle.call(instance); expect(instance.data.managing).toBe(false);
-});

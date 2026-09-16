@@ -9,6 +9,15 @@ function page(items: string[], nextCursor: string | null = null): Page<string> {
 }
 
 describe("complete list collection", () => {
+  it("continues through empty pages until the scan completes", async () => {
+    const last = page(["family"]);
+    const fetch = vi.fn<(cursor?: string) => Promise<Page<string>>>()
+      .mockResolvedValueOnce(page([], "next"))
+      .mockResolvedValueOnce(last);
+    await expect(collect(fetch)).resolves.toEqual({ items: ["family"], last });
+    expect(fetch.mock.calls).toEqual([[undefined], ["next"]]);
+  });
+
   it("discards earlier pages when restarting an expired cursor", async () => {
     const last = page(["current"]);
     const fetch = vi.fn<(cursor?: string) => Promise<Page<string>>>()
