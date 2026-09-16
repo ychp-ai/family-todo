@@ -2,6 +2,17 @@
 
 本地实施日期：2026-09-16。本文提供发布后的测量口径，未执行云端发布、回填、清理或真实账单验收。实现进度见[优化计划](../plans/cost-optimization.md)，本地基准见[性能落地记录](API_PERFORMANCE_IMPLEMENTATION.md)。
 
+## 2026-09-17 提交与线上预检
+
+用户授权提交、推送及处理线上数据库。优化代码提交为 `51c88b1`，分支 `codex/cost-optimization`；本次重新执行 `npm run check`，57 个测试文件、649 项测试通过。
+
+通过已登录的 CloudBase CLI 3.8.1 执行 `env list --json`，目标 `family-todo-d3g28fx1c314f8638` 状态 NORMAL。通过 `api tcb DescribeTable --api-version 2018-06-08`，指定该环境与 `MongoConnector={DatabaseName:tnt-5up4jdfvg,InstanceId:flexdb}` 核查：
+
+- `tasks`：14 个索引，尚无 `task_date_candidates`；`personal_projection` / `family_projection` 累计访问计数分别为 15118 / 9314。计数起点为 2026-09-14，不代表本次账单窗口，也不能作为删除其他索引的依据。请求 ID：`f22b261c-ce05-4dda-b326-b489e1672c3d`。
+- `query_sessions`：3 个索引，已有正确顺序的 `session_expiry(expiresAt,_id)`，无需重复创建。请求 ID：`24b3e9a4-4646-4be2-b650-8a4daca548f4`。
+
+此次仅完成线上只读预检，没有部署、建索引、回填或删除数据。发布阻塞：本机 `cloud-functions` 技能明确要求部署前读取的 `cloudbase-platform/references/protocols/` 下 `change-safety-protocol.md`、`deployment-gate.md`、`sensitive-runtime-data-protection.md` 缺失，搜索本机技能目录后仍未找到；该技能要求补齐 CloudBase 插件/缺失技能，禁止远程抓取协议替代。补齐后继续准备并验证兼容读取回退版本，再按下述发布顺序处理数据库。MCP 未登录，但 CLI 已登录，CLI 认证并非阻塞。
+
 ## 测量范围
 
 先记录目标环境、函数版本、客户端版本、统计起止时间、活跃账号数、页面打开次数及业务写入数。使用相同隔离测试家庭和固定操作序列比较版本；不要把不同流量的两天账单直接作为优化收益。控制台访问、迁移、开发工具常驻轮询和数据准备单列。
