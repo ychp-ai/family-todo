@@ -96,6 +96,16 @@ describe('query session cleanup', () => {
     expect(f.rows.has('b')).toBe(false);
   });
 
+  it('stops within a page and resumes without skipping the next row', async () => {
+    const f = fixture([row('a'), row('b'), row('c')]);
+    let checks = 0;
+    const first = await cleanupQuerySessions(f.db, { now, apply: true, shouldStop: () => ++checks > 2 });
+    expect(first).toMatchObject({ scanned: 1, deleted: 1, complete: false });
+    const second = await cleanupQuerySessions(f.db, { now, apply: true, after: first.checkpoint });
+    expect(second).toMatchObject({ scanned: 2, deleted: 2, complete: true });
+    expect(f.rows.size).toBe(0);
+  });
+
   it('rejects invalid bounds, cutoffs and checkpoint shapes', async () => {
     const f = fixture([]);
     await expect(cleanupQuerySessions(f.db, { now, maxRows: 10001 })).rejects.toThrow('Invalid cleanup bounds');

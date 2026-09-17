@@ -44,7 +44,7 @@ function afterFilter(command, checkpoint) {
 }
 
 /** Scans only query_sessions. Business collections and idempotency receipts are never visited. */
-export async function cleanupQuerySessions(db, { now = new Date(), apply = false, maxRows = 1000, graceMs = MIN_GRACE_MS, after = null } = {}) {
+export async function cleanupQuerySessions(db, { now = new Date(), apply = false, maxRows = 1000, graceMs = MIN_GRACE_MS, after = null, shouldStop = () => false } = {}) {
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error('Invalid cleanup time.');
   if (!Number.isInteger(maxRows) || maxRows < 1 || maxRows > MAX_ROWS || !Number.isFinite(graceMs) || graceMs < MIN_GRACE_MS) throw new Error('Invalid cleanup bounds.');
   const resumed = after === null ? null : (typeof after === 'string' ? decodeCleanupCheckpoint(after) : validateCheckpoint(after));
@@ -58,7 +58,8 @@ export async function cleanupQuerySessions(db, { now = new Date(), apply = false
   let deleted = 0;
   let skipped = 0;
   let complete = false;
-  while (scanned < maxRows) {
+  scan: while (scanned < maxRows) {
+    if (shouldStop()) break;
     const checkpoint = cursor && { cutoff, ...cursor };
     const filter = checkpoint ? afterFilter(db.command, checkpoint) : { expiresAt: db.command.lt(cutoff) };
     const limit = Math.min(PAGE_SIZE, maxRows - scanned);
@@ -67,6 +68,7 @@ export async function cleanupQuerySessions(db, { now = new Date(), apply = false
       .field({ _id: true, schemaVersion: true, expiresAt: true }).limit(limit).get();
     if (!Array.isArray(page.data)) throw new Error('Invalid session page.');
     for (const row of page.data) {
+      if (shouldStop()) break scan;
       if (!row || typeof row._id !== 'string' || typeof row.expiresAt !== 'string') throw new Error('Invalid projected session row.');
       canonicalInstant(row.expiresAt, 'session expiry');
       if (row.expiresAt >= cutoff || (cursor && (row.expiresAt < cursor.expiresAt || (row.expiresAt === cursor.expiresAt && row._id <= cursor.id)))) throw new Error('Invalid session ordering.');
@@ -100,7 +102,7 @@ function parseCli(argv) {
   return options;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+async function runCli() {
   const options = parseCli(process.argv.slice(2));
   const env = process.env.TCB_ENV_ID;
   const secretId = process.env.TENCENTCLOUD_SECRETID;
@@ -110,4 +112,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const db = cloudbase.init({ env, secretId, secretKey, sessionToken: process.env.TENCENTCLOUD_SESSIONTOKEN }).database();
   const result = await cleanupQuerySessions(db, options);
   console.log(JSON.stringify({ env, ...result }));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runCli().catch(error => { console.error(error); process.exitCode = 1; });
 }

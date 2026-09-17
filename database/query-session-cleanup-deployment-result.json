@@ -1,0 +1,127 @@
+{
+  "date": "2026-09-17",
+  "environment": "family-todo-d3g28fx1c314f8638",
+  "timezone": "Asia/Shanghai",
+  "creationCommand": "tcb fn deploy cleanup-query-sessions -e family-todo-d3g28fx1c314f8638 --json",
+  "creationResult": "Cloud function deployed successfully",
+  "validation": "Manual invocation of timer event, not an observed scheduled execution",
+  "records": [
+    {
+      "command": [
+        "tcb",
+        "fn",
+        "invoke",
+        "cleanup-query-sessions",
+        "-e",
+        "family-todo-d3g28fx1c314f8638",
+        "-d",
+        "{\"Type\": \"Timer\", \"TriggerName\": \"cleanup-query-sessions-12h\"}",
+        "--json"
+      ],
+      "response": {
+        "functionType": "Event",
+        "RequestId": "0f16ea3d-3274-4666-ab10-f23cb8e1ec10",
+        "FunctionRequestId": "0f16ea3d-3274-4666-ab10-f23cb8e1ec10",
+        "InvokeResult": 0,
+        "Log": "START RequestId: 0f16ea3d-3274-4666-ab10-f23cb8e1ec10\nEvent RequestId: 0f16ea3d-3274-4666-ab10-f23cb8e1ec10\n{\"event\":\"query_sessions_cleanup\",\"apply\":true,\"cutoff\":\"2026-09-16T06:47:34.245Z\",\"scanned\":0,\"eligible\":0,\"deleted\":0,\"skipped\":0,\"complete\":true,\"checkpoint\":null}\nResponse RequestId: 0f16ea3d-3274-4666-ab10-f23cb8e1ec10 RetMsg: {\"ok\":true,\"apply\":true,\"cutoff\":\"2026-09-16T06:47:34.245Z\",\"scanned\":0,\"eligible\":0,\"deleted\":0,\"skipped\":0,\"complete\":true,\"checkpoint\":null}\nEND RequestId: 0f16ea3d-3274-4666-ab10-f23cb8e1ec10\nReport RequestId: 0f16ea3d-3274-4666-ab10-f23cb8e1ec10 Duration: 59ms Memory: 256MB MemUsage: 20.824219MB\n",
+        "RetMsg": "{\"ok\":true,\"apply\":true,\"cutoff\":\"2026-09-16T06:47:34.245Z\",\"scanned\":0,\"eligible\":0,\"deleted\":0,\"skipped\":0,\"complete\":true,\"checkpoint\":null}",
+        "ErrMsg": "",
+        "MemUsage": 21835776,
+        "Duration": 59,
+        "BillDuration": 100
+      }
+    },
+    {
+      "command": [
+        "tcb",
+        "fn",
+        "invoke",
+        "cleanup-query-sessions",
+        "-e",
+        "family-todo-d3g28fx1c314f8638",
+        "-d",
+        "{\"mode\": \"dry-run\"}",
+        "--json"
+      ],
+      "response": {
+        "functionType": "Event",
+        "RequestId": "3e5623db-6e9d-4233-bbbb-292e40ab7a68",
+        "Duration": 68,
+        "BillDuration": 100,
+        "FunctionRequestId": "3e5623db-6e9d-4233-bbbb-292e40ab7a68",
+        "InvokeResult": 0,
+        "Log": "START RequestId: 3e5623db-6e9d-4233-bbbb-292e40ab7a68\nEvent RequestId: 3e5623db-6e9d-4233-bbbb-292e40ab7a68\n{\"event\":\"query_sessions_cleanup\",\"apply\":false,\"cutoff\":\"2026-09-16T06:47:35.853Z\",\"scanned\":0,\"eligible\":0,\"deleted\":0,\"skipped\":0,\"complete\":true,\"checkpoint\":null}\nResponse RequestId: 3e5623db-6e9d-4233-bbbb-292e40ab7a68 RetMsg: {\"ok\":true,\"apply\":false,\"cutoff\":\"2026-09-16T06:47:35.853Z\",\"scanned\":0,\"eligible\":0,\"deleted\":0,\"skipped\":0,\"complete\":true,\"checkpoint\":null}\nEND RequestId: 3e5623db-6e9d-4233-bbbb-292e40ab7a68\nReport RequestId: 3e5623db-6e9d-4233-bbbb-292e40ab7a68 Duration: 68ms Memory: 256MB MemUsage: 20.457031MB\n",
+        "RetMsg": "{\"ok\":true,\"apply\":false,\"cutoff\":\"2026-09-16T06:47:35.853Z\",\"scanned\":0,\"eligible\":0,\"deleted\":0,\"skipped\":0,\"complete\":true,\"checkpoint\":null}",
+        "ErrMsg": "",
+        "MemUsage": 21450752
+      }
+    },
+    {
+      "command": [
+        "tcb",
+        "fn",
+        "detail",
+        "cleanup-query-sessions",
+        "-e",
+        "family-todo-d3g28fx1c314f8638",
+        "--json"
+      ],
+      "response": {
+        "RequestId": "833c6cac-eb3f-4750-b0cd-bf608b2e779c",
+        "FunctionName": "cleanup-query-sessions",
+        "FunctionId": "lam-5oip7m7h",
+        "Status": "Active",
+        "Runtime": "Nodejs20.19",
+        "Timeout": 60,
+        "MemorySize": 256,
+        "Handler": "index.main",
+        "Type": "Event",
+        "Triggers": [
+          {
+            "AddTime": "2026-09-17 14:46:11",
+            "AvailableStatus": "",
+            "BindStatus": "on",
+            "CustomArgument": "",
+            "Description": "",
+            "Enable": 1,
+            "InstanceStatus": "",
+            "ModTime": "2026-09-17 14:46:11",
+            "Qualifier": "$LATEST",
+            "ResourceId": "qcs::scf:sh:uin/657955380:function/cleanup-query-sessions/cleanup-query-sessions-12h",
+            "TriggerAttribute": "single",
+            "TriggerDesc": "{\"cron\":\"0 0 0,12 * * * *\"}",
+            "TriggerName": "cleanup-query-sessions-12h",
+            "Type": "timer"
+          }
+        ]
+      }
+    },
+    {
+      "command": [
+        "tcb",
+        "api",
+        "tcb",
+        "DescribeResourcePermission",
+        "--api-version",
+        "2018-06-08",
+        "--body",
+        "{\"EnvId\": \"family-todo-d3g28fx1c314f8638\", \"ResourceType\": \"function\"}",
+        "--json"
+      ],
+      "response": {
+        "RequestId": "f4b27fb8-fc62-4b43-84b8-314d6723bfe1",
+        "Data": {
+          "TotalCount": 1,
+          "PermissionList": [
+            {
+              "Resource": "",
+              "Permission": "CUSTOM",
+              "ResourceType": "function",
+              "SecurityRule": "{\"*\": {\"invoke\": \"auth != null && auth.loginType != 'ANONYMOUS'\"}, \"cleanup-query-sessions\": {\"invoke\": false}}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

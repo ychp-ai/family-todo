@@ -98,7 +98,7 @@ interface TaskRepository {
 5. 其他业务 action 必须已有应用身份。application 只拿应用 userId；OpenID 留在身份适配器内部。
 6. 单元测试直接注入 Actor；真实业务验证必须从小程序发起，不能在控制台 event 中填写 OpenID 假装验证成功。
 
-首版只开放小程序调用业务入口，不配置 HTTP、Web、定时触发或转发代理。官方文档提醒混合调用可能受实例环境残留影响，因此“getWXContext 非空”不能单独作为来源校验。平台接入验证须证明非小程序调用不会继承前一请求的身份；不能证明时阻止业务发布并修正入口适配，不能退回信任 event。依据：[小程序调用云函数](https://docs.cloudbase.net/recipes/add-cloud-function-wechat-miniprogram)、[实例复用](https://docs.cloudbase.net/cloud-function/instance)。
+业务入口 `api` 只开放小程序调用，不配置 HTTP、Web、定时触发或转发代理。独立维护函数 `cleanup-query-sessions` 使用云端定时触发，客户端调用被函数安全规则禁止，见 [定时清理](technical/QUERY_SESSION_CLEANUP.md)。官方文档提醒混合调用可能受实例环境残留影响，因此“getWXContext 非空”不能单独作为来源校验。平台接入验证须证明非小程序调用不会继承前一请求的身份；不能证明时阻止业务发布并修正入口适配，不能退回信任 event。依据：[小程序调用云函数](https://docs.cloudbase.net/recipes/add-cloud-function-wechat-miniprogram)、[实例复用](https://docs.cloudbase.net/cloud-function/instance)。
 
 ## 技术决策
 

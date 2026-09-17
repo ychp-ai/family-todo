@@ -23,10 +23,10 @@
 
 - 原生 WXML/WXSS + TypeScript，npm workspaces，CloudBase。
 - 严格 TypeScript，官方 `miniprogram-api-typings`，Vitest，esbuild。
-- V1 使用单一 `api` 云函数；支持健康、身份、19 个家庭 action 和22个事项/次数/提醒/进度 action，具体见 contracts 和当前范围。
+- 业务入口使用单一 `api` 云函数；支持健康、身份、19 个家庭 action 和22个事项/次数/提醒/进度 action，具体见 contracts 和当前范围。
 - 运行时以 `.nvmrc`、package.json 和云配置为准；调整前核对官方文档。
 - 不默认引入跨端框架、大型状态库、微服务或额外付费资源。
-- 底部导航采用「首页 / 家庭」原生 tabBar；暂不添加定时函数或回调函数；存储包含19个集合，实际云端迁移状态见 database/ 和发布记录。
+- 底部导航采用「首页 / 家庭」原生 tabBar；维护函数 `cleanup-query-sessions` 每天北京时间 00:00、12:00 清理过期查询会话，暂不添加业务提醒定时函数或回调函数；存储包含19个集合，实际云端迁移状态见 database/ 和发布记录。
 
 ## 目录与依赖方向
 

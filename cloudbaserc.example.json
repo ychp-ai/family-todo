@@ -9,6 +9,21 @@
       "timeout": 10,
       "memorySize": 256,
       "installDependency": false
+    },
+    {
+      "name": "cleanup-query-sessions",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 60,
+      "memorySize": 256,
+      "installDependency": false,
+      "triggers": [
+        {
+          "name": "cleanup-query-sessions-12h",
+          "type": "timer",
+          "config": "0 0 0,12 * * * *"
+        }
+      ]
     }
   ]
 }

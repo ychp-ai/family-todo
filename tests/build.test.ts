@@ -8,6 +8,20 @@ import { expect, it, vi } from "vitest";
 
 import type { AppOptions } from "../miniprogram/types/app";
 
+it("清理函数 bundle 脱离工作区可加载且不会执行维护 CLI", () => {
+  const directory = mkdtempSync(join(tmpdir(), "family-todo-cleanup-"));
+  try {
+    copyFileSync("cloudfunctions/cleanup-query-sessions/index.js", join(directory, "index.cjs"));
+    const output = execFileSync(process.execPath, ["-e", `
+      const { main } = require('./index.cjs');
+      main({}).then(result => process.stdout.write(JSON.stringify(result)));
+    `], { cwd: directory, encoding: "utf8" });
+    expect(JSON.parse(output)).toEqual({ ok: false, code: "INVALID_CLEANUP_EVENT" });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it("云函数 bundle 脱离工作区和 node_modules 后可独立调用", () => {
   const directory = mkdtempSync(join(tmpdir(), "family-todo-function-"));
   try {

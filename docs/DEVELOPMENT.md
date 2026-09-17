@@ -67,7 +67,7 @@ App 中已装配 `globalData.session`，仅创建协调器，不在启动时调�
 
 ## 接入自己的云环境
 
-当前工作区的 `miniprogram/config/local.ts` 和 `cloudbaserc.json` 已配置环境 `family-todo-d3g28fx1c314f8638`，调用与部署目标均为 `api` 云函数。这两个本地文件不提交到 Git，新检出仓库仍需按下方步骤配置。2026-09-11 已通过 CLI 创建 api 并验证真实云端健康调用；AppID 与环境关联及开发者工具真实云调用已验证，小程序真机调用尚未验证。
+当前工作区的 `miniprogram/config/local.ts` 和 `cloudbaserc.json` 已配置环境 `family-todo-d3g28fx1c314f8638`，小程序调用目标为 `api` 云函数；云配置还包含独立维护函数 `cleanup-query-sessions`，部署与权限要求见 [定时清理](technical/QUERY_SESSION_CLEANUP.md)。这两个本地文件不提交到 Git，新检出仓库仍需按下方步骤配置。2026-09-11 已通过 CLI 创建 api 并验证真实云端健康调用；AppID 与环境关联及开发者工具真实云调用已验证，小程序真机调用尚未验证。
 
 新环境接入或后续联调步骤（部署须获当前会话授权）：
 

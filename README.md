@@ -44,3 +44,5 @@ npm run check
 
 - GitHub：https://github.com/ychp-ai/family-todo
 - SSH：`git@github.com:ychp-ai/family-todo.git`
+
+查询会话自动维护：云端每天北京时间 00:00、12:00 清理过期一天以上的 `query_sessions`，配置和验证见 [定时清理](docs/technical/QUERY_SESSION_CLEANUP.md)。

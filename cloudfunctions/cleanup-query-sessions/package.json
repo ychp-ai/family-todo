@@ -1,0 +1,12 @@
+{
+  "name": "@family-todo/cleanup-query-sessions-function",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --sourcemap --define:import.meta.url=undefined --outfile=index.js"
+  },
+  "dependencies": {
+    "@cloudbase/node-sdk": "3.17.2"
+  }
+}

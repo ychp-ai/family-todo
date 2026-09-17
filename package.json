@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit --pretty false && tsc -p miniprogram/tsconfig.json --pretty false",
     "build:miniprogram-shared": "esbuild packages/contracts/src/index.ts --bundle --platform=browser --target=es2018 --format=cjs --outfile=miniprogram/shared/contracts.js",
     "dev": "npm run setup && npm run build:miniprogram-shared -- --watch",
-    "build:cloudfunctions": "npm run build --workspace @family-todo/api-function",
+    "build:cloudfunctions": "npm run build --workspace @family-todo/api-function && npm run build --workspace @family-todo/cleanup-query-sessions-function",
     "build": "npm run setup && npm run build:miniprogram-shared && npm run typecheck && npm run build:cloudfunctions",
     "check": "npm run build && npm test"
   },
