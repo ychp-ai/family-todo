@@ -1,0 +1,445 @@
+{
+  "environment": "family-todo-d3g28fx1c314f8638",
+  "function": {
+    "name": "api",
+    "id": "lam-d4wj80fb",
+    "runtime": "Nodejs20.19",
+    "memoryMiB": 256,
+    "timeoutSeconds": 10,
+    "status": "Active",
+    "compatibleModifiedAt": "2026-09-17 08:00:20",
+    "compactModifiedAt": "2026-09-17 08:01:57",
+    "compatSha256": "6e595e650ea87ddc01cc7af38c3a1ad5269ee17d5cbea5b8bc88459b1ab013a9",
+    "compactSha256": "208590d4d640152f3f06d5d4d23482f924fe911606474b957944a6a0370829e9"
+  },
+  "health": {
+    "requestId": "49078fef-b061-4854-abba-8007211ccd60",
+    "response": {
+      "ok": true,
+      "requestId": "6cb53431-c95a-49eb-8c31-3ce8b609b38d",
+      "data": {
+        "status": "ok",
+        "service": "api",
+        "apiVersion": 1,
+        "now": "2026-09-17T00:02:23.878Z"
+      }
+    },
+    "durationMs": 5
+  },
+  "unauthenticated": {
+    "requestId": "500ea3e1-2ac3-4803-af91-58d73f00fa1a",
+    "response": {
+      "ok": false,
+      "requestId": "16665f40-5118-4d32-a5af-8e8c0bb196c0",
+      "error": {
+        "code": "UNAUTHENTICATED",
+        "message": "请从小程序重新进入。",
+        "retryable": false
+      }
+    }
+  },
+  "indexes": {
+    "envId": "family-todo-d3g28fx1c314f8638",
+    "databaseName": "tnt-5up4jdfvg",
+    "collections": [
+      "tasks"
+    ],
+    "indexes": {
+      "tasks": [
+        [
+          "task_date_candidates",
+          "scopeKey",
+          "candidateKind",
+          "lifecycle",
+          "candidateOrder"
+        ]
+      ]
+    },
+    "uniqueIndexes": {},
+    "startedAt": "2026-09-17T00:03:29.899Z",
+    "operations": [
+      {
+        "action": "DescribeTable",
+        "collection": "tasks",
+        "requestId": "670078ec-e2fa-4db7-834d-b4da255939bc",
+        "at": "2026-09-17T00:03:30.755Z"
+      },
+      {
+        "action": "UpdateTable",
+        "collection": "tasks",
+        "requestId": "d4241760-555b-484a-8423-8335af914417",
+        "at": "2026-09-17T00:03:31.539Z"
+      },
+      {
+        "action": "DescribeTable",
+        "collection": "tasks",
+        "requestId": "a3fecaf8-a1a1-41e0-985c-41280a497993",
+        "at": "2026-09-17T00:03:32.301Z"
+      }
+    ],
+    "verified": [
+      {
+        "collection": "tasks",
+        "indexes": [
+          {
+            "name": "_openid_1",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "_openid",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "family_recent",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "familyId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "status",
+                "Direction": "1"
+              },
+              {
+                "Name": "recentOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "task_date_candidates",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "scopeKey",
+                "Direction": "1"
+              },
+              {
+                "Name": "candidateKind",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "candidateOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "personal_status_schedule",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "ownerUserId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "status",
+                "Direction": "1"
+              },
+              {
+                "Name": "scheduleOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "family_projection",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "familyId",
+                "Direction": "1"
+              },
+              {
+                "Name": "createdOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "_id_",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "_id",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "family_created",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "familyId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "createdOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "personal_created",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "ownerUserId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "createdOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "personal_all_reminders",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "ownerUserId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "status",
+                "Direction": "1"
+              },
+              {
+                "Name": "reminderEnabled",
+                "Direction": "1"
+              },
+              {
+                "Name": "recentOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "family_schedule",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "familyId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "scheduleOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "personal_projection",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "ownerUserId",
+                "Direction": "1"
+              },
+              {
+                "Name": "createdOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "personal_schedule",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "ownerUserId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "scheduleOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "personal_reminders",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "ownerUserId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "status",
+                "Direction": "1"
+              },
+              {
+                "Name": "reminderEnabled",
+                "Direction": "1"
+              },
+              {
+                "Name": "dismissedAt",
+                "Direction": "1"
+              },
+              {
+                "Name": "recentOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "family_status_schedule",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "familyId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "status",
+                "Direction": "1"
+              },
+              {
+                "Name": "scheduleOrder",
+                "Direction": "1"
+              }
+            ]
+          },
+          {
+            "name": "personal_recent",
+            "unique": false,
+            "keys": [
+              {
+                "Name": "ownerUserId",
+                "Direction": "1"
+              },
+              {
+                "Name": "lifecycle",
+                "Direction": "1"
+              },
+              {
+                "Name": "status",
+                "Direction": "1"
+              },
+              {
+                "Name": "recentOrder",
+                "Direction": "1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "completedAt": "2026-09-17T00:03:32.303Z"
+  },
+  "candidateBefore": {
+    "apply": false,
+    "scannedThisRun": 31,
+    "counts": {
+      "scanned": 31,
+      "covered": 0,
+      "missing": 31,
+      "invalid": 0,
+      "unknown": 0,
+      "conflict": 0,
+      "applied": 0
+    },
+    "complete": true,
+    "checkpoint": null,
+    "coverageVerified": false
+  },
+  "candidateApplied": {
+    "apply": true,
+    "scannedThisRun": 31,
+    "counts": {
+      "scanned": 31,
+      "covered": 0,
+      "missing": 31,
+      "invalid": 0,
+      "unknown": 0,
+      "conflict": 0,
+      "applied": 31
+    },
+    "complete": true,
+    "checkpoint": null,
+    "coverageVerified": false
+  },
+  "candidateAfter": {
+    "apply": false,
+    "scannedThisRun": 31,
+    "counts": {
+      "scanned": 31,
+      "covered": 31,
+      "missing": 0,
+      "invalid": 0,
+      "unknown": 0,
+      "conflict": 0,
+      "applied": 0
+    },
+    "complete": true,
+    "checkpoint": null,
+    "coverageVerified": true
+  },
+  "cleanupApplied": {
+    "apply": true,
+    "cutoff": "2026-09-16T00:05:00.000Z",
+    "scanned": 66,
+    "eligible": 66,
+    "deleted": 66,
+    "skipped": 0,
+    "complete": true,
+    "checkpoint": null
+  },
+  "cleanupAfter": {
+    "apply": false,
+    "cutoff": "2026-09-16T00:05:00.000Z",
+    "scanned": 0,
+    "eligible": 0,
+    "deleted": 0,
+    "skipped": 0,
+    "complete": true,
+    "checkpoint": null
+  },
+  "candidateReadEnabled": false,
+  "clientPublished": false
+}

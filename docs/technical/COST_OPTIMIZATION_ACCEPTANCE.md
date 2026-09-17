@@ -1,6 +1,6 @@
 # 成本优化验收记录
 
-本地实施日期：2026-09-16。本文提供发布后的测量口径，未执行云端发布、回填、清理或真实账单验收。实现进度见[优化计划](../plans/cost-optimization.md)，本地基准见[性能落地记录](API_PERFORMANCE_IMPLEMENTATION.md)。
+本地实施日期：2026-09-16。2026-09-17 已执行云端发布、技术回填及一次过期会话清理，真实账单验收仍待完成。实现进度见[优化计划](../plans/cost-optimization.md)，本地基准见[性能落地记录](API_PERFORMANCE_IMPLEMENTATION.md)。
 
 ## 2026-09-17 提交与线上预检
 
@@ -11,7 +11,38 @@
 - `tasks`：14 个索引，尚无 `task_date_candidates`；`personal_projection` / `family_projection` 累计访问计数分别为 15118 / 9314。计数起点为 2026-09-14，不代表本次账单窗口，也不能作为删除其他索引的依据。请求 ID：`f22b261c-ce05-4dda-b326-b489e1672c3d`。
 - `query_sessions`：3 个索引，已有正确顺序的 `session_expiry(expiresAt,_id)`，无需重复创建。请求 ID：`24b3e9a4-4646-4be2-b650-8a4daca548f4`。
 
-此次仅完成线上只读预检，没有部署、建索引、回填或删除数据。发布阻塞：本机 `cloud-functions` 技能明确要求部署前读取的 `cloudbase-platform/references/protocols/` 下 `change-safety-protocol.md`、`deployment-gate.md`、`sensitive-runtime-data-protection.md` 缺失，搜索本机技能目录后仍未找到；该技能要求补齐 CloudBase 插件/缺失技能，禁止远程抓取协议替代。补齐后继续准备并验证兼容读取回退版本，再按下述发布顺序处理数据库。MCP 未登录，但 CLI 已登录，CLI 认证并非阻塞。
+该轮仅完成线上只读预检，没有部署、建索引、回填或删除数据。当时的发布阻塞（已在后续执行中解决）：本机 `cloud-functions` 技能明确要求部署前读取的 `cloudbase-platform/references/protocols/` 下 `change-safety-protocol.md`、`deployment-gate.md`、`sensitive-runtime-data-protection.md` 缺失，搜索本机技能目录后仍未找到；该技能要求补齐 CloudBase 插件/缺失技能，禁止远程抓取协议替代。补齐后继续准备并验证兼容读取回退版本，再按下述发布顺序处理数据库。MCP 未登录，但 CLI 已登录，CLI 认证并非阻塞。
+
+## 2026-09-17 线上执行结果
+
+用户随后授权“补齐并继续执行”。从官方 TencentCloudBase/CloudBase-AI-Toolkit 安装缺失的 cloudbase-platform 技能并读取三份协议，沿用既有上线授权。
+
+- 本地完整检查：57 个测试文件、650 项测试通过。
+- 先发布兼容读取、旧格式写入版本（08:00:20），再发布精简写入版本（08:01:57，Asia/Shanghai）。两次健康检查均成功；最终函数 Active，Nodejs20.19、256 MiB、10 秒，服务端环境变量值与发布前一致。函数列表仅有 api。
+- 线上 system.health 固定响应正常，family.list 无可信身份返回 UNAUTHENTICATED；这不是登录业务全流程或真机验收。
+- 新增并复查 tasks.task_date_candidates 非唯一升序四列索引，旧索引保留。31 条任务仅补写派生字段；新一轮完整 dry-run 为 covered=31，missing/invalid/unknown/conflict 均为 0。
+- 固定清理截止为 2026-09-16T00:05:00.000Z，清理已知 schema 的过期查询会话 66 条，条件删除成功 66 条，复查 eligible=0。未清理幂等回执或业务历史，未设置周期执行。
+- 候选开关保持 OFF。当前任务量小，缺少真实完整流程收益及查询计划证据；不因回填成功自动启用。
+- 历史实体冗余字段不批量重写，精简随后续业务保存生效。本次未上传或发布小程序，客户端条件缓存的收益需客户端发布后验收；未宣称真实账单下降比例。
+
+维护中修正了两处实际环境差异：CLI 凭据经官方 secrets get 在子进程内获取，未输出密钥；数据库 SDK 实际导出的事务为 transaction/index.js，改用 tx.collection().doc().get()/update()，修正前 dry-run 零写入，修正后线上回填和复核成功。详细非敏感证据见 [线上结果](../../database/cost-optimization-release-result.json)。
+
+可复现命令（CLI 为已登录的 CloudBase 3.8.1；环境均显式核对）：
+
+```sh
+node tools/build-storage-compatible.mjs
+tcb fn deploy api -e family-todo-d3g28fx1c314f8638 --force --json
+npm run build:cloudfunctions
+tcb fn deploy api -e family-todo-d3g28fx1c314f8638 --force --json
+tcb fn detail api -e family-todo-d3g28fx1c314f8638 --json
+tcb fn invoke api -e family-todo-d3g28fx1c314f8638 -d @docs/examples/system-health.json --json
+# 已核对 TCB_CLI、TCB_DATABASE 后执行：
+node tools/migration/provision-task-candidates.mjs --apply
+```
+
+回填和清理通过本机维护包装器调用仓库导出函数，凭据仅驻内存；先 dry-run，再 apply，再新一轮 dry-run，固定上限 1000 行。结果文件包含计数和请求 ID。原始函数详情可能包含密钥，仅保留在忽略目录且不提交。
+
+回退：在本次提交上运行 node tools/build-storage-compatible.mjs 并重新部署 api，可读取新旧文档且恢复旧写入格式；已保留兼容构建及 SHA256。不要直接回退到依赖冗余字段的更早版本。过期会话删除不能通过代码回滚恢复，客户端可按原流程重建查询会话。
 
 ## 测量范围
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { occurrenceIdentityKey } from "@family-todo/domain";
 import type {
   CollaborativeTask, Family, FamilyEvent, Invitation, Membership, PersistedOccurrenceState,
@@ -38,6 +38,26 @@ async function fixture() {
 }
 
 describe("F2 storage compaction", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("compatibility release writes legacy fields and reads documents from the compact release", async () => {
+    const compact = await fixture();
+    vi.stubEnv("FAMILY_TODO_STORAGE_WRITE_MODE", "legacy");
+    await expect(compact.store.readTask(compact.task.id)).resolves.toEqual(compact.task);
+    await expect(compact.store.readOccurrenceState(compact.state.id)).resolves.toEqual(compact.state);
+    await expect(compact.store.families(compact.user.id)).resolves.toEqual([compact.family]);
+    const legacy = await fixture();
+    const collections = ["tasks", "schedule_segments", "schedule_controls", "occurrence_states", "families", "memberships", "virtual_members", "invitations", "task_events", "family_events"];
+    for (const [key, row] of legacy.database.documents) {
+      if (collections.includes(key.split("/")[0] ?? "")) expect(row.id).toBe(key.split("/")[1]);
+    }
+    expect(legacy.database.documents.get(`occurrence_states/${legacy.state.id}`)).toMatchObject({ identityKey: legacy.state.identityKey, listOrder: `${legacy.state.localDate ?? ""}/${legacy.state.id}` });
+    expect(legacy.database.documents.get(`families/${legacy.family.id}`)).toHaveProperty("listOrder");
+    vi.unstubAllEnvs();
+    await expect(legacy.store.readTask(legacy.task.id)).resolves.toEqual(legacy.task);
+    await expect(legacy.store.readOccurrenceState(legacy.state.id)).resolves.toEqual(legacy.state);
+    await expect(legacy.store.families(legacy.user.id)).resolves.toEqual([legacy.family]);
+  });
   it("omits only proven redundant new-write fields and round-trips through compatible readers", async () => {
     const f = await fixture();
     const rows = {

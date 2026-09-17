@@ -18,7 +18,7 @@ function fixture(initial, beforeGet = () => {}) {
     }
   }), async startTransaction() {
     let patch;
-    return { async get(ref) { beforeGet(rows, ref.key); return { data: () => rows.get(ref.key) }; }, async update(ref, value) { patch = { id: ref.key, fields: structuredClone(value) }; }, async commit() { if (patch) { updates.push(patch); Object.assign(rows.get(patch.id), patch.fields); } }, async rollback() { patch = undefined; } };
+    return { collection(name) { if (name !== 'tasks') throw new Error('Unexpected collection'); return { doc(key) { return { async get() { beforeGet(rows, key); return { data: rows.get(key) }; }, async update(value) { patch = { id: key, fields: structuredClone(value) }; } }; } }; }, async commit() { if (patch) { updates.push(patch); Object.assign(rows.get(patch.id), patch.fields); } }, async rollback() { patch = undefined; } };
   } };
   return { db, rows, updates, pages, segments };
 }

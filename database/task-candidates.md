@@ -1,6 +1,6 @@
 # 任务日期候选与技术回填
 
-本文件仅描述本地实现；未创建云端索引、运行回填或启用新读路径。`FAMILY_TODO_INDEXED_CANDIDATES` 未设置或不等于 `1` 时沿用旧扫描。开关仅接入普通日期范围 task.list；进度 progress.get、逾期、提醒、管理列表、回收站和旧索引不变。
+2026-09-17 已在线创建候选索引、回填并完整复核 31 条任务，新读路径仍关闭。结果见 [发布验收](../docs/technical/COST_OPTIMIZATION_ACCEPTANCE.md)。`FAMILY_TODO_INDEXED_CANDIDATES` 未设置或不等于 `1` 时沿用旧扫描。开关仅接入普通日期范围 task.list；进度 progress.get、逾期、提醒、管理列表、回收站和旧索引不变。
 
 ## 派生字段与写入
 
@@ -26,8 +26,8 @@
 
 - 按 `_id` 稳定分页，每页最多100行，每次最多 maxRows；仅读取派生所需字段。检查点绑定环境、操作模式、算法版本，累计缺失、未知、无效、冲突计数；resume 不能抹掉早期失败。
 - 仅处理 schemaVersion 1；未知 candidateSchema 同样拒绝。旧 recurrence 保守回填 history，不枚举历史以尝试降级。已有 single recurrence 验证全部片段都是合法 once 且包含匹配当前片段；最多20页×100，超过上限或缺片段不能证明 single，保守修复 history。
-- 在 Node SDK 原生 `startTransaction/get(ref).data()/update(ref, fields)/commit` 内重新读取行，对照 version、归属、createdAt、当前 schedule 及原技术字段。只 `$set` 4个派生字段，不修改业务 version、不覆写整行快照。并发更新、迁移、替换或提交错误标记 conflict，回滚后重跑；需从头重扫失败行，检查点不会自动回退。
-- SDK API 已核对本地 `@cloudbase/database/dist/commonjs/transaction.js`；使用显式事务避免该版本 runTransaction 不透传 callback 返回值且打印原始异常。真实平台隔离/计划尚未验证。
+- 在 Node SDK 原生 `startTransaction/collection().doc().get().data/update(fields)/commit` 内重新读取行，对照 version、归属、createdAt、当前 schedule 及原技术字段。只 `$set` 4个派生字段，不修改业务 version、不覆写整行快照。并发更新、迁移、替换或提交错误标记 conflict，回滚后重跑；需从头重扫失败行，检查点不会自动回退。
+- 线上 dry-run 发现包内遗留的 `transaction.js` 并非实际导出；SDK 当前使用 `transaction/index.js` 的 `tx.collection().doc()` 接口。已修正脚本与行为测试，使用显式事务，并通过线上回填与完整复核；尚未验证查询计划。
 - apply 成功不等于覆盖率验证。必须再从头完整 dry-run；unknown/missing/invalid/conflict 任一非零均不得通过。分页恢复累计所有计数；合法数据变更后的早期失败仍需完整重扫。
 
 ## 发布、成本与回滚门槛
@@ -36,4 +36,4 @@
 
 小数据/历史占主导时6分支及 predecessor 会增加调用。当前本地小集21个结果从2页增至3页，完整代理成本（documentReads+queries+documentWrites）78→101；1000个窗外一次性事项压力样本为148→101，但该合成单家庭样本超过500条业务上限，仅测试算法缩放。历史数量仍线性影响成本。backlog 实验完整代理成本 task 184→226、reminder 175→279，因此正式开关明确排除 backlog，两种模式都走旧路径，完整计数相同。不得仅凭候选行减少启用普通日期范围优化，必须基于完整用户流程、session 写入及平台计费选择上线范围。
 
-回滚先关闭开关，再回滚服务器；旧 writer 可能覆盖/丢失元数据，重新启用前重新回填和全量验证。保留旧索引整个回退窗口。无云端、真机或真实计费验证完成声明。
+回滚先关闭开关，再回滚服务器；旧 writer 可能覆盖/丢失元数据，重新启用前重新回填和全量验证。保留旧索引整个回退窗口。本次已完成云端维护与函数冒烟；真机和真实计费收益尚未验证。

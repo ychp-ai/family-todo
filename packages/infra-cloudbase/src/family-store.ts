@@ -1,4 +1,5 @@
 import { budgetTransaction } from "./transaction-budget";
+import { entityFields, legacyStorageWrites } from "./storage-write-mode";
 import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { instant, isRecord, isTaskEvent, isUuid, localDate } from "@family-todo/contracts";
 import { occurrenceIdentityKey, localDayBounds } from "@family-todo/domain";
@@ -21,7 +22,6 @@ function entityRecord(value: Record<string, unknown>, id: unknown): Record<strin
   if (!isUuid(id) || (Object.hasOwn(value, "id") && value.id !== id)) bad();
   return { ...value, id };
 }
-function entityFields<T extends { id: string }>(value: T): Omit<T, "id"> { const { id: _id, ...fields } = value; return fields; }
 function reverseTime(value: string): string { return String(9999999999999 - Date.parse(value)).padStart(13, "0"); }
 function ordered(value: { id: string; createdAt: string }, reverse = false): string { return `${reverse ? reverseTime(value.createdAt) : value.createdAt}/${value.id}`; }
 class FamilyTransactionAdapter extends Transaction implements FamilyTransaction {
@@ -39,6 +39,7 @@ class FamilyTransactionAdapter extends Transaction implements FamilyTransaction 
   public saveControl(control: PersistedScheduleControl) { return this.write("schedule_controls", control.id, { ...entityFields(control), controlOrder: `${control.effectiveAt}/${String(control.taskVersion).padStart(16, "0")}` }); }
   public occurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState, true); }
   public saveOccurrenceState(state: PersistedOccurrenceState) {
+    if (legacyStorageWrites()) return this.write("occurrence_states", state.id, { ...state, listOrder: `${state.localDate ?? ""}/${state.id}` });
     const { identityKey: _identityKey, ...fields } = entityFields(state);
     return this.write("occurrence_states", state.id, fields);
   }
@@ -46,7 +47,7 @@ class FamilyTransactionAdapter extends Transaction implements FamilyTransaction 
   public override task(id: string) { return this.read("tasks", id, readCollaborativeTask, true); }
   public override saveTask(task: CollaborativeTask) { return this.write("tasks", task.id, { ...taskFields(task), familyId: task.collaboration?.familyId ?? null }); }
   public family(id: string) { return this.read("families", id, readFamily, true); }
-  public saveFamily(family: Family) { return this.write("families", family.id, entityFields(family)); }
+  public saveFamily(family: Family) { return this.write("families", family.id, { ...entityFields(family), ...(legacyStorageWrites() ? { listOrder: ordered(family) } : {}) }); }
   public member(id: string) { return this.read("memberships", id, readMembership, true); }
   public saveMember(member: Membership) { return this.write("memberships", member.id, { ...entityFields(member), listOrder: ordered(member) }); }
   public slot(familyId: string, userId: string) { return this.read("membership_slots", key(familyId, userId), readSlot); }

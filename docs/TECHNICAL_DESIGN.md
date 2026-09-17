@@ -155,10 +155,10 @@ interface TaskRepository {
 
 ### 日期候选读取（默认关闭）
 
-本地新增任务级 `candidateSchema/scopeKey/candidateKind/candidateOrder`，单次事项按日期索引缩小候选，周期或未知历史保守完整扫描。独立 candidateOrder 保留旧排序字段；分类随 task 原子写入且 history 不降级。默认 `FAMILY_TODO_INDEXED_CANDIDATES` 关闭，6个常量分支只接入普通日期范围 task.list；backlog 实验总成本增加，因此进度 progress.get（projectionOnly）、逾期/提醒保留旧路径，管理/回收站扫描及权限版本围栏不变。切换时 continuation 算法 fingerprint 不兼容而过期。索引、有限回填、覆盖率、完整流程成本和回滚门槛见 [任务候选存储约定](../database/task-candidates.md)。尚未执行任何云端变更。
+本地新增任务级 `candidateSchema/scopeKey/candidateKind/candidateOrder`，单次事项按日期索引缩小候选，周期或未知历史保守完整扫描。独立 candidateOrder 保留旧排序字段；分类随 task 原子写入且 history 不降级。默认 `FAMILY_TODO_INDEXED_CANDIDATES` 关闭，6个常量分支只接入普通日期范围 task.list；backlog 实验总成本增加，因此进度 progress.get（projectionOnly）、逾期/提醒保留旧路径，管理/回收站扫描及权限版本围栏不变。切换时 continuation 算法 fingerprint 不兼容而过期。索引、有限回填、覆盖率、完整流程成本和回滚门槛见 [任务候选存储约定](../database/task-candidates.md)。2026-09-17 已建索引并完成 31 条任务技术回填及完整复核；候选读开关仍关闭。
 
 ### 不可变次数排序续读（本地）
 
 2026-09-16 本地实现将 occurrence 列表拆为 scan / merge / output 三个检查点阶段。小窗口不额外写 run；大窗口使用四路外部归并和每页 16 个描述符的不可变 manifest，最终游标只维护一个块 token 与 offset。反向归并并前插输出块，分轮切换方向，最终保证原比较器的升序；不修改源游标或已发布块。数据块同时限制 50 个 head / 64 KiB JSON UTF-8，检查点限制 96 KiB，存储保持 128 KiB 硬上限。输出推进发生在渲染成功后，身份、过滤指纹、asOf、作用域、过期和最终权限围栏均保留。历史窗口与 olderHint 跳跃逻辑不变，内部进度投影仍走原直接聚合路径。旧 occurrence 会话显式过期，不混用结构。
 
-归并增加预处理读写及待清理块；它减少后续 P×R 重读，并非零成本排序。完整 50/200/1000 次本地曲线、清理成本假设及部署边界见 [性能落地记录](technical/API_PERFORMANCE_IMPLEMENTATION.md)。未部署云端，也未创建新集合或索引。
+归并增加预处理读写及待清理块；它减少后续 P×R 重读，并非零成本排序。完整 50/200/1000 次本地曲线、清理成本假设及部署边界见 [性能落地记录](technical/API_PERFORMANCE_IMPLEMENTATION.md)。2026-09-17 已部署云端；未新增集合，候选索引与会话清理状态见成本优化验收。

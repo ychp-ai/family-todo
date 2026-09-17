@@ -5,6 +5,7 @@ import { scheduledInstant } from "@family-todo/domain";
 import type { CollaborativeTask, PersonalEvent, PersonalScope, PersonalTask, User } from "@family-todo/domain";
 import type { PersonalQuery, PersonalReceipt, PersonalStore, PersonalTransaction, QueryCheckpoint } from "@family-todo/ports";
 
+import { entityFields } from "./storage-write-mode";
 import { readTaskRecurrence } from "./scheduling-codecs";
 import { FamilyBudgetExceededError } from "@family-todo/ports";
 import { budgetTransaction } from "./transaction-budget";
@@ -34,7 +35,6 @@ function entityRecord(value: Record<string, unknown>, id: unknown): Record<strin
   if (!isUuid(id) || (Object.hasOwn(value, "id") && value.id !== id)) malformed();
   return { ...value, id };
 }
-function entityFields<T extends { id: string }>(value: T): Omit<T, "id"> { const { id: _id, ...fields } = value; return fields; }
 function nullableText(v: unknown): v is string | null { return v === null || typeof v === "string"; }
 function nullableInstant(v: unknown): v is string | null { return v === null || instant(v); }
 export function readPersonalListSource(v: unknown): Omit<PersonalTask, "note"> {

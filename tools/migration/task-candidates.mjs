@@ -56,7 +56,7 @@ async function proveSingle(db, row) {
   return false; // Unproved or excessive histories remain conservative history candidates.
 }
 
-/** Node SDK transaction.get(ref).data()/update(ref, fields); updates only derived technical fields. */
+/** Node SDK transaction.collection().doc().get()/update(fields); updates only derived technical fields. */
 export async function backfillTaskCandidates(db, { apply = false, maxRows = 1000, after = null, environment = 'local' } = {}) {
   if (!Number.isInteger(maxRows) || maxRows < 1 || maxRows > 10000 || typeof environment !== 'string' || !environment) throw new Error('Invalid candidate scan bounds.');
   const saved = checkpoint(after, environment, apply), counts = { ...saved.counts }, failedIds = [...saved.failedIds];
@@ -79,11 +79,11 @@ export async function backfillTaskCandidates(db, { apply = false, maxRows = 1000
       const tx = await db.startTransaction();
       let result;
       try {
-        const ref = db.collection('tasks').doc(row._id), current = (await tx.get(ref)).data();
+        const ref = tx.collection('tasks').doc(row._id), current = (await ref.get()).data;
         if (!current || snapshot(current) !== snapshot(row)) result = 'conflict';
         else if (matches) result = 'covered';
         else {
-          if (apply) await tx.update(ref, derived.fields);
+          if (apply) await ref.update(derived.fields);
           result = missing ? 'missing' : 'invalid';
         }
         await tx.commit();
