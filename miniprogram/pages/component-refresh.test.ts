@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.stubGlobal("wx", { showToast: vi.fn(), showModal: vi.fn().mockResolvedValue({ confirm: true }) });
   vi.stubGlobal("getApp", () => ({ globalData: { session: { ensure: async () => ({ id: "me", displayName: "我" }) } } }));
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const last = { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z", scopes: [], summary: null };
 
 async function cachedHome() {
@@ -28,7 +28,7 @@ async function cachedHome() {
   const tasks = vi.spyOn(lists, "listTasks").mockResolvedValue({ items: [], last: { ...last, asOf: now, cache } });
   vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last: { ...last, asOf: now, cache } });
   vi.spyOn(await import("../services/family-api"), "listFamilies").mockResolvedValue({ items: [], last: { ...last, asOf: now, cache } });
-  page().schedule = vi.fn();
+
   await invoke("onShow");
   return tasks;
 }
@@ -76,7 +76,7 @@ it("首页子列表失败记录 error 子操作和 partial 父操作", async () 
   vi.spyOn(families,"listFamilies").mockImplementation(async (_force,metric)=>{finish(metric,"success");return {items:[],last};});
   vi.spyOn(lists,"listTasks").mockImplementation(async (_input,_active,_force,metric)=>{finish(metric,"success");return {items:[],last};});
   vi.spyOn(lists,"listReminders").mockImplementation(async (_dismissed,_active,_force,metric)=>{const error=new Error("reminder unavailable");finish(metric,"error",error);throw error;});
-  page().visible=true;page().schedule=vi.fn();
+  page().visible=true;
   try {
     await invoke("refresh");
     expect(records.find(record=>record.action==="home.refresh")).toMatchObject({result:"partial",complete:true});
@@ -95,7 +95,7 @@ it.each(["partial","failed"] as const)("首页提醒 fulfilled %s 时子操作�
   vi.spyOn(lists,"listTasks").mockImplementation(async(_input,_active,_force,metric)=>{finish(metric,"success");return {items:[],last};});
   const reminderLast={...last,scopes:[{familyId:"family",status}]};
   vi.spyOn(lists,"listReminders").mockImplementation(async(_dismissed,_active,_force,metric)=>{finish(metric,"partial");return {items:[],last:reminderLast};});
-  page().visible=true;page().schedule=vi.fn();
+  page().visible=true;
   try{
     await invoke("refresh");
     expect(records.find(record=>record.action==="task.list")).toMatchObject({result:"success"});
@@ -114,7 +114,7 @@ it("首页采样只决定一次，排除父操作时不独立采样子列表",as
     return Promise.resolve(action==="family.list"?base:{...base,scopes:[],summary:null});
   }) as typeof api.read);
   metrics.configureListMetrics({sampleRate:.5,random,sink:record=>{records.push(record);},createOperationId});
-  page().visible=true;page().schedule=vi.fn();
+  page().visible=true;
   try{
     await invoke("refresh");
     expect(random).toHaveBeenCalledTimes(1);
@@ -134,7 +134,7 @@ it("首页采样命中后创建三个关联子操作且不重复抽样",async()=
     return Promise.resolve(action==="family.list"?base:{...base,scopes:[],summary:null});
   }) as typeof api.read);
   metrics.configureListMetrics({sampleRate:.5,random,sink:record=>{records.push(record);},createOperationId:async()=>`sampled-${++id}`});
-  page().visible=true;page().schedule=vi.fn();
+  page().visible=true;
   try{
     await invoke("refresh");
     expect(random).toHaveBeenCalledTimes(1);
@@ -153,7 +153,7 @@ it("首页诊断 ID 未就绪不阻塞业务启动或隐藏取消",async()=>{
   const familyRead=vi.spyOn(families,"listFamilies").mockImplementation(async(_force,metric)=>{finish(metric);return {items:[],last};});
   vi.spyOn(lists,"listTasks").mockImplementation(async(_input,_active,_force,metric)=>{finish(metric);return {items:[],last};});
   vi.spyOn(lists,"listReminders").mockImplementation(async(_dismissed,_active,_force,metric)=>{finish(metric);return {items:[],last};});
-  page().visible=true;page().schedule=vi.fn();
+  page().visible=true;
   try{
     let settled=false;const refresh=invoke("refresh").then(()=>{settled=true;});
     await Promise.resolve();
@@ -179,7 +179,7 @@ it("首页家庭早失败后仍记录兄弟任务的全部分页请求",async()=
     if(payload.cursor){observer?.({requestId:"task-page-2",reusedInFlight:false});return new Promise<unknown>(resolve=>{releaseSecond=()=>resolve({...last,items:[],complete:true,nextCursor:null});});}
     observer?.({requestId:"task-page-1",reusedInFlight:false});return new Promise<unknown>(resolve=>{releaseFirst=()=>resolve({...last,items:[],complete:false,nextCursor:"next"});});
   }) as typeof api.read);
-  page().visible=true;page().schedule=vi.fn();
+  page().visible=true;
   try{
     await invoke("refresh");
     expect(records.some(record=>record.action==="home.refresh")).toBe(false);
@@ -206,7 +206,7 @@ it("首页取消等待 pending 请求 settle 后记录真实 requestId", async (
     if (!active?.()) {const error=new metrics.ListCancelledError();metric?.finishError(error);throw error;}
     metric?.finish("success");return {items:[],last};
   });
-  page().visible=true;page().schedule=vi.fn();
+  page().visible=true;
   try {
     const refresh=invoke("refresh");
     await vi.waitFor(()=>expect(release).toBeTypeOf("function"));
@@ -269,11 +269,11 @@ it("reminder refresh leaves task cards and their loading status untouched", asyn
   const reminders = vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last });
   const tasks = vi.spyOn(lists, "listTasks");
   const families = vi.spyOn(await import("../services/family-api"), "listFamilies");
-  page().visible = true; page().schedule = vi.fn();
+  page().visible = true;
   page().setData({ status: "ready", items: [{ id: "untouched" }], summaryText: "已完成 1 / 2 件" });
   vi.mocked(page().setData).mockClear();
   await invoke("toggleDismissed");
-  await vi.waitFor(() => expect(page().schedule).toHaveBeenCalled());
+  await vi.waitFor(() => expect(reminders).toHaveBeenCalled());
   expect(reminders).toHaveBeenCalledWith(true, expect.any(Function));
   expect(tasks).not.toHaveBeenCalled(); expect(families).not.toHaveBeenCalled();
   expect(page().data).toMatchObject({ status: "ready", items: [{ id: "untouched" }], summaryText: "已完成 1 / 2 件" });
@@ -284,13 +284,12 @@ it("discards a reminder response after its page context changes", async () => {
   await import("./home/index");
   let resolve: ((value: { items: []; last: typeof last }) => void) | undefined;
   vi.spyOn(await import("../services/personal-lists"), "listReminders").mockImplementation(() => new Promise(done => { resolve = done; }));
-  page().visible = true; page().schedule = vi.fn();
+  page().visible = true;
   const reading = invoke("refreshReminders");
   page().epoch = 100;
   page().setData({ reminderCount: 7 });
   resolve?.({ items: [], last }); await reading;
   expect(page().data.reminderCount).toBe(7);
-  expect(page().schedule).not.toHaveBeenCalled();
 });
 
 it("restoring one item removes only that item without reading the page again", async () => {
@@ -394,7 +393,7 @@ it("home starts only current tasks and reminders while families are still pendin
   const lists = await import("../services/personal-lists");
   const tasks = vi.spyOn(lists, "listTasks").mockResolvedValue({ items: [], last });
   const reminders = vi.spyOn(lists, "listReminders").mockResolvedValue({ items: [], last });
-  page().visible = true; page().schedule = vi.fn();
+  page().visible = true;
   const reading = invoke("refresh");
   await vi.waitFor(() => expect(tasks).toHaveBeenCalledTimes(1));
   expect(reminders).toHaveBeenCalledOnce();
@@ -640,16 +639,14 @@ it("recycle family picker has no personal option and keeps selected family after
   expect(page().data).toMatchObject({ familyOptions: ["全部家庭", "乙", "甲"], familyIndex: 2 });
 });
 
-it("首页30秒内仍遵守已到时间边界，正常前台刷新不延长30秒", async () => {
+it("首页切回时即使不足30秒，已过时间边界也重新读取", async () => {
   const tasks = await cachedHome();
-  const schedule = vi.mocked(page().schedule as (delay: number) => void);
-  expect(schedule.mock.calls.at(-1)?.[0]).toBeLessThanOrEqual(30000);
   page().cacheBoundary = Date.now();
   await invoke("onHide"); await invoke("onShow");
   expect(tasks).toHaveBeenCalledTimes(2);
 });
 
-it("首页在时间边界前隐藏再显示仍按剩余边界刷新", async () => {
+it("首页在时间边界前隐藏再显示仍复用缓存", async () => {
   const tasks = await cachedHome();
   const start = Date.now();
   page().cacheAt = start;
@@ -658,5 +655,49 @@ it("首页在时间边界前隐藏再显示仍按剩余边界刷新", async () =
   vi.spyOn(Date, "now").mockReturnValue(start + 5000);
   await invoke("onShow");
   expect(tasks).toHaveBeenCalledTimes(1);
-  expect(page().schedule).toHaveBeenLastCalledWith(5000);
+});
+
+it("首页静置跨过刷新和缓存边界也不请求，手动刷新仍有效", async () => {
+  vi.useFakeTimers();
+  const tasks = await cachedHome();
+  const lists = await import("../services/personal-lists");
+  await invoke("refreshReminders");
+  const reminders = vi.mocked(lists.listReminders);
+  const count = reminders.mock.calls.length;
+  await invoke("onHide"); await invoke("onShow");
+  await vi.advanceTimersByTimeAsync(20 * 60_000);
+  expect(tasks).toHaveBeenCalledTimes(1);
+  expect(reminders).toHaveBeenCalledTimes(count);
+  await invoke("pullRefresh");
+  expect(tasks).toHaveBeenCalledTimes(2);
+});
+
+it("首页读取失败后静置不重试，点击重试仍读取", async () => {
+  vi.useFakeTimers();
+  const tasks = await cachedHome();
+  tasks.mockRejectedValue(new Error("offline"));
+  await invoke("pullRefresh");
+  expect(page().data.status).toBe("error");
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(tasks).toHaveBeenCalledTimes(2);
+  await invoke("retry");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(tasks).toHaveBeenCalledTimes(3);
+});
+
+it.each([false, true])("详情加载失败=%s 时静置不轮询，重新显示仍读取", async failed => {
+  vi.useFakeTimers();
+  await import("./detail/index");
+  const api = (await import("../services/personal-api")).personalApi;
+  const read = vi.spyOn(api, "read");
+  if (failed) read.mockRejectedValue(new Error("offline"));
+  else read.mockResolvedValue({ task: { schedule: { kind: "once", date: null, time: null } } as TaskDTO, occurrence: null });
+  vi.spyOn(await import("../services/personal-lists"), "listHistory").mockResolvedValue({ items: [], last });
+  await invoke("onShow");
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(read).toHaveBeenCalledTimes(1);
+  expect(page().data.status).toBe(failed ? "error" : "ready");
+  await invoke("onHide"); await invoke("onShow");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(read).toHaveBeenCalledTimes(2);
 });
