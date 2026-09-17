@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AppOptions } from "../types/app";
 
+vi.mock("../config/index", () => ({
+  appConfig: { cloudbaseEnvId: "recovery-test-env", apiFunctionName: "api" },
+}));
+
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("home exposes recovered pending immediately after the first verified session, without sending it", async () => {
   vi.resetModules();
