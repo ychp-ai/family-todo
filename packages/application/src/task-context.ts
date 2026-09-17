@@ -1,6 +1,6 @@
 import type { OccurrenceDTO, OccurrenceRef, TaskDTO, TaskSummaryDTO } from "@family-todo/contracts";
 import { familyTaskRights, occurrenceSlot, scheduledInstant } from "@family-todo/domain";
-import type { CollaborativeTask, FamilyContext, Membership, ReminderPreference } from "@family-todo/domain";
+import type { CollaborativeTask, TaskListSource, FamilyContext, Membership, ReminderPreference } from "@family-todo/domain";
 import type { FamilyStore, FamilyTransaction } from "@family-todo/ports";
 import { ApplicationError } from "./errors";
 
@@ -10,7 +10,7 @@ export function taskVersion(actual: number, expected: number): void { if (actual
 export function checkTaskRef(task: CollaborativeTask, ref: OccurrenceRef): void {
   if (ref.id !== task.occurrenceId || ref.taskId !== task.id || ref.segmentId !== task.segmentId || ref.localDate !== task.date || ref.slot !== occurrenceSlot(task)) taskMissing();
 }
-export async function taskContext(store: FamilyStore, task: CollaborativeTask, roster?: FamilyContext, actorId?: string): Promise<FamilyContext> {
+export async function taskContext(store: FamilyStore, task: TaskListSource, roster?: FamilyContext, actorId?: string, historicalMembershipIds?: string[]): Promise<FamilyContext> {
   const binding = task.collaboration; if (!binding) taskMissing();
   const ids = [binding.creatorMembershipId, ...(binding.ownerBinding.kind === "membership" ? [binding.ownerBinding.membershipId] : [])];
   // Only reuse a roster containing both active bindings. Historical successor chains
@@ -23,7 +23,7 @@ export async function taskContext(store: FamilyStore, task: CollaborativeTask, r
     context.historicalTaskId = task.id;
     // The validated roster bounds this fan-out to at most 20 active members.
     const members = context.members.filter(member => member.status === "active" && (actorId === undefined || member.userId === actorId));
-    context.historicalSubjectMembershipIds = await store.historicalSubjects(task.id, members.map(member => member.id));
+    context.historicalSubjectMembershipIds = historicalMembershipIds ?? await store.historicalSubjects(task.id, members.map(member => member.id));
   }
   return context;
 }
@@ -62,7 +62,7 @@ export async function familyTaskDTO(tx: FamilyTransaction, task: CollaborativeTa
     createdAt: task.createdAt, updatedAt: task.updatedAt };
 }
 
-export function familyTaskSummary(task: CollaborativeTask, context: FamilyContext, actorId: string): TaskSummaryDTO {
+export function familyTaskSummary(task: TaskListSource, context: FamilyContext, actorId: string): TaskSummaryDTO {
   const binding = task.collaboration; if (!binding) taskMissing();
   const rights = familyTaskRights(task, context, actorId); if (!rights.canView) taskMissing();
   const active = task.lifecycle !== "deleted";

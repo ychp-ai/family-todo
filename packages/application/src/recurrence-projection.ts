@@ -1,21 +1,21 @@
 import type { OccurrenceDTO, OccurrenceRef } from "@family-todo/contracts";
 import { addDays, familyTaskRights, localDateAt, projectOccurrences } from "@family-todo/domain";
-import type { CollaborativeTask, FamilyContext, PersistedScheduleSegment, ProjectedOccurrence, ScheduleSegment } from "@family-todo/domain";
+import type { CollaborativeTask, TaskListSource, FamilyContext, PersistedOccurrenceState, PersistedScheduleSegment, ProjectedOccurrence, ScheduleSegment } from "@family-todo/domain";
 import type { FamilyStore } from "@family-todo/ports";
 import { taskInvalid, taskMissing } from "./task-context";
 
-export function legacySegment(task: CollaborativeTask): PersistedScheduleSegment {
+export function legacySegment(task: TaskListSource): PersistedScheduleSegment {
   return { id: task.segmentId, taskId: task.id, schedule: { kind: "once", date: task.date, time: task.time },
     subject: task.collaboration?.occurrenceSnapshot?.subject ?? task.collaboration?.subject ?? { kind: "user", userId: task.ownerUserId },
     subjectNameSnapshot: task.collaboration?.occurrenceSnapshot?.subjectName ?? task.collaboration?.subjectName ?? task.ownerName,
     effectiveFrom: task.createdAt, effectiveUntil: null, allowCreationDay: true, createdByUserId: task.ownerUserId };
 }
-export function projectionTask(task: CollaborativeTask) {
+export function projectionTask(task: TaskListSource) {
   return { id: task.id, createdAt: task.createdAt, lifecycle: task.lifecycle,
     activeOnceSegmentId: task.recurrence?.activeOnceSegmentId ?? (task.recurrence ? null : task.segmentId) };
 }
 /** Only current/future slots: at most eight days suffice for three weekly slots. */
-export function nextProjected(task: CollaborativeTask, segment: ScheduleSegment, now: string, limit = 3): ProjectedOccurrence[] {
+export function nextProjected(task: TaskListSource, segment: ScheduleSegment, now: string, limit = 3): ProjectedOccurrence[] {
   if (task.lifecycle !== "active") return [];
   let from = localDateAt(now);
   if (segment.schedule.kind !== "once" && segment.schedule.startDate > from) from = segment.schedule.startDate;
@@ -31,14 +31,14 @@ export function nextProjected(task: CollaborativeTask, segment: ScheduleSegment,
   }
   return result;
 }
-export function occurrenceCanRecord(task: CollaborativeTask, context: FamilyContext | null, actorId: string, occurrence: ProjectedOccurrence): boolean {
+export function occurrenceCanRecord(task: TaskListSource, context: FamilyContext | null, actorId: string, occurrence: ProjectedOccurrence): boolean {
   if (!occurrence.canRecord || task.lifecycle === "deleted") return false;
   if (!context) return !task.collaboration && task.ownerUserId === actorId;
   const rights = familyTaskRights(task, context, actorId);
   const subjectId = occurrence.subject.kind === "member" ? occurrence.subject.membershipId : null;
   return rights.canView && Boolean(rights.actor) && (rights.manager || rights.actor?.id === subjectId || Boolean(rights.actor && task.collaboration?.helperMembershipIds.includes(rights.actor.id)));
 }
-export function projectedDTO(store: FamilyStore, task: CollaborativeTask, context: FamilyContext | null, actorId: string, occurrence: ProjectedOccurrence): OccurrenceDTO {
+export function projectedDTO(store: FamilyStore, task: TaskListSource, context: FamilyContext | null, actorId: string, occurrence: ProjectedOccurrence): OccurrenceDTO {
   const legacy = !task.recurrence && occurrence.segmentId === task.segmentId;
   return { id: legacy ? task.occurrenceId : store.deriveOccurrenceId(occurrence.identity), taskId: task.id, segmentId: occurrence.segmentId,
     localDate: occurrence.localDate, slot: occurrence.slot, subject: occurrence.subject, subjectName: occurrence.subjectName,
@@ -48,7 +48,7 @@ export function projectedDTO(store: FamilyStore, task: CollaborativeTask, contex
     canRecord: occurrenceCanRecord(task, context, actorId, occurrence) };
 }
 /** Query work is outside transactions; writers fence the task version before persisting. */
-export async function overlayOccurrence(store: FamilyStore, task: CollaborativeTask, candidate: ProjectedOccurrence): Promise<ProjectedOccurrence | null> {
+export async function overlayOccurrence(store: FamilyStore, task: TaskListSource, candidate: ProjectedOccurrence): Promise<ProjectedOccurrence | null> {
   if (candidate.recurring && candidate.eligibilityBoundary) {
     const control = await store.controlBefore(task.id, candidate.eligibilityBoundary);
     if (control && (!control.enabled || control.stopped)) return null;
@@ -72,7 +72,7 @@ export async function resolveOccurrence(store: FamilyStore, task: CollaborativeT
 }
 
 /** Reuse each control across the candidates it governs, then overlay one exact-ID state batch. */
-export async function overlayOccurrences(store: FamilyStore, task: CollaborativeTask, candidates: ProjectedOccurrence[]): Promise<(ProjectedOccurrence | null)[]> {
+export async function overlayOccurrences(store: FamilyStore, task: TaskListSource, candidates: ProjectedOccurrence[], cachedStates?: Map<string, PersistedOccurrenceState | null>): Promise<(ProjectedOccurrence | null)[]> {
   if (candidates.length > 20) throw new Error("Invalid projection batch.");
   if (!task.recurrence) return candidates;
   const disabled = new Set<number>();
@@ -92,10 +92,11 @@ export async function overlayOccurrences(store: FamilyStore, task: Collaborative
       pending = earlier;
     }
   };
-  const [persisted] = await Promise.all([
-    store.readOccurrenceStates(candidates.map(candidate => store.deriveOccurrenceId(candidate.identity))), controls()
-  ]);
-  const states = new Map(persisted.map(state => [state.id, state]));
+  const states = cachedStates ?? new Map<string, PersistedOccurrenceState | null>();
+  const ids = candidates.map(candidate => store.deriveOccurrenceId(candidate.identity)).filter(id => !states.has(id));
+  const [persisted] = await Promise.all([ids.length ? store.readOccurrenceStates(ids) : [], controls()]);
+  for (const id of ids) states.set(id, null);
+  for (const state of persisted) states.set(state.id, state);
   return candidates.map((candidate, index) => {
     if (disabled.has(index)) return null;
     const state = states.get(store.deriveOccurrenceId(candidate.identity));

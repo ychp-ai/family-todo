@@ -15,17 +15,19 @@ import { dateAt, dateCaption, errorMessage, navigationMetrics, occurrenceUrl, oc
 
 import { familyApi, listFamilies } from "../../services/family-api";
 import { occurrenceGroup, accessInput, permissionRows, subjectOptions, subjectNotice } from "../../services/collaboration-draft";
+import { listMetricsConfigured, startListMetric } from "../../services/list-metrics";
 import type { Roster, PermissionRow, SubjectOption } from "../../services/collaboration-draft";
 type Card = TaskListItem & { id: string; statusLabel: string; warningLabel: string; group:string; selected:boolean };
 function cards(items: TaskListItem[],families:FamilySummary[],userId:string,asOf:string): Card[] { return items.map(item => ({...item,id:item.occurrence.id,selected:false,warningLabel:occurrenceWarning(item.occurrence,asOf),statusLabel:item.occurrence.status === "completed" ? `由${item.occurrence.operatorName ?? "家人"}记录完成` : item.occurrence.status === "skipped" ? `由${item.occurrence.operatorName ?? "家人"}跳过本次` : "",group:occurrenceGroup(item.occurrence,userId,families)})); }
 function groups(items:Card[]) {return ["我来做","帮家人","关心一下"].map(name=>({name,items:items.filter(i=>i.group===name)})).filter(g=>g.items.length);}
+async function recordHomeCacheHit():Promise<void>{const parent=startListMetric("home.refresh");if(!parent)return;const children=[parent.child("family.list"),parent.child("task.list"),parent.child("reminder.list")];for(const child of children){child?.setSource("cache");child?.finish("success");}parent.setSource("cache");parent.finish("success");}
 Page({
   onComponentAction: componentActions(["batchFamilyChange", "batchViewersChange", "changeTab", "dismissReminder", "expand", "familyChange", "fullEditor", "futureFeature", "openReminders", "openTask", "pickDate", "quickDateChange", "quickFamilyChange", "quickNoteInput", "quickReminderChange", "quickRepeatChange", "quickSubjectChange", "quickTimeChange", "quickTitleInput", "quickViewersChange", "reminderDetail", "retryQuickFamily", "saveQuick", "toggleTask"]),
   data: {listRefreshing:false,refreshing:false,batchMode:false,selectedTasks:[] as TaskSummaryDTO[],selectedIds:[] as string[],batchGroups:[] as BatchGroup[],batchResults:[] as (BatchItemResult&{label:string})[],batchComplete:false,batchHasFailures:false,batchBusy:false,batchError:"",batchFamilyOptions:["请选择家庭"],statusHeight:0,navHeight:44,capsuleWidth:100,status:"loading",error:"",today:"",tomorrow:"",greeting:"",tab:"today",selectedDate:"",familyOptions:["全部家庭"],familyIndex:0,
     families:[] as FamilySummary[],groups:[] as {name:string;items:Card[]}[],pendingCount:0,quickFamilyIndex:0,quickFamilyOptions:["请选择家庭"],quickSubjectOptions:[] as SubjectOption[],quickSubjectNames:["自己"],quickSubjectIndex:0,quickRows:[] as PermissionRow[],quickNotice:"请选择所属家庭",quickLoading:false,items:[] as Card[],visibleItems:[] as Card[],backlog:[] as Card[],reminders:[] as (ReminderDTO & {id:string})[],reminderCount:0,reminderError:"",summaryText:"—",progress:0,hideCompleted:true,
     sheet:"",quickTitle:"",quickDate:"today",quickTime:"",quickRepeatIndex:0,quickRepeatOptions:["不重复","每天"],quickNote:"",quickReminder:true,expanded:false,quickError:"",quickSuccess:"",saving:false,uncertain:false,writing:false,writingKey:"",includeDismissed:false},
   quickIdentity:null as RecoveryIdentity|null,quickRecovery:null as InputRecovery|null,quickDirty:false,quickTransferred:false,batchEpoch:0,quickRoster:null as Roster|null,quickSubject:{kind:"self"} as Subject,quickEpoch:0,visible:false,alive:true,epoch:0,pendingWrite:null as null | {key:string;run:()=>Promise<unknown>;done:()=>void},timer:undefined as ReturnType<typeof setTimeout> | undefined,lastRefresh:0,retries:0,
-  cacheUserId:"",cacheRevision:-1,cacheAt:0,lastFullRefresh:0,
+  cacheBoundary:0,cacheUserId:"",cacheRevision:-1,cacheAt:0,lastFullRefresh:0,
   onLoad() { patchData(this, navigationMetrics()); },
   async onShow() {
     this.visible = true; const epoch=this.epoch;
@@ -35,21 +37,22 @@ Page({
       if(this.cacheUserId&&this.cacheUserId!==user.id){this.clearSensitive();patchData(this, {families:[],familyIndex:0,familyOptions:["全部家庭"]});}
       this.syncBatch();patchData(this, {pendingCount:personalApi.pendingCount});
       const age=Date.now()-this.cacheAt;
-      if(this.cacheUserId===user.id&&this.cacheRevision===personalApi.readRevision&&this.cacheAt>0&&age>=0&&age<30000&&this.data.today===dateAt(new Date().toISOString())){this.schedule(30000-age);return;}
+      if(this.cacheUserId===user.id&&this.cacheRevision===personalApi.readRevision&&this.cacheAt>0&&age>=0&&age<30000&&Date.now()<this.cacheBoundary&&this.data.today===dateAt(new Date().toISOString())){await recordHomeCacheHit();this.schedule(Math.max(1000,Math.min(30000-age,this.cacheBoundary-Date.now())));return;}
       await this.refresh();
     } catch(error) { if(this.visible&&epoch===this.epoch){this.clearSensitive();patchData(this, {error:errorMessage(error)});} }
   },
   async pullRefresh() {
     if(this.data.refreshing)return;
     patchData(this, {refreshing:true});
-    try { this.retries=0;await this.refresh(); }
+    try { this.retries=0;await this.refresh("all",true); }
     finally { if(this.alive)patchData(this, {refreshing:false}); }
   },
   onHide() { this.persistQuick();this.stop();this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;patchData(this, {batchMode:false,sheet:"",refreshing:false,listRefreshing:false,items:this.data.items.map(i=>({...i,selected:false})),visibleItems:this.data.visibleItems.map(i=>({...i,selected:false})),groups:groups(this.data.visibleItems.map(i=>({...i,selected:false}))),backlog:this.data.backlog.map(i=>({...i,selected:false})),quickRows:[],quickSubjectOptions:[],selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[]}); }, onUnload() { this.persistQuick();this.alive=false; this.stop();this.batchEpoch++; },
   stop() { this.visible = false; this.epoch++; if (this.timer) clearTimeout(this.timer); },
   schedule(delay: number) { if (this.timer) clearTimeout(this.timer); if (this.visible) this.timer=setTimeout(() => {void this.refresh();},delay); },
-  async refresh(mode: "all" | "tasks" | "record" = "all") {
+  async refresh(mode: "all" | "tasks" | "record" = "all", forceFull = false) {
     if (!this.visible || this.pendingWrite || this.data.writing || this.data.saving || this.data.batchBusy || this.data.batchMode) return; this.cacheAt=0;const epoch=++this.epoch;const reminderEpoch=this.reminderEpoch; this.lastRefresh=Date.now(); if (this.timer) clearTimeout(this.timer);
+    const metricsEnabled=listMetricsConfigured();const parentMetric=metricsEnabled?startListMetric("home.refresh"):undefined;const [familyMetric,taskMetric,reminderMetric]=parentMetric?[parentMetric.child("family.list"),parentMetric.child("task.list"),parentMetric.child("reminder.list")]:[undefined,undefined,undefined];let metricResult:"success"|"partial"|"cancelled"|"error"="cancelled",metricError:unknown;
     patchData(this, {error:"",...(!["ready","empty"].includes(this.data.status)?{status:"loading"}:{})});
     try {
       const user=await readySession();
@@ -63,12 +66,13 @@ Page({
       const input: TaskListInput = this.data.tab === "overdue" ? {overdue:true} : this.data.tab === "unscheduled" ? {unscheduled:true} : this.data.tab === "tomorrow" ? {dateFrom:dateAt(new Date().toISOString(),1),dateTo:dateAt(new Date().toISOString(),1)} : this.data.tab === "calendar" ? {dateFrom:this.data.selectedDate,dateTo:this.data.selectedDate} : {};
       // Date filters only affect task.list; identity and scope remain checked by the API.
       const reuseFamilies=mode!=="all"&&this.cacheUserId===user.id;
-      const familiesPromise=reuseFamilies?Promise.resolve({items:this.data.families}):listFamilies();
+      if(reuseFamilies){familyMetric?.setSource("cache");familyMetric?.finish("success");}
+      const familiesPromise=reuseFamilies?Promise.resolve({items:this.data.families}):metricsEnabled?listFamilies(forceFull,familyMetric??false):listFamilies(forceFull);
       // Only a selected family needs the membership list to resolve its scope.
       const scopePromise=selectedId?familiesPromise.then(result=>result.items.some(f=>f.id===selectedId)?{familyId:selectedId}:{}):Promise.resolve({});
       const reads=Promise.allSettled([
-        scopePromise.then(scope=>current()?listTasks({...input,...scope},current):Promise.reject(new Error("已切换查看范围。"))),
-        mode==="tasks"?Promise.resolve(null):listReminders(this.data.includeDismissed,current)
+        scopePromise.then(scope=>current()?(metricsEnabled?listTasks({...input,...scope},current,forceFull,taskMetric??false):listTasks({...input,...scope},current,forceFull)):Promise.reject(new Error("已切换查看范围。"))),
+        mode==="tasks"?(reminderMetric?.setSource("cache"),reminderMetric?.finish("success"),Promise.resolve(null)):metricsEnabled?listReminders(this.data.includeDismissed,current,forceFull,reminderMetric??false):listReminders(this.data.includeDismissed,current,forceFull)
       ]);
       const familyResult=await familiesPromise;
       if(!current())return;
@@ -79,8 +83,8 @@ Page({
       if (tasks.status === "rejected") throw tasks.reason;
       const failed=tasks.value?.last.scopes.some(scope=>scope.status!=="ok")??false;
       if(tasks.value){
-        const items=cards(tasks.value.items,familyResult.items,user.id,tasks.value.last.asOf),summary=tasks.value.last.summary;
-        const today=dateAt(tasks.value.last.asOf),tomorrow=dateAt(tasks.value.last.asOf,1);
+        const items=cards(tasks.value.items,familyResult.items,user.id,(tasks.value.last.serverTime??tasks.value.last.asOf)),summary=tasks.value.last.summary;
+        const today=dateAt((tasks.value.last.serverTime??tasks.value.last.asOf)),tomorrow=dateAt((tasks.value.last.serverTime??tasks.value.last.asOf),1);
         const visibleItems=items.filter(i=>!this.data.hideCompleted||i.occurrence.status==="pending");
         patchData(this, {status:items.length ? "ready" : failed ? "error" : "empty",items,groups:groups(visibleItems),visibleItems,today,tomorrow,greeting:dateCaption(today),
           summaryText:this.data.tab==="overdue"&&!failed ? `超时未完成 ${items.length} 件` : summary ? `已完成 ${summary.completed} / ${summary.denominator} 件${summary.skipped ? ` · 跳过 ${summary.skipped}` : ""}` : "数据未完整加载 · 暂不汇总",progress:summary?.denominator ? summary.completed/summary.denominator*100 : 0});
@@ -89,13 +93,19 @@ Page({
         ...(mode==="tasks"||reminderEpoch!==this.reminderEpoch?{}:reminders.status === "fulfilled" && reminders.value ? {reminders:reminders.value.items.map(item=>({...item,id:item.occurrence.id})),reminderCount:reminders.value.items.filter(i => !i.dismissedAt).length,reminderError:reminders.value.last.scopes.some(s=>s.status!=="ok")?"部分家庭提醒暂未加载，点击重试":""} : {reminders:[],reminderCount:0,reminderError:"提醒暂未加载，点击重试"}),
         error:failed ? "部分家庭未完整加载，请重试。" : ""});
       if(mode!=="tasks")this.lastFullRefresh=Date.now();
+      const timeBounds=[tasks.value.last,...(reminders.status==="fulfilled"&&reminders.value?[reminders.value.last]:[])].map(last=>last.cache?this.lastRefresh+Math.max(0,Math.min(Date.parse(last.cache.nextInvalidationAt),Date.parse(last.cache.expiresAt))-Date.parse(last.serverTime??last.asOf)):0);
+      this.cacheBoundary=mode==="tasks"?Math.min(this.cacheBoundary,...timeBounds):Math.min(...timeBounds);
       this.cacheUserId=user.id;this.cacheRevision=revision;this.cacheAt=failed||this.data.error||this.data.reminderError?0:Math.min(Date.now(),this.lastFullRefresh);
-      this.retries=0; this.schedule(Math.max(1000,30000-(Date.now()-this.lastFullRefresh)));
+      const reminderPartial=reminders.status==="fulfilled"&&!!reminders.value?.last.scopes.some(scope=>scope.status!=="ok");
+      metricResult=failed||reminders.status==="rejected"||reminderPartial?"partial":"success";
+      this.retries=0; this.schedule(Math.max(1000,Math.min(30000-(Date.now()-this.lastFullRefresh),this.cacheBoundary>Date.now()?this.cacheBoundary-Date.now():30000)));
     } catch (error) {
+      metricError=error;metricResult=epoch!==this.epoch||!this.visible?"cancelled":"error";
       if (epoch !== this.epoch || !this.visible) return;
       patchData(this, {status:"error",error:errorMessage(error),summaryText:"—",progress:0,items:[],visibleItems:[],groups:[],backlog:[],...(mode==="tasks"&&!isAccessDenied(error)?{}:{reminders:[],reminderCount:0,reminderError:"提醒暂未加载，点击重试"})});
       const delay=[5000,15000,30000][this.retries++]; if (delay && (!(error instanceof PersonalApiError) || error.retryable || error.code === "CURSOR_EXPIRED")) this.schedule(delay);
     } finally {
+      if(metricResult==="error")parentMetric?.finish("error",metricError);else parentMetric?.finish(metricResult);
       if(this.alive&&epoch===this.epoch)patchData(this, {listRefreshing:false});
     }
   },
@@ -108,7 +118,7 @@ Page({
   futureFeature() {if(this.data.writing||this.data.batchBusy)return;patchData(this, {batchMode:!this.data.batchMode,selectedTasks:[],selectedIds:[],batchError:""});if(!this.data.batchMode)void this.refresh();},
   selectTask(e:WechatMiniprogram.TouchEvent){const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===e.currentTarget.dataset.id);if(!item||this.data.batchBusy)return;try{const selectedTasks=selectTask(this.data.selectedTasks,item.task);patchData(this, {selectedTasks,selectedIds:selectedTasks.map(t=>t.id),items:this.data.items.map(i=>({...i,selected:selectedTasks.some(t=>t.id===i.task.id)})),backlog:this.data.backlog.map(i=>({...i,selected:selectedTasks.some(t=>t.id===i.task.id)})),batchError:""});patchData(this, {groups:groups(this.data.items.filter(i=>!this.data.hideCompleted||i.occurrence.status==="pending"))});}catch(error){patchData(this, {batchError:errorMessage(error)});}},
   async openBatch(){if(!this.data.selectedTasks.length||this.data.batchBusy)return;const epoch=++this.batchEpoch;const groups:BatchGroup[]=[];for(const task of this.data.selectedTasks){const key=task.familyId??"personal";const group=groups.find(g=>g.key===key);if(group)group.taskIds.push(task.id);else groups.push({key,name:task.familyName??"个人事项",taskIds:[task.id],targetFamilyId:task.familyId??"",familyIndex:0,viewers:[],loading:!!task.familyId,error:""});}patchData(this, {sheet:"batch",batchGroups:groups,batchFamilyOptions:["请选择家庭",...this.data.families.map(f=>f.name)],batchError:"",batchResults:[],batchComplete:false});await Promise.all(groups.filter(group=>group.targetFamilyId).map(group=>this.loadBatchGroup(group.key,group.targetFamilyId,epoch)));},
-  clearFamilyAccess(familyId:string){this.cacheAt=0;this.epoch++;this.quickEpoch++;if(this.timer)clearTimeout(this.timer);const selectedTasks=this.data.selectedTasks.filter(t=>t.familyId!==familyId),items=this.data.items.filter(i=>i.task.familyId!==familyId),visibleItems=this.data.visibleItems.filter(i=>i.task.familyId!==familyId),families=this.data.families.filter(f=>f.id!==familyId),reminders=this.data.reminders.filter(r=>r.familyId!==familyId);const deniedTasks=new Set([...this.data.selectedTasks,...this.data.items.map(i=>i.task),...this.data.backlog.map(i=>i.task)].filter(t=>t.familyId===familyId).map(t=>t.id));if(this.quickRoster?.family.id===familyId){this.discardQuick();this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {quickTitle:"",quickNote:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:[],quickNotice:"",quickLoading:false});}patchData(this, {families,familyOptions:["全部家庭",...families.map(f=>f.name)],familyIndex:0,quickFamilyOptions:["请选择家庭",...families.map(f=>f.name)],quickFamilyIndex:0,batchFamilyOptions:["请选择家庭",...families.map(f=>f.name)],selectedTasks,selectedIds:selectedTasks.map(t=>t.id),items,visibleItems,groups:groups(visibleItems),backlog:this.data.backlog.filter(i=>i.task.familyId!==familyId),reminders,reminderCount:reminders.filter(r=>!r.dismissedAt).length,batchGroups:this.data.batchGroups.filter(g=>g.key!==familyId&&g.targetFamilyId!==familyId),batchResults:this.data.batchResults.filter(r=>!deniedTasks.has(r.taskId)),summaryText:"—",progress:0,...(!selectedTasks.length?{batchMode:false,sheet:""}:{})});},
+  clearFamilyAccess(familyId:string){personalApi.clearCompleteLists();this.cacheAt=0;this.epoch++;this.quickEpoch++;if(this.timer)clearTimeout(this.timer);const selectedTasks=this.data.selectedTasks.filter(t=>t.familyId!==familyId),items=this.data.items.filter(i=>i.task.familyId!==familyId),visibleItems=this.data.visibleItems.filter(i=>i.task.familyId!==familyId),families=this.data.families.filter(f=>f.id!==familyId),reminders=this.data.reminders.filter(r=>r.familyId!==familyId);const deniedTasks=new Set([...this.data.selectedTasks,...this.data.items.map(i=>i.task),...this.data.backlog.map(i=>i.task)].filter(t=>t.familyId===familyId).map(t=>t.id));if(this.quickRoster?.family.id===familyId){this.discardQuick();this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {quickTitle:"",quickNote:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:[],quickNotice:"",quickLoading:false});}patchData(this, {families,familyOptions:["全部家庭",...families.map(f=>f.name)],familyIndex:0,quickFamilyOptions:["请选择家庭",...families.map(f=>f.name)],quickFamilyIndex:0,batchFamilyOptions:["请选择家庭",...families.map(f=>f.name)],selectedTasks,selectedIds:selectedTasks.map(t=>t.id),items,visibleItems,groups:groups(visibleItems),backlog:this.data.backlog.filter(i=>i.task.familyId!==familyId),reminders,reminderCount:reminders.filter(r=>!r.dismissedAt).length,batchGroups:this.data.batchGroups.filter(g=>g.key!==familyId&&g.targetFamilyId!==familyId),batchResults:this.data.batchResults.filter(r=>!deniedTasks.has(r.taskId)),summaryText:"—",progress:0,...(!selectedTasks.length?{batchMode:false,sheet:""}:{})});},
   async loadBatchGroup(key:string,familyId:string,epoch:number){try{const roster=await familyApi.read("family.get",{id:familyId});if(!this.visible||epoch!==this.batchEpoch)return;patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key===key?{...g,loading:false,viewers:roster.members.map(m=>({id:m.id,name:m.name,checked:false}))}:g)});}catch(error){if(this.visible&&epoch===this.batchEpoch){if(isAccessDenied(error))this.clearFamilyAccess(familyId);else patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key===key?{...g,loading:false,viewers:[],error:errorMessage(error)}:g)});patchData(this, {batchError:errorMessage(error)});}}},
   async batchFamilyChange(e:WechatMiniprogram.PickerChange){if(this.data.batchBusy||personalApi.pendingCount)return;if(this.data.batchGroups.some(g=>g.key!=="personal"&&g.loading))return;const index=Number(e.detail.value);const family=this.data.families[index-1];const epoch=++this.batchEpoch;patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key==="personal"?{...g,familyIndex:index,targetFamilyId:family?.id??"",viewers:[],loading:!!family,error:""}:g)});if(family)await this.loadBatchGroup("personal",family.id,epoch);},
   batchViewersChange(e:WechatMiniprogram.CheckboxGroupChange){if(this.data.batchBusy||personalApi.pendingCount)return;patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key===e.currentTarget.dataset.key?{...g,viewers:g.viewers.map(v=>({...v,checked:e.detail.value.includes(v.id)}))}:g)});},
@@ -127,7 +137,7 @@ Page({
     catch(error){const uncertain=error instanceof PersonalApiError&&error.retryable;if(!uncertain)this.pendingWrite=null;if(this.alive){if(isAccessDenied(error))this.clearSensitive();patchData(this, {quickError:errorMessage(error),uncertain});wx.showToast({title:errorMessage(error),icon:"none"});}}
     finally{if(this.alive)patchData(this, {writing:false,writingKey:""});if(this.alive)patchData(this, {pendingCount:personalApi.pendingCount});if(!this.pendingWrite&&this.visible){if(key.startsWith("dismiss:")||key.startsWith("read:"))void this.refreshReminders();else await this.refresh(succeeded&&key.startsWith("toggle:")?"record":"all");}else if(this.alive)patchData(this, {listRefreshing:false});}
   },
-  clearSensitive(){this.cacheAt=0;this.cacheUserId="";this.discardQuick();this.epoch++;this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {listRefreshing:false,status:"error",selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,items:[],visibleItems:[],groups:[],backlog:[],reminders:[],reminderCount:0,summaryText:"—",progress:0,sheet:"",quickTitle:"",quickNote:"",quickTime:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:["自己"],quickNotice:"",quickLoading:false});},
+  clearSensitive(){personalApi.clearCompleteLists();this.cacheAt=0;this.cacheUserId="";this.discardQuick();this.epoch++;this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {listRefreshing:false,status:"error",selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,items:[],visibleItems:[],groups:[],backlog:[],reminders:[],reminderCount:0,summaryText:"—",progress:0,sheet:"",quickTitle:"",quickNote:"",quickTime:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:["自己"],quickNotice:"",quickLoading:false});},
   async toggleTask(event: WechatMiniprogram.TouchEvent) {
     if(this.data.batchMode){this.selectTask(event);return;}const id:unknown=event.currentTarget.dataset.id;const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===id);if(!item||!item.occurrence.canRecord)return;
     const payload={occurrence:occurrenceRef(item.occurrence),expectedVersion:item.occurrence.version};

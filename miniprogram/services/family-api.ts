@@ -1,10 +1,19 @@
 import type { FamilySummary, VirtualDTO, Page, ExitInput, TransferInput, ExitPreview, TransferPreview } from "@family-todo/contracts";
 import { personalApi } from "./personal-api";
-import { collect } from "./personal-lists";
+import { collect, completeLists } from "./personal-lists";
+import type { MetricArgument } from "./personal-lists";
+import { listMetricsConfigured, metricRequest, startListMetric } from "./list-metrics";
 export const familyApi = personalApi;
-export function listFamilies() { return collect<FamilySummary, Page<FamilySummary>>(cursor => familyApi.read("family.list", {limit:50,...(cursor ? {cursor} : {})})); }
+export async function listFamilies(forceFull = false, suppliedMetric?: MetricArgument) {
+  const metric = suppliedMetric === false ? undefined : suppliedMetric ?? (listMetricsConfigured() ? startListMetric("family.list") : undefined);
+  return completeLists.read<FamilySummary, Page<FamilySummary>>("family.list", { limit: 50 }, (pagination, observer) => { const payload = { limit: 50, ...pagination }; return observer ? familyApi.read("family.list", payload, observer) : familyApi.read("family.list", payload); }, undefined, forceFull, metric);
+}
 export async function listManagedVirtualMembers(familyId:string):Promise<VirtualDTO[]> {
-  const results=await Promise.all((["active","inactive"] as const).map(status=>collect<VirtualDTO,Page<VirtualDTO>>(cursor=>familyApi.read("virtualMember.list",{familyId,status,limit:50,...(cursor?{cursor}:{})}))));
+  const results=await Promise.all((["active","inactive"] as const).map(async status=>{
+    const metric=listMetricsConfigured()?startListMetric("virtualMember.list"):undefined;
+    try { const result=await collect<VirtualDTO,Page<VirtualDTO>>(cursor=>metricRequest(metric,observer=>{const payload={familyId,status,limit:50,...(cursor?{cursor}:{})};return observer?familyApi.read("virtualMember.list",payload,observer):familyApi.read("virtualMember.list",payload);}),undefined,metric);metric?.finish("success");return result; }
+    catch(error){metric?.finishError(error);throw error;}
+  }));
   return results.flatMap(result=>result.items);
 }
 export async function previewExit(input: ExitInput): Promise<ExitPreview> {

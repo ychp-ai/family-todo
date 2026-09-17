@@ -1,7 +1,7 @@
 import { seedLegacyTask } from "./support/legacy-task";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { isPersonalData } from "@family-todo/contracts";
+import { isFullPersonalData as isPersonalData } from "./support/full-data";
 import type { PersonalAction, PersonalActionMap, TaskDraft, TaskDTO } from "@family-todo/contracts";
 import type { Family, Membership } from "@family-todo/domain";
 import { taskContext } from "../packages/application/src/task-context";

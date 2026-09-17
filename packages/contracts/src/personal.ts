@@ -43,11 +43,15 @@ export type TaskListItem = { task: TaskSummaryDTO; occurrence: OccurrenceDTO };
 export type TaskEventDTO = { id: string; taskId: string; occurrenceId: string | null; kind: string; actorName: string; recordedAt: string; actualCompletedAt: string | null; note: string };
 export type ReminderDTO = { occurrence: OccurrenceRef; title: string; familyId: string | null; familyName: string | null; subjectName: string; scheduledAt: string; readAt: string | null; dismissedAt: string | null };
 export type Summary = { completed: number; pending: number; skipped: number; denominator: number };
-export type Page<T> = { items: T[]; nextCursor: string | null; complete: boolean; asOf: string };
+export type ListCache = { token: string; nextInvalidationAt: string; expiresAt: string };
+export type UnchangedList = { unchanged: true; token: string; serverTime: string };
+export type ConditionalInput = { conditional?: { token?: string } };
+export type ConditionalPage<P> = P | UnchangedList;
+export type Page<T> = { cache?: ListCache; serverTime?: string; items: T[]; nextCursor: string | null; complete: boolean; asOf: string };
 export type ScopeResult = { familyId: string | null; status: "ok" | "partial" | "failed"; errorCode?: ErrorCode };
 export type AggregatePage<T> = Page<T> & { scopes: ScopeResult[]; summary: Summary | null };
 export type PageInput = { limit?: number; cursor?: string };
-export type TaskListInput = PageInput & { view?: "summary"; familyId?: string | null; dateFrom?: string; dateTo?: string; unscheduled?: boolean; overdue?: boolean; status?: "pending" | "completed" | "skipped" };
+export type TaskListInput = PageInput & ConditionalInput & { view?: "summary"; familyId?: string | null; dateFrom?: string; dateTo?: string; unscheduled?: boolean; overdue?: boolean; status?: "pending" | "completed" | "skipped" };
 export type WriteRef = { id: string; expectedVersion: number };
 export type PersonalActionMap = {
   "task.previewSchedule": { payload: { schedule: Schedule; taskId?: string }; data: { now: string; nextOccurrences: SchedulePreviewSlot[]; excludedPastSlots: boolean; explanation: string } };
@@ -59,7 +63,7 @@ export type PersonalActionMap = {
   "progress.get": { payload: { familyId: string; date: string; subject?: ResolvedSubject; cursor?: string }; data: { members: MemberProgress[] | null; complete: boolean; nextCursor: string | null; asOf: string } };
   "task.create": { payload: { draft: PersonalDraft }; data: { task: TaskDTO; nextOccurrences: OccurrenceDTO[] } };
   "task.get": { payload: { id: string; occurrence?: OccurrenceRef }; data: { task: TaskDTO; occurrence: OccurrenceDTO | null } };
-  "task.list": { payload: TaskListInput; data: AggregatePage<TaskListItem> };
+  "task.list": { payload: TaskListInput; data: ConditionalPage<AggregatePage<TaskListItem>> };
   "task.update": { payload: WriteRef & { draft: PersonalDraft }; data: { task: TaskDTO; nextOccurrences: OccurrenceDTO[] } | { id: string; version: number; updated: true; accessLost: true } };
   "task.setAccess": { payload: WriteRef & { access: AccessInput }; data: { task: TaskDTO } };
   "task.delete": { payload: WriteRef; data: { id: string; version: number; deleted: true } };
@@ -68,7 +72,7 @@ export type PersonalActionMap = {
   "task.history": { payload: PageInput & { taskId: string }; data: Page<TaskEventDTO> };
   "occurrence.record": { payload: { occurrence: OccurrenceRef; expectedVersion: number; status: "completed" | "skipped"; actualCompletedAt?: string; note?: string }; data: { occurrence: OccurrenceDTO; taskVersion: number } };
   "occurrence.undo": { payload: { occurrence: OccurrenceRef; expectedVersion: number }; data: { occurrence: OccurrenceDTO; taskVersion: number } };
-  "reminder.list": { payload: PageInput & { includeDismissed?: boolean }; data: AggregatePage<ReminderDTO> };
+  "reminder.list": { payload: PageInput & ConditionalInput & { includeDismissed?: boolean }; data: ConditionalPage<AggregatePage<ReminderDTO>> };
   "reminder.setMine": { payload: { taskId: string; enabled: boolean; expectedVersion: number }; data: { preference: ReminderPreferenceDTO } };
   "reminder.markRead": { payload: { occurrence: OccurrenceRef }; data: { occurrenceId: string; read: true } };
   "reminder.dismiss": { payload: { occurrence: OccurrenceRef }; data: { occurrenceId: string; dismissed: true } };
@@ -182,6 +186,12 @@ export function isTaskSummaryDTO(v: unknown): v is TaskSummaryDTO {
     && isTaskDTO({ ...v, note: "", participants: [], myReminder: { enabled: false, selfDisabled: false, version: 0 }, createdAt: "2000-01-01T00:00:00.000Z", updatedAt: "2000-01-01T00:00:00.000Z" });
 }
 function isListTask(v: unknown): v is TaskSummaryDTO { return isTaskSummaryDTO(v) || isTaskDTO(v); }
+export function conditionalInput(v: Record<string, unknown>): boolean {
+  return v.conditional === undefined || (exact(v.conditional, [], ["token"]) && (v.conditional.token === undefined || (opaque(v.conditional.token) && v.cursor === undefined)));
+}
+export function isUnchangedList(v: unknown): v is UnchangedList {
+  return exact(v, ["unchanged", "token", "serverTime"]) && v.unchanged === true && opaque(v.token) && instant(v.serverTime);
+}
 export function pageInput(v: Record<string,unknown>): boolean { return (v.limit === undefined || (integer(v.limit,1) && v.limit <= 50)) && (v.cursor === undefined || (string(v.cursor) && v.cursor.length > 0 && v.cursor.length <= 2048)); }
 export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknown): v is PersonalActionMap[A]["payload"] {
   switch (action) {
@@ -200,7 +210,7 @@ export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknow
     case "task.pause": case "task.resume": case "task.stop": case "task.delete": case "task.restore": return exact(v,["id","expectedVersion"]) && isUuid(v.id) && integer(v.expectedVersion,1);
     case "task.get": return exact(v,["id"],["occurrence"]) && isUuid(v.id) && (v.occurrence === undefined || isOccurrenceRef(v.occurrence));
     case "task.list": {
-      if (!exact(v,[],["familyId","dateFrom","dateTo","unscheduled","overdue","status","limit","cursor","view"]) || !(v.view === undefined || v.view === "summary") || !pageInput(v) || !(v.familyId === undefined || v.familyId === null || isUuid(v.familyId))) return false;
+      if (!exact(v,[],["familyId","dateFrom","dateTo","unscheduled","overdue","status","limit","cursor","view","conditional"]) || !(v.view === undefined || v.view === "summary") || !pageInput(v) || !conditionalInput(v) || !(v.familyId === undefined || v.familyId === null || isUuid(v.familyId))) return false;
       if ((v.unscheduled !== undefined && typeof v.unscheduled !== "boolean") || (v.overdue !== undefined && typeof v.overdue !== "boolean") || (v.status !== undefined && v.status !== "pending" && v.status !== "completed" && v.status !== "skipped")) return false;
       if (v.overdue === true) return v.dateFrom === undefined && v.dateTo === undefined && v.unscheduled !== true && (v.status === undefined || v.status === "pending");
       if (v.unscheduled === true) return v.dateFrom === undefined && v.dateTo === undefined;
@@ -210,7 +220,7 @@ export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknow
     case "task.history": return exact(v,["taskId"],["limit","cursor"]) && isUuid(v.taskId) && pageInput(v);
     case "occurrence.record": return exact(v,["occurrence","expectedVersion","status"],["actualCompletedAt","note"]) && isOccurrenceRef(v.occurrence) && integer(v.expectedVersion) && (v.status === "completed" || v.status === "skipped") && (v.actualCompletedAt === undefined || (v.status === "completed" && instant(v.actualCompletedAt))) && (v.note === undefined || text(v.note,0,1000));
     case "occurrence.undo": return exact(v,["occurrence","expectedVersion"]) && isOccurrenceRef(v.occurrence) && integer(v.expectedVersion);
-    case "reminder.list": return exact(v,[],["includeDismissed","limit","cursor"]) && pageInput(v) && (v.includeDismissed === undefined || typeof v.includeDismissed === "boolean");
+    case "reminder.list": return exact(v,[],["includeDismissed","limit","cursor","conditional"]) && pageInput(v) && conditionalInput(v) && (v.includeDismissed === undefined || typeof v.includeDismissed === "boolean");
     case "reminder.setMine": return exact(v,["taskId","enabled","expectedVersion"]) && isUuid(v.taskId) && typeof v.enabled === "boolean" && integer(v.expectedVersion);
     case "reminder.markRead": case "reminder.dismiss": return exact(v,["occurrence"]) && isOccurrenceRef(v.occurrence);
   }
@@ -224,13 +234,16 @@ export function isScopeResult(v: unknown): v is ScopeResult {
     && (v.status === "ok" || v.status === "partial" || v.status === "failed")
     && (v.errorCode === undefined || ERROR_CODES.some(code => code === v.errorCode));
 }
-export function page(v: unknown, item: (v: unknown) => boolean, aggregate = false): boolean {
-  if (!exact(v,["items","nextCursor","complete","asOf",...(aggregate ? ["scopes","summary"] : [])]) || !Array.isArray(v.items)
+export function page(v: unknown, item: (v: unknown) => boolean, aggregate = false, conditional = false): boolean {
+  if (!exact(v,["items","nextCursor","complete","asOf",...(aggregate ? ["scopes","summary"] : [])], conditional ? ["cache", "serverTime"] : []) || !Array.isArray(v.items)
     || v.items.length > 50 || !v.items.every(item) || !instant(v.asOf) || typeof v.complete !== "boolean"
     || !(v.complete ? v.nextCursor === null : opaque(v.nextCursor))) return false;
+  if (v.serverTime !== undefined && !instant(v.serverTime)) return false;
+  if (v.cache !== undefined && (!v.complete || !instant(v.serverTime) || !exact(v.cache, ["token", "nextInvalidationAt", "expiresAt"]) || !opaque(v.cache.token) || !instant(v.cache.nextInvalidationAt) || !instant(v.cache.expiresAt) || v.cache.nextInvalidationAt <= v.serverTime || v.cache.expiresAt <= v.serverTime)) return false;
   if (!aggregate) return true;
   if (!Array.isArray(v.scopes) || v.scopes.length > 11 || !v.scopes.every(isScopeResult)
     || new Set(v.scopes.map(scope => scope.familyId?.toLowerCase() ?? null)).size !== v.scopes.length) return false;
+  if (v.cache !== undefined && (v.summary === null || !v.scopes.every(scope => scope.status === "ok"))) return false;
   if (v.summary === null) return true;
   return v.complete && v.scopes.every(scope => scope.status === "ok")
     && exact(v.summary,["completed","pending","skipped","denominator"]) && Object.values(v.summary).every(n => integer(n))
@@ -258,11 +271,11 @@ export function isPersonalData<A extends PersonalAction>(action: A, v: unknown):
     case "task.pause": case "task.stop": case "task.setAccess": return exact(v,["task"]) && isTaskDTO(v.task);
     case "task.delete": return exact(v,["id","version","deleted"]) && isUuid(v.id) && integer(v.version,1) && v.deleted === true;
     case "task.restore": return exact(v,["task","removedParticipantCount"]) && isTaskDTO(v.task) && integer(v.removedParticipantCount);
-    case "task.list": return page(v, x => exact(x,["task","occurrence"]) && isListTask(x.task) && isOccurrenceDTO(x.occurrence),true);
+    case "task.list": return isUnchangedList(v) || page(v, x => exact(x,["task","occurrence"]) && isListTask(x.task) && isOccurrenceDTO(x.occurrence),true,true);
     case "task.recycleList": return page(v,isListTask);
     case "task.history": return page(v,isTaskEvent);
     case "occurrence.record": case "occurrence.undo": return exact(v,["occurrence","taskVersion"]) && isOccurrenceDTO(v.occurrence) && integer(v.taskVersion,1);
-    case "reminder.list": return page(v,isReminder,true);
+    case "reminder.list": return isUnchangedList(v) || page(v,isReminder,true,true);
     case "reminder.setMine": return exact(v,["preference"]) && isPreference(v.preference);
     case "reminder.markRead": return exact(v,["occurrenceId","read"]) && isUuid(v.occurrenceId) && v.read === true;
     case "reminder.dismiss": return exact(v,["occurrenceId","dismissed"]) && isUuid(v.occurrenceId) && v.dismissed === true;

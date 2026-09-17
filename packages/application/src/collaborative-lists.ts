@@ -1,3 +1,4 @@
+import { ListValidation, listFingerprint, nextListMidnight } from "./list-validation";
 import { listContexts } from "./list-contexts";
 import { instant, integer, isPersonalData, isPersonalPayload, isRecord, isUuid } from "@family-todo/contracts";
 import type { PersonalActionMap, Summary, TaskSummaryDTO } from "@family-todo/contracts";
@@ -11,7 +12,7 @@ import { nextProjected, overlayOccurrence, projectedDTO } from "./recurrence-pro
 
 type ListAction = "task.list" | "task.recycleList" | "reminder.list";
 type Stream = { familyId: string | null; version: number; after: string | null; headId: string | null; pendingIds?: string[]; done: boolean; failed: boolean };
-type Checkpoint = { actorId: string; fingerprint: string; asOf: string; expiresAt: string; userRevision: number; streams: Stream[]; summary: Summary };
+type Checkpoint = { validationProof?: boolean; actorId: string; fingerprint: string; asOf: string; expiresAt: string; userRevision: number; streams: Stream[]; summary: Summary };
 function expired(): never { throw new ApplicationError("CURSOR_EXPIRED", "列表已更新，请重新加载。"); }
 function nullableString(v: unknown): v is string | null { return v === null || typeof v === "string"; }
 function stream(v: unknown): v is Stream { return isRecord(v) && (v.familyId === null || isUuid(v.familyId)) && integer(v.version, 1) && nullableString(v.after) && (v.headId === null || isUuid(v.headId)) && (v.pendingIds === undefined || (Array.isArray(v.pendingIds) && v.pendingIds.length <= 20 && v.pendingIds.every(isUuid))) && typeof v.done === "boolean" && typeof v.failed === "boolean"; }
@@ -20,7 +21,7 @@ function readCheckpoint(v: unknown): Checkpoint {
     || !Array.isArray(v.streams) || v.streams.length > 11 || !v.streams.every(stream) || !isRecord(v.summary)) expired();
   const s = v.summary; if (!integer(s.completed) || !integer(s.pending) || !integer(s.skipped) || !integer(s.denominator)) expired();
   if (new Set(v.streams.map(s => s.familyId)).size !== v.streams.length) expired();
-  return { actorId: v.actorId, fingerprint: v.fingerprint, asOf: v.asOf, expiresAt: v.expiresAt, userRevision: v.userRevision, streams: v.streams,
+  return { validationProof: v.validationProof === true, actorId: v.actorId, fingerprint: v.fingerprint, asOf: v.asOf, expiresAt: v.expiresAt, userRevision: v.userRevision, streams: v.streams,
     summary: { completed: s.completed, pending: s.pending, skipped: s.skipped, denominator: s.denominator } };
 }
 function order(task: CollaborativeTask, query: PersonalQuery): string {
@@ -34,6 +35,10 @@ export class CollaborativeLists {
   public constructor(private readonly store: FamilyStore, private readonly clock: Clock) {}
   public async execute(action: ListAction, payload: unknown): Promise<unknown> {
     if (!isPersonalPayload(action, payload)) throw new ApplicationError("VALIDATION_ERROR", "请检查列表筛选条件。");
+    const validation = new ListValidation(this.store, this.clock);
+    const conditional = action === "task.list" && isPersonalPayload(action, payload) && payload.unscheduled ? payload.conditional : undefined;
+    const validationFingerprint = listFingerprint(this.store, action, payload);
+    const hit = await validation.reuse(conditional?.token, validationFingerprint); if (hit) return hit;
     const now = this.clock.now().toISOString(); const today = shanghaiDate(new Date(now));
     let query: PersonalQuery; let requestedFamily: string | null | undefined; let limit = 20; let cursor: string | undefined;
     if (action === "task.list" && isPersonalPayload(action, payload)) {
@@ -53,8 +58,8 @@ export class CollaborativeLists {
       if (context) contexts.set(family.id, context);
       streams.push({ familyId: family.id, version: context?.family.version ?? family.version, after: null, headId: null, done: !context, failed: !context });
     }
-    const fingerprint = this.store.fingerprint({ action, payload: { ...payload, cursor: undefined } });
-    let checkpoint: Checkpoint = { actorId: start.actor.id, fingerprint, asOf: now, expiresAt: new Date(Date.parse(now) + 15 * 60000).toISOString(), userRevision: start.scope.revision, streams, summary: { completed: 0, pending: 0, skipped: 0, denominator: 0 } };
+    const fingerprint = this.store.fingerprint({ action, payload: { ...payload, cursor: undefined, conditional: undefined } });
+    let checkpoint: Checkpoint = { validationProof: true, actorId: start.actor.id, fingerprint, asOf: now, expiresAt: new Date(Date.parse(now) + 15 * 60000).toISOString(), userRevision: start.scope.revision, streams, summary: { completed: 0, pending: 0, skipped: 0, denominator: 0 } };
     if (cursor) {
       checkpoint = readCheckpoint(await this.store.readSession(cursor));
       if (checkpoint.actorId !== start.actor.id || checkpoint.fingerprint !== fingerprint || checkpoint.userRevision !== start.scope.revision || checkpoint.expiresAt <= now
@@ -164,7 +169,10 @@ export class CollaborativeLists {
     });
     const complete = checkpoint.streams.every(scope => scope.done && !scope.headId && !scope.pendingIds?.length);
     const nextCursor = complete ? null : await this.store.saveSession({ ...checkpoint });
-    const base = { items, complete, nextCursor, asOf: checkpoint.asOf };
+    const families = [...contexts.values()].map(context => ({ familyId: context.family.id, version: context.family.version, membershipId: context.members.find(member => member.userId === start.actor.id && member.status === "active")?.id ?? "" }));
+    const validator = conditional && complete && checkpoint.validationProof && checkpoint.streams.every(scope => !scope.failed)
+      ? await validation.issue(validationFingerprint, { actorId: checkpoint.actorId, revision: checkpoint.userRevision, families, asOf: checkpoint.asOf, expiresAt: checkpoint.expiresAt, nextInvalidationAt: nextListMidnight(checkpoint.asOf) }) : undefined;
+    const base = { items, complete, nextCursor, asOf: checkpoint.asOf, ...(conditional ? { serverTime: this.clock.now().toISOString(), ...(validator ? { cache: validator } : {}) } : {}) };
     const result = action === "task.recycleList" ? base : { ...base, scopes: checkpoint.streams.map(scope => ({ familyId: scope.familyId, status: scope.failed ? "failed" : scope.done && !scope.headId && !scope.pendingIds?.length ? "ok" : "partial", ...(scope.failed ? { errorCode: "TEMPORARILY_UNAVAILABLE" } : {}) })), summary: complete && checkpoint.streams.every(scope => !scope.failed) ? checkpoint.summary : null };
     if (!isPersonalData(action, result)) throw new Error("Invalid collaborative list result."); return result;
   }

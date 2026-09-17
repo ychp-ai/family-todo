@@ -26,10 +26,11 @@ export function readScheduleControl(v: unknown): PersistedScheduleControl {
 }
 export function readOccurrenceState(v: unknown): PersistedOccurrenceState {
   if (!isRecord(v) || !isUuid(v.id) || !isUuid(v.taskId) || !isUuid(v.segmentId) || !(v.localDate === null || localDate(v.localDate))
-    || !(v.slot === "date-only" || v.slot === "unscheduled" || localTime(v.slot)) || typeof v.identityKey !== "string"
+    || !(v.slot === "date-only" || v.slot === "unscheduled" || localTime(v.slot))
     || (v.status !== "pending" && v.status !== "completed" && v.status !== "skipped") || !integer(v.version, 1)
     || !nullableInstant(v.actualCompletedAt) || !nullableInstant(v.recordedAt) || !(v.operatorName === null || text(v.operatorName, 1, 12)) || !isUuid(v.operatorUserId)) bad();
-  if (v.identityKey !== occurrenceIdentityKey([v.taskId, v.segmentId, v.localDate, v.slot])) bad();
-  return { id: v.id, taskId: v.taskId, segmentId: v.segmentId, localDate: v.localDate, slot: v.slot, identityKey: v.identityKey,
+  const identityKey = occurrenceIdentityKey([v.taskId, v.segmentId, v.localDate, v.slot]);
+  if (Object.hasOwn(v, "identityKey") && v.identityKey !== identityKey) bad();
+  return { id: v.id, taskId: v.taskId, segmentId: v.segmentId, localDate: v.localDate, slot: v.slot, identityKey,
     status: v.status, version: v.version, actualCompletedAt: v.actualCompletedAt, recordedAt: v.recordedAt, operatorName: v.operatorName, operatorUserId: v.operatorUserId };
 }

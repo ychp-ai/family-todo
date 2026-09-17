@@ -102,3 +102,18 @@ it("separates read parameters and refreshes reads after a write", async () => {
   await vi.waitFor(() => expect(requests).toHaveLength(4));
   release?.(); await Promise.all([first, different, refreshed]);
 });
+
+it("observes the real shared request ID without allowing observer errors to affect reads", async () => {
+  const requests: ApiRequest[] = []; let release: (() => void) | undefined;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const api = new PersonalApi(new AppApiClient({ send: async request => {
+    requests.push(request); await gate;
+    return { ok: true, requestId: request.requestId, data: { items: [], nextCursor: null, complete: true, asOf: "2026-09-14T00:00:00.000Z" } };
+  } }), async () => randomUUID());
+  const observed: { requestId: string; reusedInFlight: boolean }[] = [];
+  const observe = (event: typeof observed[number]) => { observed.push(event); throw new Error("sink unavailable"); };
+  const first = api.read("family.list", {}, observe), shared = api.read("family.list", {}, observe);
+  await vi.waitFor(() => expect(observed).toHaveLength(2));
+  expect(observed).toEqual([{requestId:requests[0]?.requestId,reusedInFlight:false},{requestId:requests[0]?.requestId,reusedInFlight:true}]);
+  release?.(); await Promise.all([first, shared]); expect(requests).toHaveLength(1);
+});

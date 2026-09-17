@@ -1,11 +1,12 @@
 import { budgetTransaction } from "./transaction-budget";
+import { entityFields, legacyStorageWrites } from "./storage-write-mode";
 import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
-import { instant, isRecord, isTaskEvent, isUuid } from "@family-todo/contracts";
+import { instant, isRecord, isTaskEvent, isUuid, localDate } from "@family-todo/contracts";
 import { occurrenceIdentityKey, localDayBounds } from "@family-todo/domain";
-import type { HistoricalSubjectAccess, OccurrenceIdentity, PersistedOccurrenceState, PersistedScheduleControl, PersistedScheduleSegment, CollaborativeTask, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
+import type { HistoricalSubjectAccess, OccurrenceIdentity, PersistedOccurrenceState, PersistedScheduleControl, PersistedScheduleSegment, CollaborativeTask, TaskListSource, Family, FamilyContext, FamilyEvent, Invitation, Membership, MembershipSlot, ReminderPreference, ReminderReceipt, VirtualMember } from "@family-todo/domain";
 import { FamilyBudgetExceededError } from "@family-todo/ports";
 import type { FamilyListQuery, FamilyPage, FamilyReceipt, FamilyStore, FamilyTransaction, PersonalQuery } from "@family-todo/ports";
-import { readCollaborativeTask, readFamily, readInvitation, readMembership, readPreference, readReminderReceipt, readSlot, readVirtual } from "./family-codecs";
+import { readTaskListSource, readCollaborativeTask, readFamily, readInvitation, readMembership, readPreference, readReminderReceipt, readSlot, readVirtual } from "./family-codecs";
 import { readOccurrenceState, readScheduleControl, readScheduleSegment } from "./scheduling-codecs";
 import { readDocument } from "./identity-store";
 import type { IdentityTransaction } from "./identity-store";
@@ -14,45 +15,54 @@ import { CloudBasePersonalStore, taskFields, Transaction } from "./personal-stor
 import type { PersonalDatabase } from "./personal-store";
 import { retryTransaction } from "./transaction-retry";
 
+const taskListFields: Record<string, boolean> = { candidateSchema: true, candidateKind: true, scopeKey: true, candidateOrder: true, _id: true, id: true, schemaVersion: true, familyId: true, collaboration: true, ownerUserId: true, ownerName: true, title: true, version: true, segmentId: true, occurrenceId: true, date: true, time: true, lifecycle: true, status: true, occurrenceVersion: true, actualCompletedAt: true, recordedAt: true, operatorName: true, reminderEnabled: true, reminderSelfDisabled: true, reminderVersion: true, readAt: true, dismissedAt: true, createdAt: true, updatedAt: true, recurrence: true, createdOrder: true, recentOrder: true, scheduleOrder: true };
 function key(...parts: string[]): string { return createHash("sha256").update(JSON.stringify(parts)).digest("hex"); }
 function bad(): never { throw new Error("Invalid collaboration storage record."); }
+function entityRecord(value: Record<string, unknown>, id: unknown): Record<string, unknown> {
+  if (!isUuid(id) || (Object.hasOwn(value, "id") && value.id !== id)) bad();
+  return { ...value, id };
+}
 function reverseTime(value: string): string { return String(9999999999999 - Date.parse(value)).padStart(13, "0"); }
 function ordered(value: { id: string; createdAt: string }, reverse = false): string { return `${reverse ? reverseTime(value.createdAt) : value.createdAt}/${value.id}`; }
 class FamilyTransactionAdapter extends Transaction implements FamilyTransaction {
-  private async read<T>(collection: string, id: string, parse: (v: unknown) => T): Promise<T | null> {
+  private async read<T>(collection: string, id: string, parse: (v: unknown) => T, exactEntity = false): Promise<T | null> {
     const value = readDocument(await this.doc(collection, id).get());
     if (!value) return null;
     if (value.schemaVersion !== 1 || value._id !== id) bad();
-    return parse({ ...value, id });
+    return parse(exactEntity ? entityRecord(value, id) : value);
   }
   private async write(collection: string, id: string, value: object): Promise<void> {
     await this.doc(collection, id).set({ data: { ...value, schemaVersion: 1 } });
   }
-  public segment(id: string) { return this.read("schedule_segments", id, readScheduleSegment); }
-  public saveSegment(segment: PersistedScheduleSegment) { return this.write("schedule_segments", segment.id, { ...segment, listOrder: `${segment.effectiveFrom}/${segment.id}` }); }
-  public saveControl(control: PersistedScheduleControl) { return this.write("schedule_controls", control.id, { ...control, controlOrder: `${control.effectiveAt}/${String(control.taskVersion).padStart(16, "0")}` }); }
-  public occurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState); }
-  public saveOccurrenceState(state: PersistedOccurrenceState) { return this.write("occurrence_states", state.id, { ...state, listOrder: `${state.localDate ?? ""}/${state.id}` }); }
+  public segment(id: string) { return this.read("schedule_segments", id, readScheduleSegment, true); }
+  public saveSegment(segment: PersistedScheduleSegment) { return this.write("schedule_segments", segment.id, { ...entityFields(segment), listOrder: `${segment.effectiveFrom}/${segment.id}` }); }
+  public saveControl(control: PersistedScheduleControl) { return this.write("schedule_controls", control.id, { ...entityFields(control), controlOrder: `${control.effectiveAt}/${String(control.taskVersion).padStart(16, "0")}` }); }
+  public occurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState, true); }
+  public saveOccurrenceState(state: PersistedOccurrenceState) {
+    if (legacyStorageWrites()) return this.write("occurrence_states", state.id, { ...state, listOrder: `${state.localDate ?? ""}/${state.id}` });
+    const { identityKey: _identityKey, ...fields } = entityFields(state);
+    return this.write("occurrence_states", state.id, fields);
+  }
   public saveHistoricalSubjectAccess(access: HistoricalSubjectAccess) { return this.write("historical_subject_access", key(access.taskId, access.membershipId), access); }
-  public override task(id: string) { return this.read("tasks", id, readCollaborativeTask); }
+  public override task(id: string) { return this.read("tasks", id, readCollaborativeTask, true); }
   public override saveTask(task: CollaborativeTask) { return this.write("tasks", task.id, { ...taskFields(task), familyId: task.collaboration?.familyId ?? null }); }
-  public family(id: string) { return this.read("families", id, readFamily); }
-  public saveFamily(family: Family) { return this.write("families", family.id, { ...family, listOrder: ordered(family) }); }
-  public member(id: string) { return this.read("memberships", id, readMembership); }
-  public saveMember(member: Membership) { return this.write("memberships", member.id, { ...member, listOrder: ordered(member) }); }
+  public family(id: string) { return this.read("families", id, readFamily, true); }
+  public saveFamily(family: Family) { return this.write("families", family.id, { ...entityFields(family), ...(legacyStorageWrites() ? { listOrder: ordered(family) } : {}) }); }
+  public member(id: string) { return this.read("memberships", id, readMembership, true); }
+  public saveMember(member: Membership) { return this.write("memberships", member.id, { ...entityFields(member), listOrder: ordered(member) }); }
   public slot(familyId: string, userId: string) { return this.read("membership_slots", key(familyId, userId), readSlot); }
   public saveSlot(slot: MembershipSlot) { return this.write("membership_slots", key(slot.familyId, slot.userId), { ...slot, active: slot.activeMembershipId !== null }); }
-  public virtualMember(id: string) { return this.read("virtual_members", id, readVirtual); }
-  public saveVirtualMember(member: VirtualMember) { return this.write("virtual_members", member.id, { ...member, listOrder: ordered(member) }); }
-  public invitation(id: string) { return this.read("invitations", id, readInvitation); }
-  public saveInvitation(invitation: Invitation) { return this.write("invitations", invitation.id, { ...invitation, listOrder: ordered(invitation, true) }); }
+  public virtualMember(id: string) { return this.read("virtual_members", id, readVirtual, true); }
+  public saveVirtualMember(member: VirtualMember) { return this.write("virtual_members", member.id, { ...entityFields(member), listOrder: ordered(member) }); }
+  public invitation(id: string) { return this.read("invitations", id, readInvitation, true); }
+  public saveInvitation(invitation: Invitation) { return this.write("invitations", invitation.id, { ...entityFields(invitation), listOrder: ordered(invitation, true) }); }
   public preference(taskId: string, userId: string) { return this.read("reminder_preferences", key(taskId, userId), readPreference); }
   public savePreference(preference: ReminderPreference) { return this.write("reminder_preferences", key(preference.taskId, preference.userId), preference); }
   public reminderReceipt(occurrenceId: string, userId: string) { return this.read("reminder_receipts", key(occurrenceId, userId), readReminderReceipt); }
   public saveReminderReceipt(receipt: ReminderReceipt) { return this.write("reminder_receipts", key(receipt.occurrenceId, receipt.userId), receipt); }
   public async addFamilyEvent(event: FamilyEvent) {
     if (readDocument(await this.doc("family_events", event.id).get())) throw new Error("Family event identifier collision.");
-    await this.write("family_events", event.id, event);
+    await this.write("family_events", event.id, entityFields(event));
   }
   public async batchReceipt(userId: string, requestId: string, taskId: string): Promise<FamilyReceipt | null> {
     const value = readDocument(await this.doc("idempotency_receipts", key("batch-child/v1", userId, requestId, taskId)).get());
@@ -108,11 +118,13 @@ export function invitationKeyringFromEnvironment(value: string | undefined): Inv
   catch { throw new Error("Invitation keyring unavailable."); }
 }
 export class CloudBaseFamilyStore implements FamilyStore {
+  public readonly candidateAlgorithm: "indexed-candidates/v1" | "legacy";
   private readonly legacy: CloudBasePersonalStore;
   private readonly keyring: InvitationKeyring;
   private readonly deadline: number;
   private readonly contexts = new Map<string, FamilyContext>();
-  public constructor(private readonly db: PersonalDatabase, private readonly identity: WechatIdentity, private readonly secret: string, keyring: InvitationKeyring, private readonly nowMs: () => number = Date.now, deadline = nowMs() + 8000) {
+  public constructor(private readonly db: PersonalDatabase, private readonly identity: WechatIdentity, private readonly secret: string, keyring: InvitationKeyring, private readonly nowMs: () => number = Date.now, deadline = nowMs() + 8000, indexedCandidates = false) {
+    this.candidateAlgorithm = indexedCandidates ? "indexed-candidates/v1" : "legacy";
     this.deadline = deadline;
     this.legacy = new CloudBasePersonalStore(db, identity, secret, deadline, nowMs);
     this.keyring = parseInvitationKeyring(keyring);
@@ -128,22 +140,23 @@ export class CloudBaseFamilyStore implements FamilyStore {
       }, 0);
     }, { maxRetries: 2 });
   }
-  private async read<T>(collection: string, id: string, parse: (v: unknown) => T): Promise<T | null> {
+  private async read<T>(collection: string, id: string, parse: (v: unknown) => T, exactEntity = false): Promise<T | null> {
     this.budget(); const value = readDocument(await this.db.collection(collection).doc(id).get()); this.budget();
     if (!value) return null;
     if (value.schemaVersion !== 1 || value._id !== id) bad();
-    return parse({ ...value, id });
+    return parse(exactEntity ? entityRecord(value, id) : value);
   }
-  private async page<T>(collection: string, filter: Record<string, unknown>, after: string | null, limit: number, parse: (v: unknown) => T, order = "listOrder"): Promise<FamilyPage<T>> {
+  private async page<T>(collection: string, filter: Record<string, unknown>, after: string | null, limit: number, parse: (v: unknown) => T, order = "listOrder", fields?: Record<string, boolean>): Promise<FamilyPage<T>> {
     this.budget();
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error("Invalid scan budget.");
-    const response = await this.db.collection(collection).where({ ...filter, ...(after ? { [order]: this.db.command.gt(after) } : {}) }).orderBy(order, "asc").limit(Math.min(limit + 1, 200)).get();
+    const query = this.db.collection(collection).where({ ...filter, ...(after ? { [order]: this.db.command.gt(after) } : {}) }).orderBy(order, "asc").limit(Math.min(limit + 1, 200));
+    const response = await (fields ? query.field(fields) : query).get();
     this.budget();
     if (!isRecord(response) || !Array.isArray(response.data)) bad();
     const rows: unknown[] = response.data; const selected = rows.slice(0, limit); let next = after;
     const items = selected.map(row => {
       if (!isRecord(row) || row.schemaVersion !== 1 || typeof row[order] !== "string") bad();
-      next = row[order]; return parse({ ...row, id: row._id });
+      next = row[order]; return parse(entityRecord(row, row._id));
     });
     return { items, more: rows.length > limit || (limit === 200 && rows.length === 200), after: next };
   }
@@ -154,14 +167,63 @@ export class CloudBaseFamilyStore implements FamilyStore {
     bytes[6] = ((bytes[6] ?? 0) & 15) | 80; bytes[8] = ((bytes[8] ?? 0) & 63) | 128;
     const hex = bytes.toString("hex"); return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
-  public readSegment(id: string) { return this.read("schedule_segments", id, readScheduleSegment); }
-  public async segments(taskId: string, after: string | null, limit: number, window?: { from: string; to: string; currentSegmentId: string }) {
+  /** Exact-key bounded reads reject foreign, duplicate and malformed rows, including ownership mismatches. */
+  private async batchRows(collection: string, ids: string[], fields?: Record<string, boolean>): Promise<Record<string, unknown>[]> {
+    if (ids.length > 20 || new Set(ids).size !== ids.length) throw new Error("Invalid list batch.");
+    if (!ids.length) return [];
+    this.budget();
+    const query = this.db.collection(collection).where({ _id: this.db.command.in(ids) }).limit(20);
+    const response = await (fields ? query.field(fields) : query).get();
+    this.budget();
+    if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > ids.length) bad();
+    const seen = new Set<string>();
+    return response.data.map(value => {
+      if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string" || !ids.includes(value._id) || seen.has(value._id)) bad();
+      seen.add(value._id);
+      if (Object.hasOwn(value, "id") && value.id !== value._id) bad();
+      return value;
+    });
+  }
+  public async readListTask(id: string): Promise<TaskListSource | null> { return (await this.readListTasks([id]))[0] ?? null; }
+  public async readListTasks(ids: string[]): Promise<TaskListSource[]> {
+    if (!ids.every(isUuid)) throw new Error("Invalid task batch.");
+    return (await this.batchRows("tasks", ids, taskListFields)).map(row => readTaskListSource(entityRecord(row, row._id)));
+  }
+  public async readTasks(ids: string[]): Promise<CollaborativeTask[]> {
+    if (!ids.every(isUuid)) throw new Error("Invalid task batch.");
+    return (await this.batchRows("tasks", ids)).map(row => readCollaborativeTask(entityRecord(row, row._id)));
+  }
+  public async readSegments(pairs: { taskId: string; segmentId: string }[]): Promise<PersistedScheduleSegment[]> {
+    if (!pairs.every(pair => isUuid(pair.taskId) && isUuid(pair.segmentId))) throw new Error("Invalid segment batch.");
+    return (await this.batchRows("schedule_segments", pairs.map(pair => pair.segmentId))).map(row => {
+      const segment = readScheduleSegment(entityRecord(row, row._id));
+      if (!pairs.some(pair => pair.taskId === segment.taskId && pair.segmentId === segment.id)) bad();
+      return segment;
+    });
+  }
+  public async readPreferences(taskIds: string[], userId: string): Promise<ReminderPreference[]> {
+    if (!isUuid(userId) || !taskIds.every(isUuid)) throw new Error("Invalid preference batch.");
+    return (await this.batchRows("reminder_preferences", taskIds.map(id => key(id, userId)))).map(row => {
+      const preference = readPreference(row);
+      if (preference.userId !== userId || !taskIds.includes(preference.taskId) || row._id !== key(preference.taskId, userId)) bad();
+      return preference;
+    });
+  }
+  public async historicalSubjectPairs(pairs: { taskId: string; membershipId: string }[]): Promise<HistoricalSubjectAccess[]> {
+    if (!pairs.every(pair => isUuid(pair.taskId) && isUuid(pair.membershipId))) throw new Error("Invalid historical batch.");
+    return (await this.batchRows("historical_subject_access", pairs.map(pair => key(pair.taskId, pair.membershipId)))).map(row => {
+      if (!isUuid(row.taskId) || !isUuid(row.membershipId) || row._id !== key(row.taskId, row.membershipId) || !pairs.some(pair => pair.taskId === row.taskId && pair.membershipId === row.membershipId)) bad();
+      return { taskId: row.taskId, membershipId: row.membershipId };
+    });
+  }
+  public readSegment(id: string) { return this.read("schedule_segments", id, readScheduleSegment, true); }
+  public async segments(taskId: string, after: string | null, limit: number, window?: { from: string; to: string; currentSegmentId: string; currentSegment?: PersistedScheduleSegment }) {
     if (!window) return this.page("schedule_segments", { taskId }, after, limit, readScheduleSegment);
     if (limit < 2) throw new Error("Window segment batch must allow a current segment.");
     // Closed segments overlap the window. The current open segment is fetched separately,
     // including a current once scheduled before creation; it deliberately ignores these bounds.
-    const current = after === null ? await this.readSegment(window.currentSegmentId) : null;
-    if (after === null && (!current || current.taskId !== taskId)) bad();
+    const current = after === null ? window.currentSegment ?? await this.readSegment(window.currentSegmentId) : null;
+    if (after === null && (!current || current.taskId !== taskId || current.id !== window.currentSegmentId)) bad();
     const page = await this.page("schedule_segments", { taskId, effectiveFrom: this.db.command.lte(localDayBounds(window.to).to), effectiveUntil: this.db.command.gte(localDayBounds(window.from).from) }, after, limit - (current ? 1 : 0), readScheduleSegment);
     return { ...page, items: current ? [current, ...page.items.filter(segment => segment.id !== current.id)] : page.items };
   }
@@ -172,8 +234,10 @@ export class CloudBaseFamilyStore implements FamilyStore {
     this.budget();
     const response = await this.db.collection("reminder_receipts").where({ _id: this.db.command.in(ids) }).limit(20).get();
     this.budget(); if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > ids.length) bad();
+    const seen = new Set<string>();
     return response.data.map(value => {
-      if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string" || !ids.includes(value._id)) bad();
+      if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string" || !ids.includes(value._id) || seen.has(value._id)) bad();
+      seen.add(value._id);
       const receipt = readReminderReceipt(value);
       if (receipt.userId !== userId || !occurrenceIds.includes(receipt.occurrenceId) || value._id !== key(receipt.occurrenceId, userId)) bad();
       return receipt;
@@ -185,20 +249,24 @@ export class CloudBaseFamilyStore implements FamilyStore {
     this.budget(); if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > 1) bad();
     const value: unknown = response.data[0]; if (value === undefined) return null;
     if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string") bad();
-    const segment = readScheduleSegment({ ...value, id: value._id });
+    const segment = readScheduleSegment(entityRecord(value, value._id));
     if (segment.taskId !== taskId || (segment.effectiveUntil !== null && segment.effectiveUntil >= localDayBounds(before).from)) bad();
     return segment.effectiveUntil;
   }
-  public readOccurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState); }
+  public readOccurrenceState(id: string) { return this.read("occurrence_states", id, readOccurrenceState, true); }
   public async readOccurrenceStates(ids: string[]): Promise<PersistedOccurrenceState[]> {
     if (ids.length > 100 || !ids.every(isUuid)) throw new Error("Invalid occurrence batch.");
     if (!ids.length) return [];
     this.budget();
     const response = await this.db.collection("occurrence_states").where({ _id: this.db.command.in([...new Set(ids)]) }).limit(100).get();
-    this.budget(); if (!isRecord(response) || !Array.isArray(response.data)) bad();
+    this.budget(); if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > new Set(ids).size) bad();
+    const seen = new Set<string>();
     return response.data.map(value => {
-      if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string" || !ids.includes(value._id)) bad();
-      return readOccurrenceState({ ...value, id: value._id });
+      if (!isRecord(value) || value.schemaVersion !== 1 || typeof value._id !== "string" || !ids.includes(value._id) || seen.has(value._id)) bad();
+      seen.add(value._id);
+      const state = readOccurrenceState(entityRecord(value, value._id));
+      if (this.deriveOccurrenceId([state.taskId, state.segmentId, state.localDate, state.slot]) !== state.id) bad();
+      return state;
     });
   }
   public async historicalSubjects(taskId: string, membershipIds: string[]): Promise<string[]> {
@@ -224,12 +292,12 @@ export class CloudBaseFamilyStore implements FamilyStore {
     this.budget(); if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > 1) bad();
     const row: unknown = response.data[0]; if (row === undefined) return null;
     if (!isRecord(row) || row.schemaVersion !== 1) bad();
-    const control = readScheduleControl({ ...row, id: row._id }); if (control.taskId !== taskId || control.effectiveAt >= boundary) bad(); return control;
+    const control = readScheduleControl(entityRecord(row, row._id)); if (control.taskId !== taskId || control.effectiveAt >= boundary) bad(); return control;
   }
-  public readMember(id: string) { return this.read("memberships", id, readMembership); }
-  public readVirtualMember(id: string) { return this.read("virtual_members", id, readVirtual); }
-  public readInvitation(id: string) { return this.read("invitations", id, readInvitation); }
-  public readTask(id: string) { return this.read("tasks", id, readCollaborativeTask); }
+  public readMember(id: string) { return this.read("memberships", id, readMembership, true); }
+  public readVirtualMember(id: string) { return this.read("virtual_members", id, readVirtual, true); }
+  public readInvitation(id: string) { return this.read("invitations", id, readInvitation, true); }
+  public readTask(id: string) { return this.read("tasks", id, readCollaborativeTask, true); }
   public members(query: FamilyListQuery, after: string | null, limit: number) { return this.page("memberships", query, after, limit, readMembership); }
   public virtualMembers(query: FamilyListQuery, after: string | null, limit: number) { return this.page("virtual_members", query, after, limit, readVirtual); }
   public invitations(familyId: string, after: string | null, limit: number) { return this.page("invitations", { familyId }, after, limit, readInvitation); }
@@ -255,12 +323,12 @@ export class CloudBaseFamilyStore implements FamilyStore {
       const slot = readSlot(row); if (slot.userId !== userId || slot.activeMembershipId === null) bad(); return slot;
     });
     const families = await Promise.all(slots.map(async slot => {
-      const family = await this.read("families", slot.familyId, readFamily); if (!family) bad(); return family;
+      const family = await this.read("families", slot.familyId, readFamily, true); if (!family) bad(); return family;
     }));
     return families.sort((a, b) => ordered(a).localeCompare(ordered(b)));
   }
   public async context(familyId: string, membershipIds: string[] = []): Promise<FamilyContext | null> {
-    const family = await this.read("families", familyId, readFamily); if (!family) return null;
+    const family = await this.read("families", familyId, readFamily, true); if (!family) return null;
     const cached = this.contexts.get(familyId);
     const roster = cached?.family.version === family.version ? structuredClone(cached) : null;
     const [active, virtual] = roster ? [{ items: roster.members, more: false }, { items: roster.virtualMembers, more: false }] : await Promise.all([
@@ -280,14 +348,22 @@ export class CloudBaseFamilyStore implements FamilyStore {
         id = member.successorMembershipId; if (id === null) bad();
       }
     }
-    const end = await this.read("families", familyId, readFamily);
+    const end = await this.read("families", familyId, readFamily, true);
     if (!end || end.version !== family.version) throw new Error("Family roster changed.");
     const context = { family, members, virtualMembers: virtual.items };
     this.contexts.set(familyId, structuredClone(context));
     return context;
   }
-  public async scanTasks(userId: string, familyId: string | null, query: PersonalQuery, asOf: string, after: string | null, limit: number): Promise<FamilyPage<CollaborativeTask>> {
+  public scanTasks(userId: string, familyId: string | null, query: PersonalQuery, asOf: string, after: string | null, limit: number) {
+    return this.scanTaskSources(userId, familyId, query, asOf, after, limit, readCollaborativeTask);
+  }
+  public scanListTasks(userId: string, familyId: string | null, query: PersonalQuery, asOf: string, after: string | null, limit: number) {
+    return this.scanTaskSources(userId, familyId, query, asOf, after, limit, readTaskListSource, taskListFields);
+  }
+  private async scanTaskSources<T extends TaskListSource>(userId: string, familyId: string | null, query: PersonalQuery, asOf: string, after: string | null, limit: number, parse: (v: unknown) => T, fields?: Record<string, boolean>): Promise<FamilyPage<T>> {
     if (query.mode === "history") throw new Error("Use task event scanner for history.");
+    // Backlog branch overhead exceeded the legacy path in complete-flow measurements.
+    if (this.candidateAlgorithm === "indexed-candidates/v1" && query.mode === "projection" && query.candidateWindow && !query.candidateWindow.backlog) return this.scanIndexedCandidates(userId, familyId, query.candidateWindow, after, limit, parse, fields);
     const c = this.db.command;
     const management = query.mode === "tasks" && !query.dateFrom && !query.dateTo && !query.unscheduled && !query.overdueBefore && !query.status;
     const filter: Record<string, unknown> = { ...(familyId ? { familyId } : { ownerUserId: userId }), ...({ lifecycle: management || query.mode === "projection" ? c.in(["active", "paused", "stopped"]) : query.mode === "recycle" ? "deleted" : "active" }) };
@@ -297,8 +373,53 @@ export class CloudBaseFamilyStore implements FamilyStore {
     if (query.overdueBefore) filter.date = c.gte("0001-01-01").and(c.lt(query.overdueBefore));
     if (query.dateFrom && query.dateTo) filter.date = c.gte(query.dateFrom).and(c.lte(query.dateTo));
     if (query.mode === "reminders") { filter.status = "pending"; filter.scheduledAt = c.gte("0001-01-01T00:00:00.000Z").and(c.lte(asOf)); }
-    const result = await this.page("tasks", filter, after, limit, readCollaborativeTask, order);
+    const result = await this.page("tasks", filter, after, limit, parse, order, fields);
     return { ...result, items: result.items.filter(task => (!management || task.lifecycle !== "deleted") && (familyId ? task.collaboration?.familyId === familyId : !task.collaboration)) };
+  }
+  /** Six mutually exclusive branches; continuation size is constant regardless of task count. */
+  private async scanIndexedCandidates<T extends TaskListSource>(userId: string, familyId: string | null, window: { from: string; to: string; backlog: boolean }, after: string | null, limit: number, parse: (v: unknown) => T, fields?: Record<string, boolean>): Promise<FamilyPage<T>> {
+    this.budget();
+    if (!localDate(window.from) || !localDate(window.to) || window.from > window.to || !Number.isInteger(limit) || limit < 1 || limit > 200) bad();
+    let branch = 0, position: string | null = null;
+    if (after) {
+      let token: unknown; try { token = JSON.parse(after); } catch { return bad(); }
+      if (!isRecord(token) || token.v !== 1 || !Number.isInteger(token.branch) || typeof token.branch !== "number" || token.branch < 0 || token.branch > 5 || !(token.position === null || typeof token.position === "string")) bad();
+      branch = token.branch; position = token.position;
+    }
+    const initialBranchPage = position === null;
+    const lifecycle = ["active", "paused", "stopped"][branch % 3];
+    const candidateKind = branch < 3 ? "single" : "history";
+    const scopeKey = familyId ? `f/${familyId}` : `p/${userId}`;
+    const c = this.db.command, lower = `${window.from}/`, upper = `${window.to}/~`;
+    const filter: Record<string, unknown> = { scopeKey, candidateKind, lifecycle };
+    // UUID, HH:mm and 99:99 are ASCII below '~'; date-only once rows are covered.
+    if (candidateKind === "single") {
+      const range = c.gte(lower).and(c.lte(upper));
+      filter.candidateOrder = position ? range.and(c.gt(position)) : range;
+    } else if (position) filter.candidateOrder = c.gt(position);
+    const query = this.db.collection("tasks").where(filter);
+    const selectedQuery = query.orderBy("candidateOrder", "asc").limit(Math.min(limit + 1, 200));
+    const response = await (fields ? selectedQuery.field(fields) : selectedQuery).get();
+    this.budget();
+    if (!isRecord(response) || !Array.isArray(response.data)) bad();
+    const rows: unknown[] = response.data;
+    const items = rows.slice(0, limit).map(row => {
+      if (!isRecord(row) || row.schemaVersion !== 1 || row.candidateSchema !== 1 || row.scopeKey !== scopeKey || row.candidateKind !== candidateKind || row.lifecycle !== lifecycle || typeof row.candidateOrder !== "string") bad();
+      position = row.candidateOrder;
+      return parse(entityRecord(row, row._id));
+    }).filter(task => familyId ? task.collaboration?.familyId === familyId : !task.collaboration && task.ownerUserId === userId);
+    let olderHint: string | null = null;
+    if (candidateKind === "single" && window.backlog && initialBranchPage) {
+      const previous = await this.db.collection("tasks").where({ scopeKey, candidateKind, lifecycle, candidateOrder: c.lt(lower) }).orderBy("candidateOrder", "desc").limit(1).field({ candidateOrder: true }).get();
+      this.budget();
+      if (!isRecord(previous) || !Array.isArray(previous.data)) bad();
+      const row: unknown = previous.data[0];
+      const date = isRecord(row) && typeof row.candidateOrder === "string" ? row.candidateOrder.slice(0, 10) : null;
+      if (localDate(date) && date < window.from) olderHint = date;
+    }
+    const moreInBranch = rows.length > limit || (limit === 200 && rows.length === 200);
+    if (!moreInBranch) { branch++; position = null; }
+    return { items, more: branch < 6, after: branch < 6 ? JSON.stringify({ v: 1, branch, position }) : null, olderHint };
   }
   public fingerprint(value: unknown) { return this.legacy.fingerprint(value); }
   public randomToken() { return randomBytes(16).toString("base64url"); }

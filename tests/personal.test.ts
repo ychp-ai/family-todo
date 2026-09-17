@@ -1,6 +1,8 @@
+import type { UnchangedList } from "@family-todo/contracts";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { isPersonalData, isPersonalPayload } from "@family-todo/contracts";
+import { isFullPersonalData as isPersonalData } from "./support/full-data";
+import { isPersonalPayload } from "@family-todo/contracts";
 import type { PersonalAction, PersonalActionMap, PersonalDraft, OccurrenceDTO } from "@family-todo/contracts";
 import { PersonalService } from "@family-todo/application";
 import { createUser } from "@family-todo/domain";
@@ -12,7 +14,7 @@ const now = new Date("2026-09-11T10:30:00.000Z");
 const identity = {provider:"wechat" as const,appId:"wxee0f068c2e7cc49c",subject:"personal-test-user"};
 const draft: PersonalDraft = {title:"买牛奶",note:"",familyId:null,subject:{kind:"self"},schedule:{kind:"once",date:"2026-09-11",time:"18:00"},access:{viewerMembershipIds:[],helperMembershipIds:[],reminderMembershipIds:[],remindMe:true}};
 let database: MemoryPersonalDatabase; let service: PersonalService; let store: CloudBasePersonalStore;
-async function call<A extends PersonalAction>(action: A,payload: PersonalActionMap[A]["payload"],requestId = randomUUID()): Promise<PersonalActionMap[A]["data"]> {
+async function call<A extends PersonalAction>(action: A,payload: PersonalActionMap[A]["payload"],requestId = randomUUID()): Promise<Exclude<PersonalActionMap[A]["data"], UnchangedList>> {
   const result = await service.execute(action,payload,requestId); if (!isPersonalData(action,result)) throw new Error("Bad result"); return result;
 }
 function ref(o: OccurrenceDTO) { return {id:o.id,taskId:o.taskId,segmentId:o.segmentId,localDate:o.localDate,slot:o.slot}; }

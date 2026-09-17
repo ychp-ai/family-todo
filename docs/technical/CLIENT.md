@@ -8,6 +8,7 @@
 | --- | --- |
 | `services/app-api-client.ts`、`identity-api.ts` | 统一信封、身份初始化及 unknown 响应校验 |
 | `services/personal-api.ts` | 个人和家庭 action 的强类型调用、生成契约校验、10 秒超时、账号隔离的未决写恢复 |
+| `services/list-metrics.ts` | 默认关闭、显式采样的逻辑列表上下文、固定隐私字段和有界 requestId 关联 |
 | `services/family-api.ts` | 家庭列表、在用与停用虚拟成员分页、完整退出和转交影响预览 |
 | `services/personal-lists.ts` | 列表追完游标、离开页面停止后续读取、游标过期重建一次快照、丢弃最终失权或失败 scope 的条目 |
 | `services/collaboration-draft.ts` | 执行对象映射、必要查看人、查看／代记／提醒独立草稿及本人关闭提醒保护 |
@@ -104,3 +105,9 @@ App 的 `globalData.session` 持有 `IdentitySession`。`ensure()` 合并并发�
 ### 首页按查看范围查询
 
 `overdue` 是独立 tab，只在选中时以 `{ overdue: true }` 查询历史未完成事项；首页不再并行预取历史列表。日期/家庭筛选调用 `refresh("tasks")`，只读取当前 `task.list`，复用同账号家庭选项并保留提醒；服务端继续检查范围权限。首次进入、下拉及定期刷新使用完整读取；完成/撤销使用 `refresh("record")` 更新当前列表与提醒。所有列表继续完整分页、隔离失效响应，并显示 loading/empty/error/ready；日期切换不延后完整刷新的时间窗口。
+
+## 完整结果内存缓存
+
+列表服务缓存最多12个完整结果，每项 JSON 不超过512000字符（按UTF-16粗估每项约1 MiB）。键绑定恢复账号/环境、generation、readRevision、action 与筛选；未绑定身份不缓存，不写磁盘。完整多页且所有 scope 成功才安装，保留空续页与一次 cursor 重启；错误移除对应项，账号切换、写入和隐私清理清空缓存并阻止迟到响应安装。返回值克隆后交给页面，页面装饰不会污染快照。unchanged 无匹配快照时仅一次无 token 回退。
+
+首页保持30秒前台刷新，onShow 的本地复用同时受服务器下一时间边界/到期约束，定时刷新取剩余30秒与边界较短者；下拉强制完整扫描。asOf 保留快照时间，serverTime 用于本次警告时间计算。`PersonalApi.read` 可选观察器只暴露真实 requestId 和 reusedInFlight，不改变业务 payload 或在途合并键；两个合并消费者关联同一物理 ID。`list-metrics.ts` 仅在调用 `configureListMetrics` 后按逻辑加载采样，关闭方式、固定字段、256 条关联上限和离线 CLI 用法见[性能观测记录](API_PERFORMANCE_IMPLEMENTATION.md#观测开关)。

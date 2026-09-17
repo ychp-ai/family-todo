@@ -4,6 +4,8 @@ export type PersonalTask = {
   version: number; segmentId: string; occurrenceId: string;
   date: string | null; time: string | null; lifecycle: "active" | "paused" | "stopped" | "deleted";
   recurrence?: TaskRecurrence;
+  /** Internal persisted proof; once promoted to history it must never be downgraded. */
+  candidateKind?: "single" | "history";
   status: "pending" | "completed" | "skipped"; occurrenceVersion: number;
   actualCompletedAt: string | null; recordedAt: string | null; operatorName: string | null;
   reminderEnabled: boolean; reminderSelfDisabled: boolean; reminderVersion: number;
