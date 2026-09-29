@@ -14,6 +14,7 @@
 | `services/collaboration-draft.ts` | 执行对象映射、必要查看人、查看／代记／提醒独立草稿及本人关闭提醒保护 |
 | `services/schedule-draft.ts`、`editor-seed.ts` | 日程输入校验和兼容的进程内草稿交接 |
 | `services/write-recovery.ts`、`input-recovery.ts` | 账号隔离的原请求与原始输入存储、完成标记、草稿所有权和恢复校验 |
+| `services/batch-completion.ts` | 按次数独立选择、权限与20次上限、批量完成结果摘要 |
 | `services/batch-viewers.ts` | 按事项去重、显式家庭归属、逐组追加查看人及失败项版本刷新 |
 | `pages/*/index.ts` | 页面局部草稿、筛选、加载／空／错误／就绪状态、异步 epoch 与弹层 |
 
@@ -29,6 +30,7 @@
 - 详情：真实家庭、执行对象、管理人、查看人与代记人，操作分别遵循 canRecord／canEdit／canShare／canDelete。只显示当前用户自己的提醒设置。共享现有家庭事项使用 task.setAccess。首页和提醒传递完整 OccurrenceRef，详情显示所选次数的历史执行对象和 canRecord；未来次数仍可查看但不能记录。周期详情按日期查询次数，并按 canEdit／canResume 提供暂停、继续、停止；继续前读取服务端预览，不补暂停期间。
 - 回收站：支持聚合与家庭筛选；仅 canRestore 条目提供恢复，成功后展示实际 removedParticipantCount。无法读取家庭时显示可重试错误，不伪装空列表。恢复周期明确提示变为暂停，曾停止系列只恢复历史，canResume 为 false 时不展示继续入口。
 - 家人进度：首页家人入口进入独立进度页，按家庭、执行对象及日期读取 progress.get；完整可见结果中的历史执行对象补入筛选，不扩大 family.get 名册。家庭管理仍在原路由。未完整结果保留 members=null 并续读；暂不可用保留游标供显式重试，过期则仅重建一次。只有完整结果才显示计数和进度环，空态说明可见范围。
+- 批量完成：首页多选默认按 occurrence.id 选择有 canRecord 的 pending 次数，最多20次。确认后串行调用现有 occurrence.record，分别携带原 OccurrenceRef 和版本；冲突显示失败并继续其他项，未知结果停止，通过统一未决写入口使用原请求确认，不自动提交剩余项。退出页面或账号切换停止后续请求并清空页面结果。选中态一次同步源列表与分组列表，避免共享引用导致差量更新遗漏。
 - 批量追加：首页只选择可编辑且可共享的事项，相同事项多个次数按 taskId 去重，上限 20。按家庭分组，个人事项必须明确选择目标家庭；仅选择新增查看人，不添加代记或提醒。结果逐项显示成功／待确认／失败；待确认沿用原操作继续，全体结束后才允许重试失败项，并先读取其最新版本。
 
 所有页面使用原生 custom navigation、WXML 控件和 WXSS；后续页面视觉与交互统一对照 `design/index.html`、`design/prototype.js`、`design/styles.css` 和 `design/page-redesign.md`。旧流程稿已删除，现有原生页面尚不能视为已完成新设计适配。控件热区至少 44 CSS px。
@@ -111,3 +113,5 @@ App 的 `globalData.session` 持有 `IdentitySession`。`ensure()` 合并并发�
 列表服务缓存最多12个完整结果，每项 JSON 不超过512000字符（按UTF-16粗估每项约1 MiB）。键绑定恢复账号/环境、generation、readRevision、action 与筛选；未绑定身份不缓存，不写磁盘。完整多页且所有 scope 成功才安装，保留空续页与一次 cursor 重启；错误移除对应项，账号切换、写入和隐私清理清空缓存并阻止迟到响应安装。返回值克隆后交给页面，页面装饰不会污染快照。unchanged 无匹配快照时仅一次无 token 回退。
 
 首页保持30秒前台刷新，onShow 的本地复用同时受服务器下一时间边界/到期约束，定时刷新取剩余30秒与边界较短者；下拉强制完整扫描。asOf 保留快照时间，serverTime 用于本次警告时间计算。`PersonalApi.read` 可选观察器只暴露真实 requestId 和 reusedInFlight，不改变业务 payload 或在途合并键；两个合并消费者关联同一物理 ID。`list-metrics.ts` 仅在调用 `configureListMetrics` 后按逻辑加载采样，关闭方式、固定字段、256 条关联上限和离线 CLI 用法见[性能观测记录](API_PERFORMANCE_IMPLEMENTATION.md#观测开关)。
+
+批量完成与批量增加可见人均在全部项目取得终态后自动关闭弹窗、退出多选并刷新首页数据；逐项结果保留在首页结果入口，部分失败可回看原因。结果尚未确认时保留弹层及原请求重试入口，确认结束后关闭并刷新。关闭与刷新时序通过本地 Page 模拟测试验证，尚未提交真实云批量写入验证。

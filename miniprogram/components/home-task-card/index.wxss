@@ -1,1 +1,3 @@
 /* Visual tokens and page classes are inherited with apply-shared. */
+
+.task-card.selected .check-circle{background:var(--brand);border-color:var(--brand);color:var(--paper);font-weight:600}

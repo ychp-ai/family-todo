@@ -1,3 +1,5 @@
+import { canComplete, completionRows, selectCompletion } from "../../services/batch-completion";
+import type { CompletionResult } from "../../services/batch-completion";
 import { occurrenceWarning } from "../../services/occurrence-warning";
 import { readCreateFamily, rememberCreateFamily } from "../../services/create-family";
 import { patchData } from "../../services/patch-data";
@@ -23,7 +25,7 @@ function groups(items:Card[]) {return ["我来做","帮家人","关心一下"].m
 async function recordHomeCacheHit():Promise<void>{const parent=startListMetric("home.refresh");if(!parent)return;const children=[parent.child("family.list"),parent.child("task.list"),parent.child("reminder.list")];for(const child of children){child?.setSource("cache");child?.finish("success");}parent.setSource("cache");parent.finish("success");}
 Page({
   onComponentAction: componentActions(["batchFamilyChange", "batchViewersChange", "changeTab", "dismissReminder", "expand", "familyChange", "fullEditor", "futureFeature", "openReminders", "openTask", "pickDate", "quickDateChange", "quickFamilyChange", "quickNoteInput", "quickReminderChange", "quickRepeatChange", "quickSubjectChange", "quickTimeChange", "quickTitleInput", "quickViewersChange", "reminderDetail", "retryQuickFamily", "saveQuick", "toggleTask"]),
-  data: {listRefreshing:false,refreshing:false,batchMode:false,selectedTasks:[] as TaskSummaryDTO[],selectedIds:[] as string[],batchGroups:[] as BatchGroup[],batchResults:[] as (BatchItemResult&{label:string})[],batchComplete:false,batchHasFailures:false,batchBusy:false,batchError:"",batchFamilyOptions:["请选择家庭"],statusHeight:0,navHeight:44,capsuleWidth:100,status:"loading",error:"",today:"",tomorrow:"",greeting:"",tab:"today",selectedDate:"",familyOptions:["全部家庭"],familyIndex:0,
+  data: {batchAction:"complete",selectedOccurrences:[] as TaskListItem[],completionResults:[] as CompletionResult[],completionSubmitted:false,listRefreshing:false,refreshing:false,batchMode:false,selectedTasks:[] as TaskSummaryDTO[],selectedIds:[] as string[],batchGroups:[] as BatchGroup[],batchResults:[] as (BatchItemResult&{label:string})[],batchComplete:false,batchHasFailures:false,batchBusy:false,batchError:"",batchFamilyOptions:["请选择家庭"],statusHeight:0,navHeight:44,capsuleWidth:100,status:"loading",error:"",today:"",tomorrow:"",greeting:"",tab:"today",selectedDate:"",familyOptions:["全部家庭"],familyIndex:0,
     families:[] as FamilySummary[],groups:[] as {name:string;items:Card[]}[],pendingCount:0,quickFamilyIndex:0,quickFamilyOptions:["请选择家庭"],quickSubjectOptions:[] as SubjectOption[],quickSubjectNames:["自己"],quickSubjectIndex:0,quickRows:[] as PermissionRow[],quickNotice:"请选择所属家庭",quickLoading:false,items:[] as Card[],visibleItems:[] as Card[],backlog:[] as Card[],reminders:[] as (ReminderDTO & {id:string})[],reminderCount:0,reminderError:"",summaryText:"—",progress:0,hideCompleted:true,
     sheet:"",quickTitle:"",quickDate:"today",quickTime:"",quickRepeatIndex:0,quickRepeatOptions:["不重复","每天"],quickNote:"",quickReminder:true,expanded:false,quickError:"",quickSuccess:"",saving:false,uncertain:false,writing:false,writingKey:"",includeDismissed:false},
   quickIdentity:null as RecoveryIdentity|null,quickRecovery:null as InputRecovery|null,quickDirty:false,quickTransferred:false,batchEpoch:0,quickRoster:null as Roster|null,quickSubject:{kind:"self"} as Subject,quickEpoch:0,visible:false,alive:true,epoch:0,pendingWrite:null as null | {key:string;run:()=>Promise<unknown>;done:()=>void},lastRefresh:0,
@@ -47,7 +49,7 @@ Page({
     try { await this.refresh("all",true); }
     finally { if(this.alive)patchData(this, {refreshing:false}); }
   },
-  onHide() { this.persistQuick();this.stop();this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;patchData(this, {batchMode:false,sheet:"",refreshing:false,listRefreshing:false,items:this.data.items.map(i=>({...i,selected:false})),visibleItems:this.data.visibleItems.map(i=>({...i,selected:false})),groups:groups(this.data.visibleItems.map(i=>({...i,selected:false}))),backlog:this.data.backlog.map(i=>({...i,selected:false})),quickRows:[],quickSubjectOptions:[],selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[]}); }, onUnload() { this.persistQuick();this.alive=false; this.stop();this.batchEpoch++; },
+  onHide() { this.persistQuick();this.stop();this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;patchData(this, {batchMode:false,selectedOccurrences:[],completionResults:[],completionSubmitted:false,sheet:"",refreshing:false,listRefreshing:false,items:this.data.items.map(i=>({...i,selected:false})),visibleItems:this.data.visibleItems.map(i=>({...i,selected:false})),groups:groups(this.data.visibleItems.map(i=>({...i,selected:false}))),backlog:this.data.backlog.map(i=>({...i,selected:false})),quickRows:[],quickSubjectOptions:[],selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[]}); }, onUnload() { this.persistQuick();this.alive=false; this.stop();this.batchEpoch++; },
   stop() { this.visible = false; this.epoch++; },
   async refresh(mode: "all" | "tasks" | "record" = "all", forceFull = false) {
     if (!this.visible || this.pendingWrite || this.data.writing || this.data.saving || this.data.batchBusy || this.data.batchMode) return; this.cacheAt=0;const epoch=++this.epoch;const reminderEpoch=this.reminderEpoch; this.lastRefresh=Date.now();
@@ -109,23 +111,134 @@ Page({
   retry() {  void this.refresh(); },
   changeTab(event: WechatMiniprogram.TouchEvent) { const tab: unknown=event.currentTarget.dataset.tab; if (typeof tab !== "string" || !["today","tomorrow","unscheduled","overdue"].includes(tab) || tab===this.data.tab || !this.data.today || this.data.writing || this.data.saving || this.data.batchBusy) return; this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {tab,status:"loading",summaryText:"—",progress:0,items:[],visibleItems:[],groups:[]}); void this.refresh("tasks"); },
   pickDate(event: WechatMiniprogram.PickerChange) { const value=event.detail.value; if (typeof value !== "string" || (this.data.tab==="calendar"&&value===this.data.selectedDate) || this.data.writing || this.data.saving || this.data.batchBusy) return; this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {tab:"calendar",selectedDate:value,status:"loading",summaryText:"—",progress:0,items:[],visibleItems:[],groups:[]}); void this.refresh("tasks"); },
-  familyChange(event: WechatMiniprogram.PickerChange) { this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {familyIndex:Number(event.detail.value),status:"loading",summaryText:"—",progress:0,items:[],visibleItems:[],groups:[],backlog:[]}); void this.refresh("tasks"); },
-  toggleCompleted() { const hideCompleted=!this.data.hideCompleted; const visibleItems=this.data.items.filter(i => !hideCompleted || i.occurrence.status === "pending");patchData(this, {hideCompleted,visibleItems,groups:groups(visibleItems)}); },
-  resetBatchSelection(){this.batchEpoch++;patchData(this, {batchMode:false,selectedTasks:[],selectedIds:[],batchGroups:[],batchError:""});},
-  futureFeature() {if(this.data.writing||this.data.batchBusy)return;patchData(this, {batchMode:!this.data.batchMode,selectedTasks:[],selectedIds:[],batchError:""});if(!this.data.batchMode)void this.refresh();},
-  selectTask(e:WechatMiniprogram.TouchEvent){const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===e.currentTarget.dataset.id);if(!item||this.data.batchBusy)return;try{const selectedTasks=selectTask(this.data.selectedTasks,item.task);patchData(this, {selectedTasks,selectedIds:selectedTasks.map(t=>t.id),items:this.data.items.map(i=>({...i,selected:selectedTasks.some(t=>t.id===i.task.id)})),backlog:this.data.backlog.map(i=>({...i,selected:selectedTasks.some(t=>t.id===i.task.id)})),batchError:""});patchData(this, {groups:groups(this.data.items.filter(i=>!this.data.hideCompleted||i.occurrence.status==="pending"))});}catch(error){patchData(this, {batchError:errorMessage(error)});}},
-  async openBatch(){if(!this.data.selectedTasks.length||this.data.batchBusy)return;const epoch=++this.batchEpoch;const groups:BatchGroup[]=[];for(const task of this.data.selectedTasks){const key=task.familyId??"personal";const group=groups.find(g=>g.key===key);if(group)group.taskIds.push(task.id);else groups.push({key,name:task.familyName??"个人事项",taskIds:[task.id],targetFamilyId:task.familyId??"",familyIndex:0,viewers:[],loading:!!task.familyId,error:""});}patchData(this, {sheet:"batch",batchGroups:groups,batchFamilyOptions:["请选择家庭",...this.data.families.map(f=>f.name)],batchError:"",batchResults:[],batchComplete:false});await Promise.all(groups.filter(group=>group.targetFamilyId).map(group=>this.loadBatchGroup(group.key,group.targetFamilyId,epoch)));},
+  familyChange(event: WechatMiniprogram.PickerChange) { if(this.data.writing||this.data.saving||this.data.batchBusy)return;this.resetBatchSelection();this.cacheAt=0;this.epoch++;patchData(this, {familyIndex:Number(event.detail.value),status:"loading",summaryText:"—",progress:0,items:[],visibleItems:[],groups:[],backlog:[]}); void this.refresh("tasks"); },
+  toggleCompleted() { if(this.data.batchBusy)return;const hideCompleted=!this.data.hideCompleted; const visibleItems=this.data.items.filter(i => !hideCompleted || i.occurrence.status === "pending");patchData(this, {hideCompleted,visibleItems,groups:groups(visibleItems)}); },
+  resetBatchSelection(){
+    this.batchEpoch++;
+    patchData(this, {batchMode:false,selectedTasks:[],selectedIds:[],selectedOccurrences:[],batchGroups:[],batchError:""});
+    this.updateBatchCards();
+  },
+  updateBatchCards(){
+    const selected = (item:Card) => this.data.batchMode && (this.data.batchAction === "complete"
+      ? this.data.selectedOccurrences.some(row=>row.occurrence.id===item.occurrence.id)
+      : this.data.selectedTasks.some(task=>task.id===item.task.id));
+    const items=this.data.items.map(item=>({...item,selected:selected(item)}));
+    const visibleItems=items.filter(item=>!this.data.hideCompleted||item.occurrence.status==="pending");
+    // Publish grouped cards together: shared item references must not hide a selection change from the renderer.
+    this.setData({items,visibleItems,groups:groups(visibleItems),backlog:this.data.backlog.map(item=>({...item,selected:selected(item)}))});
+  },
+  futureFeature() {
+    if(this.data.writing||this.data.saving||this.data.batchBusy||this.data.listRefreshing||personalApi.pendingCount)return;
+    const enter=!this.data.batchMode;
+    this.resetBatchSelection();
+    patchData(this, {batchMode:enter,batchAction:"complete"});
+    if(!enter)void this.refresh();
+  },
+  changeBatchAction(event:WechatMiniprogram.TouchEvent){
+    const action:unknown=event.currentTarget.dataset.action;
+    if(!this.data.batchMode||this.data.batchBusy||this.data.sheet||(action!=="complete"&&action!=="viewers"))return;
+    this.resetBatchSelection();
+    patchData(this, {batchMode:true,batchAction:action});
+  },
+  selectTask(e:WechatMiniprogram.TouchEvent){
+    const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===e.currentTarget.dataset.id);
+    if(!item||this.data.batchBusy||this.data.writing||this.data.saving||personalApi.pendingCount)return;
+    try{
+      if(this.data.batchAction==="complete")patchData(this, {selectedOccurrences:selectCompletion(this.data.selectedOccurrences,item),batchError:""});
+      else {const selectedTasks=selectTask(this.data.selectedTasks,item.task);patchData(this, {selectedTasks,selectedIds:selectedTasks.map(t=>t.id),batchError:""});}
+      this.updateBatchCards();
+    }catch(error){patchData(this, {batchError:errorMessage(error)});}
+  },
+  openCompletion(){
+    if(!this.data.batchMode||this.data.batchAction!=="complete"||!this.data.selectedOccurrences.length||this.data.batchBusy||personalApi.pendingCount)return;
+    patchData(this, {sheet:"complete",completionResults:completionRows(this.data.selectedOccurrences),completionSubmitted:false,batchError:""});
+  },
+  showCompletionResult(){patchData(this, {sheet:"complete"});},
+  async submitCompletion(){
+    if(this.data.sheet!=="complete"||this.data.completionSubmitted||this.data.batchBusy||this.data.writing||this.data.saving||personalApi.pendingCount)return;
+    const items=this.data.selectedOccurrences.filter(canComplete);
+    if(!items.length)return;
+    const identity=captureRecoveryIdentity(),epoch=++this.batchEpoch;
+    const current=()=>this.alive&&this.visible&&epoch===this.batchEpoch&&isRecoveryIdentityCurrent(identity);
+    this.epoch++;this.cacheAt=0;
+    patchData(this, {batchBusy:true,completionSubmitted:true,completionResults:completionRows(items),batchError:""});
+    try{
+      for(const item of items){
+        if(!current())break;
+        let status:CompletionResult["status"]="succeeded",label="已完成";
+        try{
+          await personalApi.write("occurrence.record",{occurrence:occurrenceRef(item.occurrence),expectedVersion:item.occurrence.version,status:"completed"});
+        }catch(error){
+          if(!current())break;
+          if(isAccessDenied(error)){this.clearSensitive();patchData(this, {batchError:errorMessage(error)});break;}
+          const pending=personalApi.pendingCount>0||(error instanceof PersonalApiError&&error.retryable);
+          status=pending?"pending":"failed";
+          label=pending?"结果待确认，请重试确认本次操作":errorMessage(error);
+        }
+        if(!current())break;
+        patchData(this, {completionResults:this.data.completionResults.map(row=>row.id===item.occurrence.id?{...row,status,label}:row),pendingCount:personalApi.pendingCount});
+        // The API persists one original write at a time. Never submit another intent while its result is unknown.
+        if(status==="pending")break;
+      }
+    }finally{
+      if(this.alive){
+        patchData(this, {batchBusy:false,pendingCount:personalApi.pendingCount});
+        if(!isRecoveryIdentityCurrent(identity)){this.clearSensitive();}
+        else if(this.visible){
+          this.resetBatchSelection();
+          const pending=this.data.completionResults.some(row=>row.status==="pending");
+          patchData(this, {listRefreshing:true,...(!pending?{sheet:""}:{})});
+          await this.refresh("record");
+        }
+      }
+    }
+  },
+  async openBatch(){if(!this.data.selectedTasks.length||this.data.batchBusy||personalApi.pendingCount)return;const epoch=++this.batchEpoch;const groups:BatchGroup[]=[];for(const task of this.data.selectedTasks){const key=task.familyId??"personal";const group=groups.find(g=>g.key===key);if(group)group.taskIds.push(task.id);else groups.push({key,name:task.familyName??"个人事项",taskIds:[task.id],targetFamilyId:task.familyId??"",familyIndex:0,viewers:[],loading:!!task.familyId,error:""});}patchData(this, {sheet:"batch",batchGroups:groups,batchFamilyOptions:["请选择家庭",...this.data.families.map(f=>f.name)],batchError:"",batchResults:[],batchComplete:false});await Promise.all(groups.filter(group=>group.targetFamilyId).map(group=>this.loadBatchGroup(group.key,group.targetFamilyId,epoch)));},
   clearFamilyAccess(familyId:string){personalApi.clearCompleteLists();this.cacheAt=0;this.epoch++;this.quickEpoch++;const selectedTasks=this.data.selectedTasks.filter(t=>t.familyId!==familyId),items=this.data.items.filter(i=>i.task.familyId!==familyId),visibleItems=this.data.visibleItems.filter(i=>i.task.familyId!==familyId),families=this.data.families.filter(f=>f.id!==familyId),reminders=this.data.reminders.filter(r=>r.familyId!==familyId);const deniedTasks=new Set([...this.data.selectedTasks,...this.data.items.map(i=>i.task),...this.data.backlog.map(i=>i.task)].filter(t=>t.familyId===familyId).map(t=>t.id));if(this.quickRoster?.family.id===familyId){this.discardQuick();this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {quickTitle:"",quickNote:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:[],quickNotice:"",quickLoading:false});}patchData(this, {families,familyOptions:["全部家庭",...families.map(f=>f.name)],familyIndex:0,quickFamilyOptions:["请选择家庭",...families.map(f=>f.name)],quickFamilyIndex:0,batchFamilyOptions:["请选择家庭",...families.map(f=>f.name)],selectedTasks,selectedIds:selectedTasks.map(t=>t.id),items,visibleItems,groups:groups(visibleItems),backlog:this.data.backlog.filter(i=>i.task.familyId!==familyId),reminders,reminderCount:reminders.filter(r=>!r.dismissedAt).length,batchGroups:this.data.batchGroups.filter(g=>g.key!==familyId&&g.targetFamilyId!==familyId),batchResults:this.data.batchResults.filter(r=>!deniedTasks.has(r.taskId)),summaryText:"—",progress:0,...(!selectedTasks.length?{batchMode:false,sheet:""}:{})});},
   async loadBatchGroup(key:string,familyId:string,epoch:number){try{const roster=await familyApi.read("family.get",{id:familyId});if(!this.visible||epoch!==this.batchEpoch)return;patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key===key?{...g,loading:false,viewers:roster.members.map(m=>({id:m.id,name:m.name,checked:false}))}:g)});}catch(error){if(this.visible&&epoch===this.batchEpoch){if(isAccessDenied(error))this.clearFamilyAccess(familyId);else patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key===key?{...g,loading:false,viewers:[],error:errorMessage(error)}:g)});patchData(this, {batchError:errorMessage(error)});}}},
   async batchFamilyChange(e:WechatMiniprogram.PickerChange){if(this.data.batchBusy||personalApi.pendingCount)return;if(this.data.batchGroups.some(g=>g.key!=="personal"&&g.loading))return;const index=Number(e.detail.value);const family=this.data.families[index-1];const epoch=++this.batchEpoch;patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key==="personal"?{...g,familyIndex:index,targetFamilyId:family?.id??"",viewers:[],loading:!!family,error:""}:g)});if(family)await this.loadBatchGroup("personal",family.id,epoch);},
   batchViewersChange(e:WechatMiniprogram.CheckboxGroupChange){if(this.data.batchBusy||personalApi.pendingCount)return;patchData(this, {batchGroups:this.data.batchGroups.map(g=>g.key===e.currentTarget.dataset.key?{...g,viewers:g.viewers.map(v=>({...v,checked:e.detail.value.includes(v.id)}))}:g)});},
   syncBatch(){const batch=personalApi.batch;const results=batch?.result?.results??[];const succeeded=new Set(results.filter(r=>r.status==="succeeded").map(r=>r.taskId));const denied=new Set(results.filter(r=>r.status==="failed"&&["FORBIDDEN","NOT_FOUND","FAMILY_NOT_FOUND"].includes(r.error.code)).map(r=>r.taskId));const selectedTasks=this.data.selectedTasks.filter(t=>!succeeded.has(t.id)&&!denied.has(t.id));patchData(this, {batchResults:results.map(r=>({...r,label:r.status==="succeeded"?"已增加可见人":r.status==="pending"?"待继续确认":r.error.message})),batchComplete:batch?.result?.complete??false,batchHasFailures:results.some(r=>r.status==="failed"),selectedTasks,selectedIds:selectedTasks.map(t=>t.id),items:this.data.items.filter(i=>!denied.has(i.task.id)),visibleItems:this.data.visibleItems.filter(i=>!denied.has(i.task.id)),backlog:this.data.backlog.filter(i=>!denied.has(i.task.id)),batchGroups:denied.size?[]:this.data.batchGroups,pendingCount:personalApi.pendingCount});if(denied.size)patchData(this, {groups:groups(this.data.visibleItems)});},
-  async submitBatch(e:WechatMiniprogram.TouchEvent){if(this.data.batchBusy)return;const mode:unknown=e.currentTarget.dataset.mode;const epoch=++this.batchEpoch;patchData(this, {batchBusy:true,batchError:""});try{if(mode==="continue")await personalApi.continueBatch();else if(mode==="failed")await retryFailedBatch();else await personalApi.write("task.batchAddViewers",batchPayload(this.data.selectedTasks,this.data.batchGroups));if(this.visible&&epoch===this.batchEpoch){this.syncBatch();patchData(this, {sheet:"batch",batchMode:false});}}catch(error){if(this.visible&&epoch===this.batchEpoch){if(isAccessDenied(error)){const affectedFamilies=new Set(this.data.batchGroups.map(g=>g.targetFamilyId).filter(Boolean));for(const familyId of affectedFamilies)this.clearFamilyAccess(familyId);patchData(this, {selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,sheet:""});}patchData(this, {batchError:errorMessage(error)});}}finally{if(this.alive){patchData(this, {batchBusy:false,pendingCount:personalApi.pendingCount});}}},
+  async submitBatch(e:WechatMiniprogram.TouchEvent){
+    if(this.data.batchBusy)return;
+    const mode:unknown=e.currentTarget.dataset.mode;
+    const epoch=++this.batchEpoch,identity=captureRecoveryIdentity();
+    let completed=false;
+    patchData(this, {batchBusy:true,batchError:""});
+    try{
+      if(mode==="continue")await personalApi.continueBatch();
+      else if(mode==="failed")await retryFailedBatch();
+      else await personalApi.write("task.batchAddViewers",batchPayload(this.data.selectedTasks,this.data.batchGroups));
+      if(this.visible&&epoch===this.batchEpoch&&isRecoveryIdentityCurrent(identity)){
+        this.syncBatch();
+        completed=this.data.batchComplete;
+        patchData(this, {sheet:completed?"":"batch",batchMode:false});
+      }
+    }catch(error){
+      if(this.visible&&epoch===this.batchEpoch&&isRecoveryIdentityCurrent(identity)){
+        if(isAccessDenied(error)){
+          const affectedFamilies=new Set(this.data.batchGroups.map(g=>g.targetFamilyId).filter(Boolean));
+          for(const familyId of affectedFamilies)this.clearFamilyAccess(familyId);
+          patchData(this, {selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,sheet:""});
+        }
+        patchData(this, {batchError:errorMessage(error)});
+      }
+    }finally{
+      if(this.alive){
+        patchData(this, {batchBusy:false,pendingCount:personalApi.pendingCount});
+        if(completed&&this.visible&&epoch===this.batchEpoch&&isRecoveryIdentityCurrent(identity)){
+          this.resetBatchSelection();
+          patchData(this, {listRefreshing:true});
+          await this.refresh();
+        }
+      }
+    }
+  },
   showBatchResult(){this.syncBatch();patchData(this, {sheet:"batch",batchGroups:[]});},
-  async retryPending(){if(this.data.writing||this.data.batchBusy)return;patchData(this, {writing:true});try{await personalApi.retryPending();this.pendingWrite=null;this.syncBatch();patchData(this, {uncertain:false,quickError:"",sheet:personalApi.batch?"batch":""});wx.showToast({title:personalApi.pendingCount?"仍有待确认项目，请继续":"操作结果已确认",icon:"none"});}catch(error){if(isAccessDenied(error)){this.pendingWrite=null;this.clearSensitive();}patchData(this, {quickError:errorMessage(error)});}finally{patchData(this, {writing:false,pendingCount:personalApi.pendingCount});if(!personalApi.pendingCount)void this.refresh();}},
+  async retryPending(){if(this.data.writing||this.data.batchBusy)return;patchData(this, {writing:true});try{await personalApi.retryPending();this.pendingWrite=null;this.syncBatch();patchData(this, {completionResults:[],completionSubmitted:false,uncertain:false,quickError:"",sheet:personalApi.batch&&!this.data.batchComplete?"batch":""});wx.showToast({title:personalApi.pendingCount?"仍有待确认项目，请继续":"操作结果已确认",icon:"none"});}catch(error){if(isAccessDenied(error)){this.pendingWrite=null;this.clearSensitive();}patchData(this, {quickError:errorMessage(error)});}finally{patchData(this, {writing:false,pendingCount:personalApi.pendingCount});if(!personalApi.pendingCount){this.resetBatchSelection();patchData(this, {listRefreshing:true});await this.refresh();}}},
   openTask(event: WechatMiniprogram.TouchEvent) { if(this.data.batchMode){this.selectTask(event);return;}const id:unknown=event.currentTarget.dataset.id;const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===id);if(item){patchData(this, {sheet:""});wx.navigateTo({url:occurrenceUrl(item.occurrence)});} },
   async runWrite(key:string,run:()=>Promise<unknown>,done:()=>void=()=>{}) {
-    if(this.data.writing || this.data.saving || this.data.listRefreshing)return;
+    if(this.data.writing || this.data.saving || this.data.batchBusy || this.data.listRefreshing)return;
     if(this.pendingWrite && this.pendingWrite.key!==key){wx.showToast({title:"请先重试上次操作，确认结果",icon:"none"});return;}
     let succeeded=false;
     this.pendingWrite??={key,run,done};this.epoch++;
@@ -134,13 +247,13 @@ Page({
     catch(error){const uncertain=error instanceof PersonalApiError&&error.retryable;if(!uncertain)this.pendingWrite=null;if(this.alive){if(isAccessDenied(error))this.clearSensitive();patchData(this, {quickError:errorMessage(error),uncertain});wx.showToast({title:errorMessage(error),icon:"none"});}}
     finally{if(this.alive)patchData(this, {writing:false,writingKey:""});if(this.alive)patchData(this, {pendingCount:personalApi.pendingCount});if(!this.pendingWrite&&this.visible){if(key.startsWith("dismiss:")||key.startsWith("read:"))void this.refreshReminders();else await this.refresh(succeeded&&key.startsWith("toggle:")?"record":"all");}else if(this.alive)patchData(this, {listRefreshing:false});}
   },
-  clearSensitive(){personalApi.clearCompleteLists();this.cacheAt=0;this.cacheUserId="";this.discardQuick();this.epoch++;this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {listRefreshing:false,status:"error",selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,items:[],visibleItems:[],groups:[],backlog:[],reminders:[],reminderCount:0,summaryText:"—",progress:0,sheet:"",quickTitle:"",quickNote:"",quickTime:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:["自己"],quickNotice:"",quickLoading:false});},
+  clearSensitive(){personalApi.clearCompleteLists();this.cacheAt=0;this.cacheUserId="";this.discardQuick();this.epoch++;this.batchEpoch++;this.quickEpoch++;this.quickRoster=null;this.quickSubject={kind:"self"};patchData(this, {listRefreshing:false,status:"error",selectedOccurrences:[],completionResults:[],completionSubmitted:false,selectedTasks:[],selectedIds:[],batchGroups:[],batchResults:[],batchMode:false,items:[],visibleItems:[],groups:[],backlog:[],reminders:[],reminderCount:0,summaryText:"—",progress:0,sheet:"",quickTitle:"",quickNote:"",quickTime:"",quickRows:[],quickSubjectOptions:[],quickSubjectNames:["自己"],quickNotice:"",quickLoading:false});},
   async toggleTask(event: WechatMiniprogram.TouchEvent) {
     if(this.data.batchMode){this.selectTask(event);return;}const id:unknown=event.currentTarget.dataset.id;const item=[...this.data.items,...this.data.backlog].find(i=>i.occurrence.id===id);if(!item||!item.occurrence.canRecord)return;
     const payload={occurrence:occurrenceRef(item.occurrence),expectedVersion:item.occurrence.version};
     await this.runWrite(`toggle:${item.occurrence.id}`,()=>item.occurrence.status==="pending"?personalApi.write("occurrence.record",{...payload,status:"completed"}):personalApi.write("occurrence.undo",payload));
   },
-  quickDraftLocked(){return this.data.saving||(this.data.writing&&!this.data.listRefreshing)||this.data.uncertain;},
+  quickDraftLocked(){return this.data.batchBusy||this.data.saving||(this.data.writing&&!this.data.listRefreshing)||this.data.uncertain;},
   async openQuick() { if (!this.data.today||this.quickDraftLocked()) return; patchData(this, {sheet:"quick",quickDate:this.data.tab === "tomorrow" ? "tomorrow" : this.data.tab === "unscheduled" ? "unscheduled" : "today",quickSuccess:""}); if(!this.data.uncertain){patchData(this, {quickFamilyIndex:this.data.familyIndex>0?this.data.familyIndex:1});await this.restoreQuick();} },
   reminderEpoch: 0,
   async refreshReminders() {
