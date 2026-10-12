@@ -46,3 +46,5 @@ npm run check
 - SSH：`git@github.com:ychp-ai/family-todo.git`
 
 查询会话自动维护：云端每天北京时间 00:00、12:00 清理过期一天以上的 `query_sessions`，配置和验证见 [定时清理](docs/technical/QUERY_SESSION_CLEANUP.md)。
+
+小程序基本信息、用户协议与隐私说明从「家庭 → 关于小程序」进入，维护位置与发布前核实项见 [基本信息与说明页面](docs/miniprogram/product-information.md)。

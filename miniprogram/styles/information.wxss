@@ -1,0 +1,15 @@
+.info-page{padding:18px 18px calc(24px + env(safe-area-inset-bottom));color:var(--ink)}
+.info-card{padding:18px;margin-bottom:16px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-card)}
+.info-title{display:block;font-size:24px;font-weight:650;line-height:1.5}
+.info-heading{display:block;font-size:18px;font-weight:600;line-height:1.6}
+.info-description,.info-meta{display:block;margin-top:8px;color:var(--muted);line-height:1.8}
+.info-meta{font-size:12px}
+.info-paragraph{display:block;margin-top:12px;font-size:15px;line-height:1.8;overflow-wrap:anywhere}
+.info-links{padding:0 18px}
+.info-link{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;font-size:15px}
+.info-link+.info-link{border-top:1px solid var(--line)}
+.info-link .icon{width:20px;height:20px;flex:none}
+.info-link-active{background:var(--lavender)}
+.info-row{display:flex;justify-content:space-between;gap:20px;padding-top:16px;font-size:14px;line-height:1.8}
+.info-row>text:first-child{flex:none;color:var(--muted)}
+.info-row>text:last-child{min-width:0;text-align:right;overflow-wrap:anywhere}

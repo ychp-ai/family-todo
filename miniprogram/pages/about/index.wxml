@@ -1,0 +1,23 @@
+<view class="info-page">
+  <view class="info-card product-heading">
+    <image class="product-mark" src="/assets/home-brand.svg" mode="aspectFit"/>
+    <text class="info-title">{{productInfo.name}}</text>
+    <text class="info-description">{{productInfo.description}}</text>
+    <text class="info-meta">{{version}}</text>
+  </view>
+  <view class="info-card">
+    <text class="info-heading">一起管理家庭日常</text>
+    <text class="info-paragraph">创建或加入家庭，记录一次性、每日或每周待办，按需与家人共享，查看完成记录与家人进度。</text>
+    <text class="info-paragraph">当前提醒仅在小程序内展示，需进入页面或刷新查看。关闭小程序后不会主动通知，请为重要事项另设可靠提醒。</text>
+  </view>
+  <view class="info-card info-links">
+    <navigator class="info-link" url="/pages/legal/index?type=agreement" hover-class="info-link-active" aria-label="查看用户协议"><text>用户协议</text><image class="icon" src="/assets/chevron.svg"/></navigator>
+    <navigator class="info-link" url="/pages/legal/index?type=privacy" hover-class="info-link-active" aria-label="查看隐私说明"><text>隐私说明</text><image class="icon" src="/assets/chevron.svg"/></navigator>
+  </view>
+  <view class="info-card">
+    <text class="info-heading">基本信息</text>
+    <view class="info-row"><text>运营者</text><text user-select>{{productInfo.operator}}</text></view>
+    <view class="info-row"><text>隐私联系邮箱</text><text user-select>{{productInfo.privacyEmail}}</text></view>
+    <view class="info-row"><text>说明更新日期</text><text>{{productInfo.documentUpdatedAt}}</text></view>
+  </view>
+</view>

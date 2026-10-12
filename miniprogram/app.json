@@ -6,7 +6,9 @@
     "pages/recycle/index",
     "pages/families/index",
     "pages/invitation/index",
-    "pages/progress/index"
+    "pages/progress/index",
+    "pages/about/index",
+    "pages/legal/index"
   ],
   "window": {
     "navigationBarTitleText": "家庭待办提醒",

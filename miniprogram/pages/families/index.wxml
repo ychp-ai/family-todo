@@ -10,6 +10,7 @@
 <family-virtual-member progress-loading="{{progressLoading}}" progress-error="{{progressError}}" wx:for="{{virtualMembers}}" wx:key="id" owner="{{owner}}" writing="{{writing}}" uncertain="{{uncertain}}" item="{{item}}" bind:action="onComponentAction"/><view wx:if="{{!virtualMembers.length}}" class="flow-notice">还没有无账号成员，可为没有账号的家人添加称呼。</view>
 <button wx:if="{{progressError}}" class="text-button" bindtap="retryProgress">{{progressError}} · 重试进度</button><view class="family-detail-actions"><view wx:if="{{owner}}" class="family-owner-actions"><button class="outline-button" bindtap="addVirtual">添加无账号成员</button><button class="outline-button" bindtap="invite">邀请家人</button><button class="outline-button family-transfer-action" bindtap="startTransfer">转交拥有权</button></view><button class="outline-button full-width family-exit-action" bindtap="startExit">退出这个家庭</button></view></block>
 <family-management detail="{{!!family}}" families="{{families}}" bind:action="onComponentAction"/></block>
+<navigator wx:if="{{!family && !id}}" class="family-about" url="/pages/about/index" hover-class="family-about-active" aria-label="关于小程序、用户协议与隐私说明"><text>关于小程序</text><image class="icon" src="/assets/chevron.svg"/></navigator>
 <text class="form-error">{{error}}</text><button wx:if="{{uncertain}}" class="primary-button full-width" bindtap="retryWrite" loading="{{writing}}">重试确认本次操作</button></view></scroll-view></view>
 <!-- Keep closing under page control so pending writes retain their dialog and context. -->
 <view wx:if="{{sheet}}" class="family-weui-dialog-host family-flow">

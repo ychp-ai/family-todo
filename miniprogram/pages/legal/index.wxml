@@ -1,0 +1,23 @@
+<view class="info-page">
+  <block wx:if="{{document}}">
+    <view class="info-card">
+      <text class="info-title">{{document.title}}</text>
+      <text class="info-meta">更新日期：{{productInfo.documentUpdatedAt}}</text>
+      <text class="info-paragraph" user-select>{{document.intro}}</text>
+    </view>
+    <view class="info-card" wx:for="{{document.sections}}" wx:key="title">
+      <text class="info-heading">{{item.title}}</text>
+      <text class="info-paragraph" wx:for="{{item.paragraphs}}" wx:for-item="paragraph" wx:key="*this" user-select>{{paragraph}}</text>
+    </view>
+    <view class="info-card">
+      <text class="info-heading">联系我们</text>
+      <text class="info-paragraph" user-select>运营者：{{productInfo.operator}}</text>
+      <text class="info-paragraph" user-select>隐私联系邮箱：{{productInfo.privacyEmail}}</text>
+    </view>
+  </block>
+  <view wx:else class="info-card">
+    <text class="info-heading">未找到这份说明</text>
+    <text class="info-paragraph">请返回关于小程序页面，选择需要查看的内容。</text>
+    <navigator class="info-link" url="/pages/about/index" open-type="redirect" hover-class="info-link-active">关于小程序<image class="icon" src="/assets/chevron.svg"/></navigator>
+  </view>
+</view>

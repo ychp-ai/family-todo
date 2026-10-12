@@ -1,6 +1,6 @@
 {
   "name": "family-todo",
-  "version": "0.1.0",
+  "version": "1.0.5",
   "private": true,
   "type": "module",
   "description": "家庭待办提醒微信小程序",
