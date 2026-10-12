@@ -1,3 +1,4 @@
+import { BATCH_OPERATION_LIMIT } from "../shared/contracts";
 import type { TaskListItem } from "@family-todo/contracts";
 
 export type CompletionResult = {
@@ -17,7 +18,7 @@ export function selectCompletion(selected: TaskListItem[], item: TaskListItem): 
   if (selected.some(row => row.occurrence.id === item.occurrence.id)) {
     return selected.filter(row => row.occurrence.id !== item.occurrence.id);
   }
-  if (selected.length >= 20) throw new Error("一次最多选择 20 次待办。");
+  if (selected.length >= BATCH_OPERATION_LIMIT) throw new Error(`一次最多选择 ${BATCH_OPERATION_LIMIT} 次待办。`);
   return [...selected, item];
 }
 

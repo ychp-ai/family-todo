@@ -1,8 +1,8 @@
 # 云函数 CLI 发布记录
 
-目标环境：`family-todo-d3g28fx1c314f8638`。仅部署事件型 `api`，所有业务 action 共用该入口。当前支持健康、身份、个人和家庭一次性协作，共 36 个 action，详见 [个人待办实现](PERSONAL.md) 和 [家庭协作实现](FAMILY.md)。下文保留历史记录，当前版本以末尾家庭协作更新记录为准。
+目标环境：`family-todo-d3g28fx1c314f8638`。本记录描述事件型 `api` 的发布，所有业务 action 共用该入口；当前能力见[当前范围](../SCOPE.md)。下文保留历史记录，最近一次 API 发布见文末。
 
-## 发布参数
+## 初始发布参数（历史配置）
 
 | 参数 | 值 |
 | --- | --- |
@@ -326,3 +326,36 @@ node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli
 开发者工具重新启用 automator 后，在当前微信账号可信上下文调用目标环境：一次性、每日、每周三种 `task.create` 的 `familyId=null` 均返回不可重试 `VALIDATION_ERROR`，文案为“请先创建或加入家庭，再选择所属家庭创建事项。”。验证时间为上海 18:00:32–18:00:33，[实际结果](family-only-cloud-verification.json)已保存，未创建验收事项。该验证覆盖云端新建拦截，不代表客户端页面或真机验收。
 
 未上传体验版或发布小程序。历史个人事项迁移仍待提供目标家庭及账号范围，未自动迁移或删除历史数据。
+
+## 批量上限 100 更新（2026-10-12 10:46）
+
+用户明确授权部署后，CLI 登录失效，经用户完成浏览器授权恢复。`env list` 确认目标环境 NORMAL，`fn detail` 确认既有 `api` 仍为 `lam-d4wj80fb`。远端内存为 1024 MB，本地配置为 256 MB，因此使用仅更新代码的命令，保留远端配置。部署前后逐字段比较运行时、入口、超时、内存、依赖安装、触发器、函数类型及环境变量，均未变化；环境变量值不写入记录。
+
+本次将批量追加可见人的请求/响应上限更新为 100，子回执按最多 50 条分批读取，保持事务预算。上传前已有 `npm run check` 通过（59 个测试文件、681 个测试）；部署前再次构建 API bundle，并通过 `git diff --check`。本次本机构建使用 Node 25.8.2（符合 package.json engines），esbuild 目标为 node20，云端运行时仍为 Nodejs20.19。
+
+实际 CLI 3.8.1 命令（仓库根目录）：
+
+```sh
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js env list --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+npm run build --workspace @family-todo/api-function
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn code update api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn detail api -e family-todo-d3g28fx1c314f8638 --json
+node /Users/yingchengpeng/.npm/_npx/8babb09a270560aa/node_modules/@cloudbase/cli/dist/standalone/cli.js fn invoke api -e family-todo-d3g28fx1c314f8638 -d @docs/examples/system-health.json --json
+```
+
+更新通过 COS 上传，退出码 0，返回 `Code updated`。详情原始输出仅写入权限受限的临时文件，用于配置比较后删除；下表仅保留允许公开的验证字段。
+
+| 验证 | 实际结果 |
+| --- | --- |
+| 函数 / ID | api / lam-d4wj80fb |
+| 更新时间（上海） / 状态 | 2026-10-12 10:46:21 / Active / Available |
+| 运行配置 | Event / Nodejs20.19 / index.main / 10 秒 / 1024 MB |
+| 云端安装依赖 / 触发器 | FALSE / 空列表 |
+| 云端代码包大小 | 1,750,481 字节 |
+| 详情 RequestId | 1b42548c-1a23-4233-87d8-e7e5927920c5 |
+| 健康结果 | ok=true / status=ok / 2026-10-12T02:46:31.237Z |
+| 健康云调用 RequestId | 71898043-4ad7-4cb9-bcde-ef6eb065cbf6 |
+| 本地上传 bundle SHA-256 | 03f643e1fb7335ec36295b00e2ed4514ac2b06dc73cf79814e299ada862bbc07 |
+
+健康检查证明真实云端入口可用；100/101 边界、100 项预算中断续办和幂等重放由本地测试覆盖，本轮未执行真实云端 100 项业务写入验收。未变更数据库、部署其他函数、上传或发布小程序、提交或推送代码。

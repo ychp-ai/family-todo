@@ -141,13 +141,19 @@ describe("周期、进度和批处理的严格契约", () => {
   it("批量拒绝重复task和超限项；整体完成仅在每项终态后成立", () => {
     const item = { taskId: id, expectedVersion: 1, targetFamilyId: otherId, viewerMembershipIds: [id] };
     expect(isPersonalPayload("task.batchAddViewers", { items: [item] })).toBe(true);
-    for (const items of [[], [item, { ...item, taskId: id.toUpperCase() }], [{ ...item, viewerMembershipIds: [id, id] }], [{ ...item, targetFamilyId: null }], [{ ...item, helperMembershipIds: [id] }], Array(21).fill(item)]) expect(isPersonalPayload("task.batchAddViewers", { items })).toBe(false);
+    for (const items of [[], [item, { ...item, taskId: id.toUpperCase() }], [{ ...item, viewerMembershipIds: [id, id] }], [{ ...item, targetFamilyId: null }], [{ ...item, helperMembershipIds: [id] }], Array(101).fill(item)]) expect(isPersonalPayload("task.batchAddViewers", { items })).toBe(false);
     const partial = { complete: false, results: [{ taskId: id, status: "pending" }] };
     expect(isPersonalData("task.batchAddViewers", partial)).toBe(true);
     expect(isPersonalData("task.batchAddViewers", { ...partial, complete: true })).toBe(false);
     const failed = { taskId: id, status: "failed", error: { code: "NOT_FOUND", message: "事项不存在", retryable: false } };
     expect(isPersonalData("task.batchAddViewers", { complete: true, results: [failed] })).toBe(true);
     expect(isPersonalData("task.batchAddViewers", { complete: true, results: [{ ...failed, error: { ...failed.error, code: "SDK_SECRET" } }] })).toBe(false);
+  });
+  it.each([100, 101])("批量请求和结果支持100项，拒绝101项：%s", count => {
+    const items = Array.from({ length: count }, (_, i) => ({ taskId: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`, expectedVersion: 1, viewerMembershipIds: [id] }));
+    expect(isPersonalPayload("task.batchAddViewers", { items })).toBe(count === 100);
+    const results = items.map(item => ({ taskId: item.taskId, status: "succeeded", version: 2 }));
+    expect(isPersonalData("task.batchAddViewers", { complete: true, results })).toBe(count === 100);
   });
   it("部分进度不发布计数，完整进度满足分母并使用ResolvedSubject", () => {
     const data = fixtures["progress.get"].data;

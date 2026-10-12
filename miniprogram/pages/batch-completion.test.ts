@@ -57,18 +57,18 @@ it.each(["complete", "viewers"])("%s 连选不同卡片保留勾选，取消和�
   expect(page.data.groups).toMatchObject([{ items: [{ selected: false }, { selected: false }] }]);
 });
 
-it("只选可记录的未完成次数，代记无需管理权，每批最多 20 次", async () => {
+it("只选可记录的未完成次数，代记无需管理权，每批最多 100 次", async () => {
   const helper = row("helper");
   helper.task.capabilities.canEdit = false; helper.task.capabilities.canShare = false;
   const readonly = row("readonly"); readonly.occurrence.canRecord = false;
   const future = row("future"); future.occurrence.canRecord = false;
   const completed = row("completed"); completed.occurrence.status = "completed";
   const skipped = row("skipped"); skipped.occurrence.status = "skipped";
-  page.setData({ items: [helper, readonly, future, completed, skipped, ...Array.from({ length: 20 }, (_, i) => row(`row${i}`))] });
-  for (const id of ["helper", "readonly", "future", "completed", "skipped", ...Array.from({ length: 20 }, (_, i) => `row${i}`)]) await invoke("selectTask", tap(id));
-  expect(page.data.selectedOccurrences).toHaveLength(20);
+  page.setData({ items: [helper, readonly, future, completed, skipped, ...Array.from({ length: 100 }, (_, i) => row(`row${i}`))] });
+  for (const id of ["helper", "readonly", "future", "completed", "skipped", ...Array.from({ length: 100 }, (_, i) => `row${i}`)]) await invoke("selectTask", tap(id));
+  expect(page.data.selectedOccurrences).toHaveLength(100);
   expect(page.data.selectedOccurrences).toEqual(expect.arrayContaining([helper]));
-  expect(page.data.batchError).toContain("20");
+  expect(page.data.batchError).toContain("100");
 });
 
 it("同一周期两个次数独立提交，保留原版本；一次提交后不可重复发送", async () => {
@@ -143,4 +143,45 @@ it.each([true, false])("追加可见人 complete=%s：终态关闭并刷新，�
   await invoke("submitBatch", { currentTarget: { dataset: { mode: "continue" } } });
   expect(page.data.sheet).toBe(complete ? "" : "batch");
   expect(page.refresh).toHaveBeenCalledTimes(complete ? 1 : 0);
+});
+
+it.each(["complete", "viewers"])("%s 全选只包含当前可见且可操作条目，重复全选与取消正确", async action => {
+  const hidden = row("hidden", "hidden"); hidden.occurrence.status = "completed";
+  const readonly = row("readonly", "readonly"); readonly.occurrence.canRecord = false; readonly.task.capabilities.canShare = false;
+  const items = [row("first"), row("second"), readonly, hidden];
+  page.setData({ batchAction: action, hideCompleted: true, items, visibleItems: items.slice(0, 3), backlog: [row("backlog", "backlog")] });
+  await invoke("selectAllTasks", tap(""));
+  await invoke("selectAllTasks", tap(""));
+  expect(page.data[action === "complete" ? "selectedOccurrences" : "selectedTasks"]).toHaveLength(action === "complete" ? 2 : 1);
+  expect(page.data.visibleItems).toMatchObject([{ selected: true }, { selected: true }, { selected: false }]);
+  expect(page.data.backlog).toMatchObject([{ selected: false }]);
+  await invoke("selectAllTasks", { currentTarget: { dataset: { clear: true } } });
+  expect(page.data.selectedOccurrences).toEqual([]);
+  expect(page.data.selectedTasks).toEqual([]);
+  expect(page.data.visibleItems).toMatchObject([{ selected: false }, { selected: false }, { selected: false }]);
+});
+
+it.each(["complete", "viewers"])("%s 全选保留已选项并截断至100；第101项无法手选，取消一项后可补选", async action => {
+  const items = Array.from({ length: 101 }, (_, i) => row(`row${i}`, `task${i}`));
+  page.setData({ batchAction: action, items, visibleItems: items });
+  await invoke("selectTask", tap("row100"));
+  await invoke("selectAllTasks", tap(""));
+  const key = action === "complete" ? "selectedOccurrences" : "selectedTasks";
+  expect(page.data[key]).toHaveLength(100);
+  expect(page.data.items).toMatchObject([...Array.from({ length: 99 }, () => ({ selected: true })), { selected: false }, { selected: true }]);
+  expect(page.data.batchError).toContain("100");
+  await invoke("selectTask", tap("row99"));
+  expect(page.data[key]).toHaveLength(100);
+  await invoke("selectTask", tap("row0"));
+  await invoke("selectTask", tap("row99"));
+  expect(page.data[key]).toHaveLength(100);
+  expect(page.data.batchError).toBe("");
+});
+
+it.each(["batchBusy", "writing", "saving", "listRefreshing"])("%s 时全选和取消不会改变当前选择", async state => {
+  await invoke("selectTask", tap("first"));
+  page.setData({ [state]: true });
+  await invoke("selectAllTasks", tap(""));
+  await invoke("selectAllTasks", { currentTarget: { dataset: { clear: true } } });
+  expect(page.data.selectedOccurrences).toHaveLength(1);
 });

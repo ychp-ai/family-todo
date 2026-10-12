@@ -101,18 +101,35 @@ describe("batch durable continuation and failure recovery", () => {
     expect(third).toMatchObject({ complete: true, results: [{ status: "succeeded", version: 2 }, { status: "succeeded", version: 2 }] });
     expect([...f.database.documents.values()].filter(row => row.kind === "task.accessChanged")).toHaveLength(2);
   });
-  it("accepts exactly 20 independently committed items and rejects 21 before writes", async () => {
+  it("accepts exactly 100 independently committed items and rejects 101 before writes", async () => {
     const f = await progressBatchFixture(); const items: Input["items"] = [];
-    for (let index = 0; index < 20; index++) {
+    for (let index = 0; index < 100; index++) {
       const created = await call(f.creator, "task.create", { draft: taskDraft(f.family.id) });
       items.push({ taskId: created.task.id, expectedVersion: 1, viewerMembershipIds: [f.viewer.member.id] });
     }
     const before = f.database.documents.size;
     await expect(call(f.creator, "task.batchAddViewers", { items: [...items, { taskId: randomUUID(), expectedVersion: 1, viewerMembershipIds: [] }] })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(f.database.documents.size).toBe(before);
-    const result = await call(f.creator, "task.batchAddViewers", { items });
-    expect(result.complete).toBe(true); expect(result.results).toHaveLength(20);
+    const requestId = randomUUID();
+    const store = f.creator.store(); let remaining = 8000; let committed = 0;
+    vi.spyOn(store, "remainingBudgetMs").mockImplementation(() => remaining);
+    f.database.afterCommit = writes => {
+      committed += writes.filter(write => write.data.kind === "batch-child/v1").length;
+      if (committed === 50) remaining = 1999;
+    };
+    const partial = await call(f.creator, "task.batchAddViewers", { items }, requestId, store);
+    f.database.afterCommit = undefined;
+    expect(partial.complete).toBe(false);
+    expect(partial.results.filter(item => item.status === "succeeded")).toHaveLength(50);
+    expect(partial.results.filter(item => item.status === "pending")).toHaveLength(50);
+    const result = await call(f.creator, "task.batchAddViewers", { items }, requestId);
+    expect(result.complete).toBe(true); expect(result.results).toHaveLength(100);
     expect(result.results.every(item => item.status === "succeeded")).toBe(true);
+    expect(await call(f.creator, "task.batchAddViewers", { items }, requestId)).toEqual(result);
+    expect(Math.max(...f.database.operations)).toBeLessThanOrEqual(80);
+    expect([...f.database.documents.values()].filter(row => row.kind === "task.accessChanged")).toHaveLength(100);
+    const receipt = await f.creator.store().transaction(tx => tx.receipt(f.creator.user.id, requestId));
+    expect(receipt?.result).toMatchObject({ kind: "batch", status: "completed" });
   });
   it("rechecks membership before a pending item executes after continuation", async () => {
     const f = await progressBatchFixture(); const created = await call(f.creator, "task.create", { draft: taskDraft(f.family.id) });

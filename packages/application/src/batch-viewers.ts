@@ -1,4 +1,4 @@
-import { isPersonalData, isPersonalPayload, isRecord } from "@family-todo/contracts";
+import { BATCH_OPERATION_LIMIT, isPersonalData, isPersonalPayload, isRecord } from "@family-todo/contracts";
 import type { BatchItemResult, PersonalActionMap } from "@family-todo/contracts";
 import { familyTaskRights } from "@family-todo/domain";
 import type { FamilyContext } from "@family-todo/domain";
@@ -6,6 +6,9 @@ import type { Clock, FamilyReceipt, FamilyStore, FamilyTransaction, UuidGenerato
 import { ApplicationError } from "./errors";
 import { appendTaskViewers } from "./task-access";
 import { occurrenceDTO, taskContext, taskInvalid, taskMissing, taskVersion, verifyContext } from "./task-context";
+
+// Leave room under the adapter's 80-document transaction budget.
+const RECEIPT_BATCH_SIZE = 50;
 
 type Input = PersonalActionMap["task.batchAddViewers"]["payload"];
 type Item = Input["items"][number];
@@ -21,7 +24,7 @@ function resultOf(receipt: FamilyReceipt, fingerprint: string, taskId: string): 
 export class BatchViewers {
   public constructor(private readonly store: FamilyStore, private readonly clock: Clock, private readonly uuids: UuidGenerator) {}
   public async execute(payload: unknown, requestId: string): Promise<PersonalActionMap["task.batchAddViewers"]["data"]> {
-    if (!isPersonalPayload("task.batchAddViewers", payload)) throw new ApplicationError("VALIDATION_ERROR", "每批请选择至多20个不同事项。");
+    if (!isPersonalPayload("task.batchAddViewers", payload)) throw new ApplicationError("VALIDATION_ERROR", `每批请选择至多${BATCH_OPERATION_LIMIT}个不同事项。`);
     const fingerprint = this.store.fingerprint({ action: "task.batchAddViewers", payload });
     const { actorId, terminalResults } = await this.store.transaction(async tx => {
       const actor = await tx.actor(); const parent = await tx.receipt(actor.id, requestId);
@@ -30,15 +33,13 @@ export class BatchViewers {
         const first = payload.items[0]; if (!first) throw new Error("Empty batch.");
         await tx.saveReceipt(actor.id, requestId, { fingerprint, taskId: first.taskId, result: { kind: "batch", status: "running", items: payload.items } });
       }
-      // Derive scheduling from durable children in the parent transaction, before spending
-      // this invocation on replay authorization. Never let a completed prefix starve new work.
-      const terminalResults = new Map<string, BatchItemResult>();
-      for (const item of payload.items) {
-        const child = await tx.batchReceipt(actor.id, requestId, item.taskId);
-        if (child) terminalResults.set(item.taskId, resultOf(child, fingerprint, item.taskId));
-      }
+      const terminalResults = await this.terminalBatch(tx, payload.items.slice(0, RECEIPT_BATCH_SIZE), actor.id, requestId, fingerprint);
       return { actorId: actor.id, terminalResults };
     });
+    // Immutable child receipts can be scanned across bounded transactions. Prioritize
+    // unfinished children so replay authorization cannot starve new work on continuation.
+    const remainingResults = await this.terminalResults(payload.items.slice(RECEIPT_BATCH_SIZE), actorId, requestId, fingerprint);
+    for (const [taskId, result] of remainingResults) terminalResults.set(taskId, result);
     const results: BatchItemResult[] = [];
     const scheduled = [...payload.items.filter(item => !terminalResults.has(item.taskId)), ...payload.items.filter(item => terminalResults.has(item.taskId))];
     for (const item of scheduled) {
@@ -65,17 +66,45 @@ export class BatchViewers {
     }
     const complete = results.every(result => result.status !== "pending");
     if (complete && this.store.remainingBudgetMs() >= 2000) {
-      // Never copy a worker's local results into the parent: completion derives solely from durable children.
-      try { await this.store.transaction(async tx => {
-        const parent = await tx.receipt(actorId, requestId); if (!parent || parent.fingerprint !== fingerprint) conflict();
-        for (const item of payload.items) if (!await tx.batchReceipt(actorId, requestId, item.taskId)) return;
-        await tx.saveReceipt(actorId, requestId, { ...parent, result: { kind: "batch", status: "completed", items: payload.items } });
-      }); } catch { /* Derived child results remain authoritative if marking the parent loses its response. */ }
+      // Derive completion from durable children; receipts are immutable once committed,
+      // so checking them in separate bounded transactions does not weaken completion.
+      try {
+        const finalBatchStart = Math.floor((payload.items.length - 1) / RECEIPT_BATCH_SIZE) * RECEIPT_BATCH_SIZE;
+        const terminal = await this.terminalResults(payload.items.slice(0, finalBatchStart), actorId, requestId, fingerprint);
+        if (terminal.size === finalBatchStart && this.store.remainingBudgetMs() >= 2000) {
+          await this.store.transaction(async tx => {
+            const parent = await tx.receipt(actorId, requestId); if (!parent || parent.fingerprint !== fingerprint) conflict();
+            const finalBatch = payload.items.slice(finalBatchStart);
+            const receipts = await this.terminalBatch(tx, finalBatch, actorId, requestId, fingerprint);
+            if (receipts.size !== finalBatch.length) return;
+            await tx.saveReceipt(actorId, requestId, { ...parent, result: { kind: "batch", status: "completed", items: payload.items } });
+          });
+        }
+      } catch { /* Derived child results remain authoritative if marking the parent loses its response. */ }
     }
     // Response order remains the original payload order. A terminal success that could not
     // be freshly authorized within this budget is pending here, never a leaked old version.
     const byTask = new Map(results.map(result => [result.taskId, result]));
     return { complete, results: payload.items.map(item => byTask.get(item.taskId) ?? { taskId: item.taskId, status: "pending" }) };
+  }
+  private async terminalResults(items: Item[], actorId: string, requestId: string, fingerprint: string): Promise<Map<string, BatchItemResult>> {
+    const results = new Map<string, BatchItemResult>();
+    for (let offset = 0; offset < items.length; offset += RECEIPT_BATCH_SIZE) {
+      if (this.store.remainingBudgetMs() < 2000) break;
+      const batch = items.slice(offset, offset + RECEIPT_BATCH_SIZE);
+      const receipts = await this.store.transaction(tx => this.terminalBatch(tx, batch, actorId, requestId, fingerprint));
+      for (const [taskId, result] of receipts) results.set(taskId, result);
+    }
+    return results;
+  }
+  private async terminalBatch(tx: FamilyTransaction, items: Item[], actorId: string, requestId: string, fingerprint: string): Promise<Map<string, BatchItemResult>> {
+    const receipts = await Promise.all(items.map(async item => {
+      const receipt = await tx.batchReceipt(actorId, requestId, item.taskId);
+      return receipt ? resultOf(receipt, fingerprint, item.taskId) : null;
+    }));
+    const results = new Map<string, BatchItemResult>();
+    for (const result of receipts) if (result) results.set(result.taskId, result);
+    return results;
   }
   private async context(item: Item, actorId: string): Promise<FamilyContext | null> {
     const task = await this.store.readTask(item.taskId);

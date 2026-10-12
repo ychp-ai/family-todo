@@ -1,6 +1,8 @@
 import { ERROR_CODES, isRecord, isUuid } from "./api";
 import type { ErrorCode } from "./api";
 
+export const BATCH_OPERATION_LIMIT = 100;
+
 export type OnceSchedule = { kind: "once"; date: string | null; time: string | null };
 export type DailySchedule = { kind: "daily"; startDate: string; endDate: string | null; times: string[] };
 export type WeeklySchedule = { kind: "weekly"; startDate: string; endDate: string | null; times: string[]; weekdays: number[] };
@@ -199,7 +201,7 @@ export function isPersonalPayload<A extends PersonalAction>(action: A, v: unknow
     case "occurrence.list": return exact(v, ["taskId", "dateFrom", "dateTo"], ["limit", "cursor"]) && isUuid(v.taskId) && dateWindow(v.dateFrom, v.dateTo) && pageInput(v);
     case "progress.get": return exact(v, ["familyId", "date"], ["subject", "cursor"]) && isUuid(v.familyId) && localDate(v.date) && pageInput(v)
       && (v.subject === undefined || isResolvedSubject(v.subject));
-    case "task.batchAddViewers": return exact(v, ["items"]) && Array.isArray(v.items) && v.items.length >= 1 && v.items.length <= 20
+    case "task.batchAddViewers": return exact(v, ["items"]) && Array.isArray(v.items) && v.items.length >= 1 && v.items.length <= BATCH_OPERATION_LIMIT
       && v.items.every(item => exact(item, ["taskId", "expectedVersion", "viewerMembershipIds"], ["targetFamilyId"])
         && isUuid(item.taskId) && integer(item.expectedVersion, 1) && membershipIds(item.viewerMembershipIds)
         && (item.targetFamilyId === undefined || isUuid(item.targetFamilyId)))
@@ -260,7 +262,7 @@ export function isPersonalData<A extends PersonalAction>(action: A, v: unknown):
         && new Set(v.members.map(member => subjectKey(member.subject))).size === v.members.length
         : opaque(v.nextCursor) && v.members === null);
     case "task.batchAddViewers": return exact(v, ["complete", "results"]) && typeof v.complete === "boolean" && Array.isArray(v.results)
-      && v.results.length >= 1 && v.results.length <= 20 && v.results.every(isBatchItemResult)
+      && v.results.length >= 1 && v.results.length <= BATCH_OPERATION_LIMIT && v.results.every(isBatchItemResult)
       && new Set(v.results.map(item => item.taskId.toLowerCase())).size === v.results.length
       && v.complete === v.results.every(item => item.status !== "pending");
     case "task.update":

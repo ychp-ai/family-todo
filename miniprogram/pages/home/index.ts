@@ -1,3 +1,4 @@
+import { BATCH_OPERATION_LIMIT } from "../../shared/contracts";
 import { canComplete, completionRows, selectCompletion } from "../../services/batch-completion";
 import type { CompletionResult } from "../../services/batch-completion";
 import { occurrenceWarning } from "../../services/occurrence-warning";
@@ -25,7 +26,7 @@ function groups(items:Card[]) {return ["我来做","帮家人","关心一下"].m
 async function recordHomeCacheHit():Promise<void>{const parent=startListMetric("home.refresh");if(!parent)return;const children=[parent.child("family.list"),parent.child("task.list"),parent.child("reminder.list")];for(const child of children){child?.setSource("cache");child?.finish("success");}parent.setSource("cache");parent.finish("success");}
 Page({
   onComponentAction: componentActions(["batchFamilyChange", "batchViewersChange", "changeTab", "dismissReminder", "expand", "familyChange", "fullEditor", "futureFeature", "openReminders", "openTask", "pickDate", "quickDateChange", "quickFamilyChange", "quickNoteInput", "quickReminderChange", "quickRepeatChange", "quickSubjectChange", "quickTimeChange", "quickTitleInput", "quickViewersChange", "reminderDetail", "retryQuickFamily", "saveQuick", "toggleTask"]),
-  data: {batchAction:"complete",selectedOccurrences:[] as TaskListItem[],completionResults:[] as CompletionResult[],completionSubmitted:false,listRefreshing:false,refreshing:false,batchMode:false,selectedTasks:[] as TaskSummaryDTO[],selectedIds:[] as string[],batchGroups:[] as BatchGroup[],batchResults:[] as (BatchItemResult&{label:string})[],batchComplete:false,batchHasFailures:false,batchBusy:false,batchError:"",batchFamilyOptions:["请选择家庭"],statusHeight:0,navHeight:44,capsuleWidth:100,status:"loading",error:"",today:"",tomorrow:"",greeting:"",tab:"today",selectedDate:"",familyOptions:["全部家庭"],familyIndex:0,
+  data: {batchLimit:BATCH_OPERATION_LIMIT,batchAction:"complete",selectedOccurrences:[] as TaskListItem[],completionResults:[] as CompletionResult[],completionSubmitted:false,listRefreshing:false,refreshing:false,batchMode:false,selectedTasks:[] as TaskSummaryDTO[],selectedIds:[] as string[],batchGroups:[] as BatchGroup[],batchResults:[] as (BatchItemResult&{label:string})[],batchComplete:false,batchHasFailures:false,batchBusy:false,batchError:"",batchFamilyOptions:["请选择家庭"],statusHeight:0,navHeight:44,capsuleWidth:100,status:"loading",error:"",today:"",tomorrow:"",greeting:"",tab:"today",selectedDate:"",familyOptions:["全部家庭"],familyIndex:0,
     families:[] as FamilySummary[],groups:[] as {name:string;items:Card[]}[],pendingCount:0,quickFamilyIndex:0,quickFamilyOptions:["请选择家庭"],quickSubjectOptions:[] as SubjectOption[],quickSubjectNames:["自己"],quickSubjectIndex:0,quickRows:[] as PermissionRow[],quickNotice:"请选择所属家庭",quickLoading:false,items:[] as Card[],visibleItems:[] as Card[],backlog:[] as Card[],reminders:[] as (ReminderDTO & {id:string})[],reminderCount:0,reminderError:"",summaryText:"—",progress:0,hideCompleted:true,
     sheet:"",quickTitle:"",quickDate:"today",quickTime:"",quickRepeatIndex:0,quickRepeatOptions:["不重复","每天"],quickNote:"",quickReminder:true,expanded:false,quickError:"",quickSuccess:"",saving:false,uncertain:false,writing:false,writingKey:"",includeDismissed:false},
   quickIdentity:null as RecoveryIdentity|null,quickRecovery:null as InputRecovery|null,quickDirty:false,quickTransferred:false,batchEpoch:0,quickRoster:null as Roster|null,quickSubject:{kind:"self"} as Subject,quickEpoch:0,visible:false,alive:true,epoch:0,pendingWrite:null as null | {key:string;run:()=>Promise<unknown>;done:()=>void},lastRefresh:0,
@@ -148,6 +149,24 @@ Page({
       else {const selectedTasks=selectTask(this.data.selectedTasks,item.task);patchData(this, {selectedTasks,selectedIds:selectedTasks.map(t=>t.id),batchError:""});}
       this.updateBatchCards();
     }catch(error){patchData(this, {batchError:errorMessage(error)});}
+  },
+  selectAllTasks(event:WechatMiniprogram.TouchEvent){
+    if(!this.data.batchMode||this.data.batchBusy||this.data.writing||this.data.saving||this.data.listRefreshing||this.data.sheet||personalApi.pendingCount)return;
+    const visibleItems=groups(this.data.visibleItems).flatMap(group=>group.items);
+    if(event.currentTarget.dataset.clear){
+      patchData(this, {selectedOccurrences:[],selectedTasks:[],selectedIds:[],batchError:""});
+    }else if(this.data.batchAction==="complete"){
+      const selected=new Map(this.data.selectedOccurrences.map(item=>[item.occurrence.id,item]));
+      for(const item of visibleItems)if(canComplete(item))selected.set(item.occurrence.id,item);
+      patchData(this, {selectedOccurrences:[...selected.values()].slice(0,BATCH_OPERATION_LIMIT),batchError:selected.size>BATCH_OPERATION_LIMIT?"单次最多 100 次，已保留已选并按列表顺序选满。":""});
+    }else{
+      const selected=new Map(this.data.selectedTasks.map(task=>[task.id,task]));
+      for(const {task} of visibleItems)if(task.capabilities.canShare&&task.capabilities.canEdit)selected.set(task.id,task);
+      const selectedTasks=[...selected.values()].slice(0,BATCH_OPERATION_LIMIT);
+      patchData(this, {selectedTasks,selectedIds:selectedTasks.map(task=>task.id),batchError:selected.size>BATCH_OPERATION_LIMIT?"单次最多 100 项，已保留已选并按列表顺序选满。":""});
+    }
+    this.updateBatchCards();
+    if(this.data.batchError)wx.showToast({title:this.data.batchError,icon:"none"});
   },
   openCompletion(){
     if(!this.data.batchMode||this.data.batchAction!=="complete"||!this.data.selectedOccurrences.length||this.data.batchBusy||personalApi.pendingCount)return;

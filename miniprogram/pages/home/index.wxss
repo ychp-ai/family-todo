@@ -13,3 +13,6 @@
 @import "../../styles/redesign.wxss";
 
 .phone-bottom{padding-bottom:10px}
+
+.batch-selection-actions{display:flex;justify-content:space-between;gap:12px}
+.batch-selection-actions .text-button{min-height:44px;min-width:44px;margin:0}
